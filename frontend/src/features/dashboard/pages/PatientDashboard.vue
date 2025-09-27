@@ -71,8 +71,8 @@ onMounted(() => {
 <template>
     <div class="space-y-8 p-8">
         <!-- Dashboard Title -->
-        <div class="flex flex-col gap-1 py-4">
-            <h1 class="text-4xl font-bold tracking-tight">Welcome back, John!</h1>
+        <div class="flex flex-col gap-1">
+            <h1 class="text-3xl font-bold tracking-tight">Welcome back, John!</h1>
             <p class="text-muted-foreground">Here's what's happening with your health today.</p>
         </div>
 
@@ -110,7 +110,7 @@ onMounted(() => {
 
         <!-- Quick Actions -->
         <div class="grid gap-4 md:grid-cols-2">
-            <Card class="hover:bg-accent transition-colors cursor-pointer">
+            <Card class="border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50">
                 <RouterLink to="/patient/appointments/book" class="block">
                     <CardHeader>
                         <CardTitle class="flex items-center gap-2">
@@ -119,20 +119,20 @@ onMounted(() => {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p class="text-sm text-muted-foreground">Schedule your next visit</p>
+                        <p class="text-sm">Schedule your next visit</p>
                     </CardContent>
                 </RouterLink>
             </Card>
-            <Card class="hover:bg-accent transition-colors cursor-pointer">
+            <Card class="border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50">
                 <RouterLink to="/patient/medical-records" class="block">
                     <CardHeader>
                         <CardTitle class="flex items-center gap-2">
                             <Icon icon="lucide:file-text" class="w-4 h-4" />
-                            View Records
+                            View Medical Records
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p class="text-sm text-muted-foreground">Access your medical history</p>
+                        <p class="text-sm">Access your past appointments</p>
                     </CardContent>
                 </RouterLink>
             </Card>

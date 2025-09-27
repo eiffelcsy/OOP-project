@@ -1,0 +1,317 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useBookAppointment } from '../composables/useBookAppointment'
+import { Stepper, StepperItem, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from '@/components/ui/stepper'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Calendar } from '@/components/ui/calendar'
+import { CalendarDate, parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
+import { Icon } from '@iconify/vue'
+
+const {
+    currentStep,
+    bookingData,
+    clinicSearchQuery,
+    selectedClinicType,
+    selectedRegion,
+    filteredClinics,
+    availableDoctors,
+    availableSlots,
+    canProceedToNextStep,
+    isLastStep,
+    isFirstStep,
+    selectClinic,
+    selectDoctor,
+    selectDate,
+    selectTimeSlot,
+    nextStep,
+    previousStep,
+    confirmBooking
+} = useBookAppointment()
+
+const isBookingConfirmed = ref(false)
+
+const handleConfirmBooking = async () => {
+    const success = await confirmBooking()
+    if (success) {
+        isBookingConfirmed.value = true
+    }
+}
+
+const stepperItems = [
+    { title: 'Select Clinic', description: 'Choose your preferred clinic' },
+    { title: 'Choose Doctor', description: 'Select a doctor for your appointment' },
+    { title: 'Date & Time', description: 'Pick your preferred date and time' },
+    { title: 'Confirmation', description: 'Review and confirm your appointment' }
+]
+
+const clinicTypes = ['All', 'General', 'Specialist'] as const
+const regions = ['All', 'Central', 'West', 'East', 'North-East', 'North'] as const
+
+// Calendar setup
+const calendarValue = ref<CalendarDate>()
+
+const handleDateSelect = (date: DateValue | undefined) => {
+    if (date && date instanceof CalendarDate) {
+        calendarValue.value = date
+        selectDate(date)
+    }
+}
+</script>
+
+<template>
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold mb-2">Book an Appointment</h1>
+            <p class="text-muted-foreground">Follow the steps below to schedule an appointment</p>
+        </div>
+
+        <div class="mb-8">
+            <Stepper v-model="currentStep" class="w-full items-center">
+                <StepperItem v-for="(item, index) in stepperItems" :key="index" :step="index + 1" class="basis-1/4">
+                    <div class="p-1 flex flex-col items-center text-center gap-1 rounded-md">
+                        <StepperIndicator :step="index + 1">
+                            <Icon icon="lucide:hospital" v-if="index + 1 === 1" />
+                            <Icon icon="healthicons:doctor-outline" v-if="index + 1 === 2" />
+                            <Icon icon="lucide:calendar" v-if="index + 1 === 3" />
+                            <Icon icon="lucide:check" v-if="index + 1 === 4" />
+                        </StepperIndicator>
+                        <div class="flex flex-col items-center">
+                            <StepperTitle class="text-sm font-medium hidden sm:block">{{ item.title }}</StepperTitle>
+                            <StepperDescription class="text-xs text-muted-foreground hidden sm:block">
+                                {{ item.description }}
+                            </StepperDescription>
+                        </div>
+                    </div>
+                    <StepperSeparator v-if="index + 1 < stepperItems.length" class="w-full h-px"/>
+                </StepperItem>
+            </Stepper>
+        </div>
+
+        <!-- Step Content -->
+        <div class="min-h-[500px] flex h-full w-full">
+            <!-- Step 1: Select Clinic -->
+            <div v-if="currentStep === 1" class="space-y-6 w-full">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Select Clinic</CardTitle>
+                        <CardDescription>
+                            Search and filter clinics to find the one that best suits your needs
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="space-y-6">
+                        <!-- Search -->
+                        <div class="space-y-2">
+                            <Label for="clinic-search">Search clinics</Label>
+                            <div class="relative w-full max-w-sm items-center">
+                                <Input id="clinic-search" v-model="clinicSearchQuery"
+                                placeholder="Search by name, location, or address..." class="mt-1" />
+                                <Icon icon="lucide:search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label>Clinic Type</Label>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <Button v-for="type in clinicTypes" :key="type"
+                                        :variant="selectedClinicType === type ? 'default' : 'outline'" size="sm"
+                                        @click="selectedClinicType = type">
+                                        {{ type }}
+                                    </Button>
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Region</Label>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <Button v-for="region in regions" :key="region"
+                                        :variant="selectedRegion === region ? 'default' : 'outline'" size="sm"
+                                        @click="selectedRegion = region">
+                                        {{ region }}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <!-- Clinic Results -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Card v-for="clinic in filteredClinics" :key="clinic.id"
+                        class="cursor-pointer transition-colors hover:bg-muted/50"
+                        :class="{ 'ring-2 ring-primary': bookingData.clinic?.id === clinic.id }"
+                        @click="selectClinic(clinic)">
+                        <CardHeader>
+                            <CardTitle class="text-lg">{{ clinic.name }}</CardTitle>
+                            <CardDescription>
+                                <div class="space-y-1">
+                                    <p>{{ clinic.type }} • {{ clinic.region }}</p>
+                                    <p class="text-sm">{{ clinic.location }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ clinic.address }}</p>
+                                </div>
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </div>
+
+                <div v-if="filteredClinics.length === 0" class="text-center py-8">
+                    <p class="text-muted-foreground">No clinics found matching your criteria.</p>
+                </div>
+            </div>
+
+            <!-- Step 2: Choose Doctor -->
+            <div v-if="currentStep === 2" class="space-y-6 w-full">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Choose Doctor</CardTitle>
+                        <CardDescription>
+                            Select a doctor from {{ bookingData.clinic?.name }}
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Card v-for="doctor in availableDoctors" :key="doctor.id"
+                        class="cursor-pointer transition-colors hover:bg-muted/50"
+                        :class="{ 'ring-2 ring-primary': bookingData.doctor?.id === doctor.id }"
+                        @click="selectDoctor(doctor)">
+                        <CardHeader>
+                            <CardTitle class="text-lg">{{ doctor.name }}</CardTitle>
+                            <CardDescription>
+                                <div class="space-y-1">
+                                    <p class="font-medium">{{ doctor.specialization }}</p>
+                                    <p class="text-sm text-muted-foreground">{{ doctor.experience }}</p>
+                                </div>
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </div>
+
+                <div v-if="availableDoctors.length === 0" class="text-center py-8">
+                    <p class="text-muted-foreground">No doctors available at this clinic.</p>
+                </div>
+            </div>
+
+            <!-- Step 3: Date & Time -->
+            <div v-if="currentStep === 3" class="space-y-6 w-full">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Date & Time</CardTitle>
+                        <CardDescription>
+                            Select your preferred appointment date and time with {{ bookingData.doctor?.name }}
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+
+                <div class="flex gap-6">
+                    <!-- Calendar -->
+                    <Card>
+                        <CardHeader>
+                            <CardTitle class="text-lg">Select Date</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Calendar v-model="calendarValue" :min-value="today(getLocalTimeZone())"
+                                @update:model-value="handleDateSelect" class="rounded-md border p-6" />
+                        </CardContent>
+                    </Card>
+
+                    <!-- Time Slots -->
+                    <Card class="w-full">
+                        <CardHeader>
+                            <CardTitle class="text-lg">Available Time Slots</CardTitle>
+                            <CardDescription v-if="!bookingData.date">
+                                Please select a date first
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
+                                <Button v-for="slot in availableSlots" :key="slot.id"
+                                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
+                                    @click="selectTimeSlot(slot)">
+                                    {{ slot.time }}
+                                </Button>
+                            </div>
+                            <div v-else class="text-center py-8 text-muted-foreground">
+                                Select a date to view available time slots
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+
+            <!-- Step 4: Confirmation -->
+            <div v-if="currentStep === 4" class="space-y-6 flex-1">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Confirm Your Appointment</CardTitle>
+                        <CardDescription>
+                            Please review your appointment details before confirming
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class="space-y-4 flex flex-col justify-between">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-6">
+                                <div>
+                                    <Label class="text-sm font-medium">Clinic</Label>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.clinic?.name }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.clinic?.address }}</p>
+                                </div>
+                                <div>
+                                    <Label class="text-sm font-medium">Doctor</Label>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.doctor?.name }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.doctor?.specialization }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="space-y-6">
+                                <div>
+                                    <Label class="text-sm font-medium">Date</Label>
+                                    <p class="text-sm text-muted-foreground mt-1">
+                                        {{ bookingData.date?.toDate(getLocalTimeZone()).toLocaleDateString() }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <Label class="text-sm font-medium">Time</Label>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.time }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="!isBookingConfirmed" class="pt-4">
+                            <Button @click="handleConfirmBooking" class="w-full" size="lg">
+                                Confirm Appointment
+                            </Button>
+                        </div>
+
+                        <div v-else class="text-center py-8">
+                            <div class="text-green-600 mb-2">
+                                <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-semibold mb-2">Appointment Confirmed!</h3>
+                            <p class="text-muted-foreground">
+                                Your appointment has been successfully booked. You will receive a confirmation email
+                                shortly.
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex justify-between mt-8" v-if="!isBookingConfirmed">
+            <Button variant="outline" @click="previousStep" :disabled="isFirstStep">
+                Previous
+            </Button>
+            <Button @click="nextStep" :disabled="!canProceedToNextStep || isLastStep">
+                Next
+            </Button>
+        </div>
+    </div>
+</template>

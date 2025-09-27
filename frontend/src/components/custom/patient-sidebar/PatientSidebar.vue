@@ -35,8 +35,7 @@ import { Icon } from "@iconify/vue"
                 <Icon icon="lucide:hospital" class="size-6" />
               </div>
               <div class="flex flex-col gap-0.5 leading-none">
-                <span class="font-semibold">CliniQ</span>
-                <span class="text-xs text-muted-foreground">Appointments & Queue Management</span>
+                <span class="font-semibold text-xl">ClinicAMS</span>
               </div>
             </a>
           </SidebarMenuButton>
@@ -47,6 +46,14 @@ import { Icon } from "@iconify/vue"
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
+            <SidebarMenuItem key="Home">
+              <SidebarMenuButton as-child>
+                <a href="/patient/dashboard">
+                  <Icon icon="lucide:home" class="size-4" />
+                  <span>Home</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <Collapsible key="Appointments" title="Appointments" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>

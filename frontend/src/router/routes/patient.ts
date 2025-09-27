@@ -22,29 +22,29 @@ const patientRoutes: RouteRecordRaw[] = [
           breadcrumb: 'Dashboard'
         }
       },
-    //   {
-    //     path: 'appointments',
-    //     children: [
-    //       {
-    //         path: '',
-    //         name: 'PatientAppointments',
-    //         component: () => import('@/features/appointments/pages/AppointmentList.vue'),
-    //         meta: {
-    //           title: 'My Appointments',
-    //           breadcrumb: 'Appointments'
-    //         }
-    //       },
-    //       {
-    //         path: 'book',
-    //         name: 'BookAppointment',
-    //         component: () => import('@/features/appointments/pages/BookAppointment.vue'),
-    //         meta: {
-    //           title: 'Book Appointment',
-    //           breadcrumb: 'Book Appointment'
-    //         }
-    //       }
-    //     ]
-    //   },
+      {
+        path: 'appointments',
+        children: [
+          {
+            path: '',
+            name: 'PatientAppointments',
+            component: () => import('@/features/appointments/pages/ViewAppointments.vue'),
+            meta: {
+              title: 'My Appointments',
+              breadcrumb: 'Appointments'
+            }
+          },
+          {
+            path: 'book',
+            name: 'BookAppointment',
+            component: () => import('@/features/appointments/pages/BookAppointment.vue'),
+            meta: {
+              title: 'Book Appointment',
+              breadcrumb: 'Book Appointment'
+            }
+          }
+        ]
+      },
     //   {
     //     path: 'medical-records',
     //     name: 'PatientMedicalRecords',
