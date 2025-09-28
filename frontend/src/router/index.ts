@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import authRoutes from './routes/auth'
 import patientRoutes from './routes/patient'
 // import staffRoutes from './routes/staff'     // Future
-// import adminRoutes from './routes/admin'     // Future
+import adminRoutes from './routes/admin'     // Future
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -16,7 +16,7 @@ const router = createRouter({
     ...authRoutes,
     ...patientRoutes,
     // ...staffRoutes,
-    // ...adminRoutes,
+    ...adminRoutes,
     
     // TODO: Catch-all 404 route
     // {

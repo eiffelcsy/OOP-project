@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PatientSidebar } from '@/components/custom/patient-sidebar'
+import { AdminSidebar } from '@/components/custom/admin-sidebar'
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
@@ -18,38 +18,44 @@ interface BreadcrumbItem {
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
   
-  const isDashboard = route.name === 'PatientDashboard'
+  const isDashboard = route.name === 'AdminDashboard'
   items.push({
     title: 'Dashboard',
-    path: isDashboard ? undefined : '/patient/dashboard',
+    path: isDashboard ? undefined : '/admin/dashboard',
     isCurrentPage: isDashboard
   })
   
-  if (route.name === 'PatientAppointments') {
+  if (route.name === 'AdminUsers') {
     items.push({
-      title: 'My Appointments',
+      title: 'User Management',
       path: undefined,
       isCurrentPage: true
     })
-  } else if (route.name === 'BookAppointment') {
+  } else if (route.name === 'AdminClinics') {
     items.push({
-      title: 'My Appointments',
-      path: '/patient/appointments',
-      isCurrentPage: false
+      title: 'Clinic Management',
+      path: undefined,
+      isCurrentPage: true
     })
+  } else if (route.name === 'AdminSystemAlerts') {
     items.push({
-      title: 'Book Appointment',
+      title: 'System Alerts',
+      path: undefined,
+      isCurrentPage: true
+    })
+  } else if (route.name === 'AdminReports') {
+    items.push({
+      title: 'Reports & Analytics',
+      path: undefined,
+      isCurrentPage: true
+    })
+  } else if (route.name === 'AdminSettings') {
+    items.push({
+      title: 'System Settings',
       path: undefined,
       isCurrentPage: true
     })
   }
-//   } else if (route.name === 'PatientMedicalRecords') {
-//     items.push({
-//       title: 'Medical Records',
-//       path: undefined,
-//       isCurrentPage: true
-//     })
-//   }
   
   return items
 })
@@ -61,7 +67,7 @@ const navigateTo = (path: string) => {
 
 <template>
     <SidebarProvider>
-        <PatientSidebar />
+        <AdminSidebar />
         <SidebarInset>
             <main>
                 <header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -91,7 +97,7 @@ const navigateTo = (path: string) => {
                     </Breadcrumb>
                 </header>
 
-                <!-- Render Patient features based on the route -->
+                <!-- Render Admin features based on the route -->
                 <RouterView />
             </main>
         </SidebarInset>

@@ -36,7 +36,6 @@ import { Icon } from "@iconify/vue"
               </div>
               <div class="flex flex-col gap-0.5 leading-none">
                 <span class="font-semibold text-xl">ClinicAMS</span>
-                <span class="text-xs text-sidebar-muted-foreground">Patient Platform</span>
               </div>
             </a>
           </SidebarMenuButton>
@@ -47,11 +46,11 @@ import { Icon } from "@iconify/vue"
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem key="Dashboard">
+            <SidebarMenuItem key="Home">
               <SidebarMenuButton as-child>
                 <a href="/patient/dashboard">
-                  <Icon icon="lucide:layout-dashboard" class="size-4" />
-                  <span>Dashboard</span>
+                  <Icon icon="lucide:home" class="size-4" />
+                  <span>Home</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>

@@ -69,9 +69,10 @@ const handleDateSelect = (date: DateValue | undefined) => {
         </div>
 
         <div class="mb-8">
-            <Stepper v-model="currentStep" class="w-full items-center">
-                <StepperItem v-for="(item, index) in stepperItems" :key="index" :step="index + 1" class="basis-1/4">
-                    <div class="p-1 flex flex-col items-center text-center gap-1 rounded-md">
+            <Stepper v-model="currentStep" class="w-full items-center justify-center">
+                <StepperItem v-for="(item, index) in stepperItems" :key="index" :step="index + 1" 
+                    :class="index + 1 < stepperItems.length ? 'flex-1' : 'flex-none'">
+                    <div class="p-1 flex flex-col items-center text-center gap-1 rounded-md max-w-[10rem] mx-auto">
                         <StepperIndicator :step="index + 1">
                             <Icon icon="lucide:hospital" v-if="index + 1 === 1" />
                             <Icon icon="healthicons:doctor-outline" v-if="index + 1 === 2" />
@@ -85,7 +86,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             </StepperDescription>
                         </div>
                     </div>
-                    <StepperSeparator v-if="index + 1 < stepperItems.length" class="w-full h-px"/>
+                    <StepperSeparator v-if="index + 1 < stepperItems.length" class="flex-1 h-[2px]"/>
                 </StepperItem>
             </Stepper>
         </div>
@@ -96,7 +97,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
             <div v-if="currentStep === 1" class="space-y-6 w-full">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Select Clinic</CardTitle>
+                        <CardTitle class="text-lg">Select Clinic</CardTitle>
                         <CardDescription>
                             Search and filter clinics to find the one that best suits your needs
                         </CardDescription>

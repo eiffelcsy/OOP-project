@@ -84,7 +84,7 @@ onMounted(() => {
                 </CardHeader>
                 <CardContent>
                     <p class="text-2xl font-bold">{{ stats.nextAppointment.date }}, {{ stats.nextAppointment.time }}</p>
-                    <p class="text-sm text-muted-foreground">{{ stats.nextAppointment.doctorName }} - {{
+                    <p class="text-xs text-muted-foreground">{{ stats.nextAppointment.doctorName }} - {{
                         stats.nextAppointment.type }}</p>
                 </CardContent>
             </Card>
@@ -93,8 +93,8 @@ onMounted(() => {
                     <CardTitle>Upcoming Appointments</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p class="text-2xl font-bold">{{ stats.totalAppointments }}</p>
-                    <p class="text-sm text-muted-foreground">This month</p>
+                    <p class="text-2xl font-bold mb-1">{{ stats.totalAppointments }}</p>
+                    <p class="text-xs text-muted-foreground">This month</p>
                 </CardContent>
             </Card>
             <Card>
@@ -102,8 +102,8 @@ onMounted(() => {
                     <CardTitle>Notifications</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p class="text-2xl font-bold">{{ stats.unreadNotifications }}</p>
-                    <p class="text-sm text-muted-foreground">Unread Notifications</p>
+                    <p class="text-2xl font-bold mb-1">{{ stats.unreadNotifications }}</p>
+                    <p class="text-xs text-muted-foreground">Unread Notifications</p>
                 </CardContent>
             </Card>
         </div>
@@ -114,12 +114,12 @@ onMounted(() => {
                 <RouterLink to="/patient/appointments/book" class="block">
                     <CardHeader>
                         <CardTitle class="flex items-center gap-2">
-                            <Icon icon="lucide:calendar-plus" class="w-4 h-4" />
+                            <Icon icon="lucide:calendar-plus" class="size-4" />
                             Book Appointment
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p class="text-sm">Schedule your next visit</p>
+                        <p class="text-sm text-muted-foreground">Schedule your next visit</p>
                     </CardContent>
                 </RouterLink>
             </Card>
@@ -127,12 +127,12 @@ onMounted(() => {
                 <RouterLink to="/patient/medical-records" class="block">
                     <CardHeader>
                         <CardTitle class="flex items-center gap-2">
-                            <Icon icon="lucide:file-text" class="w-4 h-4" />
+                            <Icon icon="lucide:file-text" class="size-4" />
                             View Medical Records
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p class="text-sm">Access your past appointments</p>
+                        <p class="text-sm text-muted-foreground">Access your past appointments</p>
                     </CardContent>
                 </RouterLink>
             </Card>
@@ -141,7 +141,7 @@ onMounted(() => {
         <!-- Recent Appointments -->
         <Card>
             <CardHeader class="border-b">
-                <CardTitle class="text-xl">Recent Appointments</CardTitle>
+                <CardTitle>Recent Appointments</CardTitle>
             </CardHeader>
             <CardContent>
                 <div v-for="appointment in upcomingAppointments.slice(0, 3)" :key="appointment.id"
