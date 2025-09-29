@@ -30,12 +30,13 @@ import { Icon } from "@iconify/vue"
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="xl" as-child>
-            <a href="/patient/dashboard">
+            <a href="/staff/dashboard">
               <div class="flex aspect-square size-10 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Icon icon="lucide:hospital" class="size-6" />
+                <Icon icon="lucide:hospital" class="size-6 stroke-1" />
               </div>
               <div class="flex flex-col gap-0.5 leading-none">
                 <span class="font-semibold text-xl">ClinicAMS</span>
+                <span class="text-xs text-sidebar-muted-foreground">Staff Portal</span>
               </div>
             </a>
           </SidebarMenuButton>
@@ -46,14 +47,24 @@ import { Icon } from "@iconify/vue"
       <SidebarGroup>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SidebarMenuItem key="Home">
+            <SidebarMenuItem key="Dashboard">
               <SidebarMenuButton as-child>
-                <a href="/patient/dashboard">
-                  <Icon icon="lucide:home" class="size-4" />
-                  <span>Home</span>
+                <a href="/staff/dashboard">
+                  <Icon icon="lucide:layout-dashboard" class="size-4" />
+                  <span>Dashboard</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            
+            <SidebarMenuItem key="QueueManagement">
+              <SidebarMenuButton as-child>
+                <a href="/staff/queue">
+                  <Icon icon="lucide:users" class="size-4" />
+                  <span>Queue Management</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+
             <Collapsible key="Appointments" title="Appointments" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>
@@ -68,17 +79,25 @@ import { Icon } from "@iconify/vue"
                   <SidebarMenuSub>
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild>
-                        <a href="/patient/appointments">
-                          <Icon icon="lucide:eye" class="size-4" />
-                          <span>My Appointments</span>
+                        <a href="/staff/appointments">
+                          <Icon icon="lucide:calendar" class="size-4" />
+                          <span>Today's Appointments</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild>
-                        <a href="/patient/appointments/book">
+                        <a href="/staff/appointments/schedule">
                           <Icon icon="lucide:calendar-plus" class="size-4" />
-                          <span>Book Appointment</span>
+                          <span>Schedule Walk-in</span>
+                        </a>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <a href="/staff/appointments/history">
+                          <Icon icon="lucide:history" class="size-4" />
+                          <span>Appointment History</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
@@ -86,11 +105,12 @@ import { Icon } from "@iconify/vue"
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
-            <SidebarMenuItem key="MedicalRecords">
+
+            <SidebarMenuItem key="Reports">
               <SidebarMenuButton asChild>
-                <a href="/patient/medical-records">
-                  <Icon icon="lucide:file-text" class="size-4" />
-                  <span>Medical Records</span>
+                <a href="/staff/reports">
+                  <Icon icon="lucide:bar-chart" class="size-4" />
+                  <span>Reports</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -103,13 +123,13 @@ import { Icon } from "@iconify/vue"
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" as-child>
-            <a href="/patient/profile">
+            <a href="/staff/profile">
               <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <Icon icon="lucide:user" class="size-4" />
               </div>
               <div class="flex flex-col gap-0.5 leading-none">
-                <span class="font-semibold">John Doe</span> <!-- replace with user name -->
-                <span class="">john.doe@example.com</span> <!-- replace with user email -->
+                <span class="font-semibold">Sarah Johnson</span> <!-- replace with user name -->
+                <span class="">sarah.johnson@clinic.com</span> <!-- replace with user email -->
               </div>
               <Icon icon="lucide:chevrons-up-down" class="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
             </a>

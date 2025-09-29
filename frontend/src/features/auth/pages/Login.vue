@@ -18,17 +18,17 @@ const roles = [
   {
     id: 'patient' as UserRole,
     name: 'Patient',
-    icon: 'material-symbols:inpatient-outline-rounded',
+    icon: 'material-symbols-light:inpatient-outline-rounded',
   },
   {
     id: 'staff' as UserRole,
     name: 'Staff',
-    icon: 'material-symbols:id-card-outline-rounded',
+    icon: 'material-symbols-light:id-card-outline-rounded',
   },
   {
     id: 'admin' as UserRole,
     name: 'Admin',
-    icon: 'material-symbols:admin-panel-settings-outline-rounded',
+    icon: 'material-symbols-light:admin-panel-settings-outline-rounded',
   }
 ]
 
@@ -76,7 +76,7 @@ const handleLogin = () => {
           ]"
         >
           <div class="flex flex-col items-center gap-2">
-            <Icon :icon="role.icon" width="48" height="48" />
+            <Icon :icon="role.icon" width="48" height="48" class="stroke-1" />
             <div 
               :class="[
                 'font-medium text-sm transition-colors',
