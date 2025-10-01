@@ -75,7 +75,7 @@ public class AuthController {
 }
 ```
 
-### 2. **Manager Layer** (`manager/`)
+### 2. **Application Layer** (`manager/`)
 - **Purpose**: Complex business logic coordination, orchestrates services in the service layer (see below)
 - **When to use**: When business logic involves multiple services or complex operations
 
