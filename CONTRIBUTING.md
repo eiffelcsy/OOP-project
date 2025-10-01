@@ -58,8 +58,8 @@ backend/
 
 Our application follows the **layered architecture** pattern, which is the standard approach in Spring Boot applications:
 
-### 1. **Controller Layer** (`controller/`)
-- **Purpose**: Handle HTTP requests and responses
+### 1. **Controller Layer** (`controller/`) (equivalent to Router in other frameworks)
+- **Purpose**: Handle HTTP requests and responses, define endpoints
 - **Responsibilities**: 
   - Receive HTTP requests
   - Validate request parameters
@@ -75,7 +75,11 @@ public class AuthController {
 }
 ```
 
-### 2. **Service Layer** (`service/`)
+### 2. **Manager Layer** (`manager/`)
+- **Purpose**: Complex business logic coordination, orchestrates services in the service layer (see below)
+- **When to use**: When business logic involves multiple services or complex operations
+
+### 3. **Service Layer** (`service/`)
 - **Purpose**: Business logic implementation
 - **Responsibilities**:
   - Implement business rules
@@ -91,7 +95,7 @@ public class AuthService {
 }
 ```
 
-### 3. **Repository Layer** (`repository/`)
+### 4. **Repository Layer** (`repository/`)
 - **Purpose**: Data access and persistence
 - **Responsibilities**:
   - Database operations (CRUD)
@@ -106,7 +110,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 }
 ```
 
-### 4. **Model Layer** (`model/`)
+### 5. **Model Layer** (`model/`)
 - **Purpose**: Entity definitions
 - **Responsibilities**:
   - Define database structure
@@ -120,10 +124,6 @@ public class User {
     // Entity fields and relationships
 }
 ```
-
-### 5. **Manager Layer** (`manager/`)
-- **Purpose**: Complex business logic coordination
-- **When to use**: When business logic involves multiple services or complex operations
 
 ### 6. **DTO** (`dto/`)
 - **Purpose**: Data transfer between layers
@@ -211,12 +211,12 @@ cd backend
 
 **Step-by-step process:**
 
-1. **Create a new branch**:
+1. **Create a new branch** (optional):
    ```bash
    git checkout -b feature/appointment-management
    ```
 
-2. **Add the entity** (if needed):
+2. **Add the entity** (if needed and not already implemented):
    ```java
    // In model/ directory
    @Entity
@@ -226,7 +226,7 @@ cd backend
    }
    ```
 
-3. **Create the repository**:
+3. **Create the repository** (to link to database):
    ```java
    // In repository/ directory
    public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
@@ -234,7 +234,7 @@ cd backend
    }
    ```
 
-4. **Implement the service**:
+4. **Implement the service** (any logic, CRUD):
    ```java
    // In service/ directory
    @Service
@@ -244,7 +244,7 @@ cd backend
    }
    ```
 
-5. **Create DTOs**:
+5. **Create DTOs** (validation):
    ```java
    // In dto/request/ and dto/response/
    public class CreateAppointmentRequest {
@@ -252,7 +252,7 @@ cd backend
    }
    ```
 
-6. **Add the controller**:
+6. **Add the controller** (add REST endpoints for your logic, start with this in mind but do this last):
    ```java
    // In controller/ directory
    @RestController
@@ -261,8 +261,6 @@ cd backend
        // REST endpoints
    }
    ```
-
-7. **Write tests** (see Testing Guidelines below)
 
 8. **Update documentation** if needed
 
@@ -277,37 +275,11 @@ cd backend
 - **Security configurations**: Update `SecurityConfig.java`
 - **Environment variables**: Add to .env files
 
-## Testing Guidelines
-
-### Test Structure
-```
-src/test/java/com/clinic/management/
-├── controller/     # Controller integration tests
-├── service/        # Service unit tests
-├── repository/     # Repository tests
-└── integration/    # End-to-end tests
-```
+## Testing
 
 ### Writing Tests
 
-1. **Unit Tests** (Service layer):
-   ```java
-   @ExtendWith(MockitoExtension.class)
-   class AuthServiceTest {
-       @Mock
-       private UserRepository userRepository;
-       
-       @InjectMocks
-       private AuthService authService;
-       
-       @Test
-       void shouldCreateUserSuccessfully() {
-           // Test implementation
-       }
-   }
-   ```
-
-2. **Integration Tests** (Controller layer):
+1. **Integration Tests** (Controller layer):
    ```java
    @SpringBootTest
    @AutoConfigureTestDatabase
@@ -330,9 +302,6 @@ src/test/java/com/clinic/management/
 
 # Run specific test class
 ./mvnw test -Dtest=AuthServiceTest
-
-# Run tests with coverage
-./mvnw jacoco:report
 ```
 
 ## Common Patterns
