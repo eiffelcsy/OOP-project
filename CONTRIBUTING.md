@@ -1,6 +1,6 @@
 # Contributing Guide
 
-This README explains how the project is structured, where and how to add code, and how to keep things consistent. It is intended to be used as a guide for teammates who are new to Spring Boot and Java web application development.
+This README explains how the project is structured, where and how to add code, and how to keep things consistent.
 
 ## Table of Contents
 
