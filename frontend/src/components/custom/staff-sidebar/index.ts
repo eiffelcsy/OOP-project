@@ -1,0 +1,1 @@
+export { default as StaffSidebar } from "./StaffSidebar.vue"

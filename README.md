@@ -1,6 +1,6 @@
 # OOP Project: Clinic Appointment & Queue Management System
 
-A Spring Boot application for managing clinic appointments and queues.
+A Spring Boot application for managing clinic appointments and queues. Check out [docs](https://github.com/eiffelcsy/OOP-project/tree/main/docs) for comprehensive documentation.
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ A Spring Boot application for managing clinic appointments and queues.
 Create environment files:
 - See **.env.backend.example** and **.env.frontend.example** for templates, replace the values for the variables accordingly.
 
-### 2. Run with Docker (Recommended)
+### 2. Run with Docker
 
 ```bash
 # Build containers
@@ -39,4 +39,4 @@ docker compose down
 
 ## Database
 
-The application uses Supabase PostgreSQL database, which is a managed PostgreSQL database in the cloud. The public connection string and anon key is included in the **.env.backend.example** file, if service role API key is needed, please contact eiffelchongsy@gmail.com
+The application uses Supabase PostgreSQL database, which is a managed PostgreSQL database in the cloud. The public connection string and anon key is included in the **.env.backend.example** file, if service role API key is needed, please contact eiffelchong.2023@scis.smu.edu.sg
