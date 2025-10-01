@@ -44,22 +44,6 @@ const systemUsage = ref({
   }
 })
 
-// System Alerts Data
-const systemAlerts = ref([
-  {
-    id: 1,
-    level: 'info',
-    message: 'Scheduled maintenance in 3 days',
-    timestamp: '1 hour ago'
-  },
-  {
-    id: 2,
-    level: 'warning',
-    message: 'High database query volume detected',
-    timestamp: '2 hours ago'
-  }
-])
-
 // Recent Activity Data
 const recentActivity = ref([
   {
@@ -126,7 +110,7 @@ const quickActions = [
   {
     title: 'Add New Clinic',
     description: 'Register new healthcare facility',
-    icon: 'lucide:building-2',
+    icon: 'lucide:plus',
     action: () => handleAddClinic()
   },
   {
@@ -136,7 +120,7 @@ const quickActions = [
     action: () => handleViewAlerts()
   },
   {
-    title: 'Access User Search',
+    title: 'Search Users',
     description: 'Find and manage users',
     icon: 'lucide:search',
     action: () => handleUserSearch()

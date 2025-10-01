@@ -45,15 +45,15 @@ const patientRoutes: RouteRecordRaw[] = [
           }
         ]
       },
-    //   {
-    //     path: 'medical-records',
-    //     name: 'PatientMedicalRecords',
-    //     component: () => import('@/features/medical-records/pages/RecordsList.vue'),
-    //     meta: {
-    //       title: 'Medical Records',
-    //       breadcrumb: 'Medical Records'
-    //     }
-    //   }
+      {
+        path: 'medical-records',
+        name: 'PatientMedicalRecords',
+        component: () => import('@/features/medical-records/pages/PatientMedicalRecords.vue'),
+        meta: {
+          title: 'Medical Records',
+          breadcrumb: 'Medical Records'
+        }
+      }
     ]
   }
 ]

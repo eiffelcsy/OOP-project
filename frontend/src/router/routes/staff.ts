@@ -33,11 +33,29 @@ const staffRoutes: RouteRecordRaw[] = [
       },
       {
         path: 'appointments',
-        name: 'StaffAppointments',
-        component: () => import('@/features/appointments/pages/StaffAppointments.vue'),
+        name: 'StaffTodaysAppointments',
+        component: () => import('@/features/appointments/pages/StaffTodaysAppointments.vue'),
         meta: {
           title: 'Appointments',
           breadcrumb: 'Appointments'
+        }
+      },
+      {
+        path: 'appointments/schedule',
+        name: 'ScheduleWalkIn',
+        component: () => import('@/features/appointments/pages/ScheduleWalkIn.vue'),
+        meta: {
+          title: 'Schedule Walk-in',
+          breadcrumb: 'Schedule Walk-in'
+        }
+      },
+      {
+        path: 'reports',
+        name: 'StaffReports',
+        component: () => import('@/features/reports/pages/StaffReports.vue'),
+        meta: {
+          title: 'Reports',
+          breadcrumb: 'Reports'
         }
       }
     ]
@@ -45,3 +63,4 @@ const staffRoutes: RouteRecordRaw[] = [
 ]
 
 export default staffRoutes
+

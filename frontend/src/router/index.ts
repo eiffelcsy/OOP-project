@@ -13,6 +13,16 @@ const router = createRouter({
       redirect: '/login'
     },
     
+    // Queue Display Route (public access for waiting area)
+    {
+      path: '/queue-display/:queueId',
+      name: 'QueueDisplay',
+      component: () => import('@/features/queue-display/pages/QueueDisplay.vue'),
+      meta: {
+        title: 'Queue Display'
+      }
+    },
+    
     ...authRoutes,
     ...patientRoutes,
     ...staffRoutes,

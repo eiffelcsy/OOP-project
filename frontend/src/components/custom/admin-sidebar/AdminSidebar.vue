@@ -66,7 +66,7 @@ import { Icon } from "@iconify/vue"
         <SidebarGroupLabel>Management</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <Collapsible key="UserManagement" title="User Management" class="group/collapsible">
+            <Collapsible key="UserManagement" title="User Management" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>
                   <SidebarMenuButton>
@@ -107,7 +107,7 @@ import { Icon } from "@iconify/vue"
               </SidebarMenuItem>
             </Collapsible>
 
-            <Collapsible key="ClinicManagement" title="Clinic Management" class="group/collapsible">
+            <Collapsible key="ClinicManagement" title="Clinic Management" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>
                   <SidebarMenuButton>

@@ -25,20 +25,20 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
     isCurrentPage: isDashboard
   })
   
-  if (route.name === 'StaffAppointments') {
+  if (route.name === 'StaffTodaysAppointments') {
     items.push({
       title: 'Appointments',
       path: undefined,
       isCurrentPage: true
     })
-  } else if (route.name === 'StaffAppointmentSchedule') {
+  } else if (route.name === 'ScheduleWalkIn') {
     items.push({
       title: 'Appointments',
       path: '/staff/appointments',
       isCurrentPage: false
     })
     items.push({
-      title: 'Schedule Appointment',
+      title: 'Schedule Walk-in',
       path: undefined,
       isCurrentPage: true
     })
@@ -56,23 +56,6 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   } else if (route.name === 'QueueManagement') {
     items.push({
       title: 'Queue Management',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'StaffPatients') {
-    items.push({
-      title: 'Patients',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'StaffPatientRegister') {
-    items.push({
-      title: 'Patients',
-      path: '/staff/patients',
-      isCurrentPage: false
-    })
-    items.push({
-      title: 'Register Patient',
       path: undefined,
       isCurrentPage: true
     })
