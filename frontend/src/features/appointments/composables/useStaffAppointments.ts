@@ -1,29 +1,38 @@
 import { ref, computed } from 'vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
+import type { 
+  AppointmentWithDetails, 
+  Doctor, 
+  AppointmentStatus 
+} from '@/types/database'
 
-// Types
+// Extended appointment interface for staff view
 export interface StaffAppointment {
-  id: string
+  id: number
   patientName: string
-  patientId: string
+  patientId: number
   doctorName: string
-  doctorId: string
+  doctorId: number
   time: string
   duration: number // in minutes
   type: string
-  status: 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'no-show' | 'cancelled'
+  status: AppointmentStatus
   queueNumber?: number
   notes?: string
   patientPhone?: string
   specialInstructions?: string
   checkInTime?: string
   completedTime?: string
+  // Database fields (optional for UI mock data)
+  clinic_id?: number | null
+  time_slot_id?: number | null
+  treatment_summary?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
-export interface Doctor {
-  id: string
-  name: string
-  specialization: string
+// Extended doctor interface for staff view
+export interface StaffDoctor extends Doctor {
   color: string // for UI theming
 }
 
@@ -58,45 +67,60 @@ export const useStaffAppointments = () => {
   // Sample doctors data
   const doctors = ref<Doctor[]>([
     {
-      id: '1',
+      id: 1,
       name: 'Dr. Sarah Lim',
-      specialization: 'General Medicine',
-      color: 'blue'
+      specialty: 'General Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '2',
+      id: 2,
       name: 'Dr. Jennifer Wong',
-      specialization: 'Internal Medicine',
-      color: 'green'
+      specialty: 'Internal Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '3',
+      id: 3,
       name: 'Dr. Rachel Lee',
-      specialization: 'Family Medicine',
-      color: 'purple'
+      specialty: 'Family Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '4',
+      id: 4,
       name: 'Dr. Kevin Lau',
-      specialization: 'General Surgery',
-      color: 'orange'
+      specialty: 'General Surgery',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '5',
+      id: 5,
       name: 'Dr. Michael Tan',
-      specialization: 'Pediatrics',
-      color: 'pink'
+      specialty: 'Pediatrics',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
   ])
 
   // Today's appointments data (simulated for current date)
   const todaysAppointments = ref<StaffAppointment[]>([
     {
-      id: '1',
+      id: 1,
       patientName: 'John Smith',
-      patientId: 'P001',
+      patientId: 1,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '09:00',
       duration: 30,
       type: 'General Checkup',
@@ -107,11 +131,11 @@ export const useStaffAppointments = () => {
       checkInTime: '08:45'
     },
     {
-      id: '2',
+      id: 2,
       patientName: 'Emily Johnson',
-      patientId: 'P002',
+      patientId: 2,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '09:30',
       duration: 30,
       type: 'Follow-up',
@@ -120,11 +144,11 @@ export const useStaffAppointments = () => {
       specialInstructions: 'Patient has anxiety about blood tests'
     },
     {
-      id: '3',
+      id: 3,
       patientName: 'Michael Brown',
-      patientId: 'P003',
+      patientId: 3,
       doctorName: 'Dr. Jennifer Wong',
-      doctorId: '2',
+      doctorId: 2,
       time: '10:00',
       duration: 45,
       type: 'Consultation',
@@ -134,11 +158,11 @@ export const useStaffAppointments = () => {
       checkInTime: '09:45'
     },
     {
-      id: '4',
+      id: 4,
       patientName: 'Sarah Davis',
-      patientId: 'P004',
+      patientId: 4,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '10:30',
       duration: 30,
       type: 'Blood Test Review',
@@ -146,11 +170,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8123 4567'
     },
     {
-      id: '5',
+      id: 5,
       patientName: 'Robert Wilson',
-      patientId: 'P005',
+      patientId: 5,
       doctorName: 'Dr. Rachel Lee',
-      doctorId: '3',
+      doctorId: 3,
       time: '11:00',
       duration: 30,
       type: 'Vaccination',
@@ -161,11 +185,11 @@ export const useStaffAppointments = () => {
       completedTime: '11:25'
     },
     {
-      id: '6',
+      id: 6,
       patientName: 'Lisa Anderson',
-      patientId: 'P006',
+      patientId: 6,
       doctorName: 'Dr. Jennifer Wong',
-      doctorId: '2',
+      doctorId: 2,
       time: '11:30',
       duration: 30,
       type: 'General Checkup',
@@ -173,11 +197,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8345 6789'
     },
     {
-      id: '7',
+      id: 7,
       patientName: 'Thomas Garcia',
-      patientId: 'P007',
+      patientId: 7,
       doctorName: 'Dr. Kevin Lau',
-      doctorId: '4',
+      doctorId: 4,
       time: '14:00',
       duration: 60,
       type: 'Pre-surgical Consultation',
@@ -188,11 +212,11 @@ export const useStaffAppointments = () => {
       specialInstructions: 'Fasting required before surgery'
     },
     {
-      id: '8',
+      id: 8,
       patientName: 'Maria Rodriguez',
-      patientId: 'P008',
+      patientId: 8,
       doctorName: 'Dr. Rachel Lee',
-      doctorId: '3',
+      doctorId: 3,
       time: '14:30',
       duration: 30,
       type: 'Follow-up',
@@ -200,11 +224,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8567 8901'
     },
     {
-      id: '9',
+      id: 9,
       patientName: 'James Taylor',
-      patientId: 'P009',
+      patientId: 9,
       doctorName: 'Dr. Michael Tan',
-      doctorId: '5',
+      doctorId: 5,
       time: '15:00',
       duration: 45,
       type: 'Pediatric Checkup',
@@ -214,11 +238,11 @@ export const useStaffAppointments = () => {
       notes: 'Child patient, parent required'
     },
     {
-      id: '10',
+      id: 10,
       patientName: 'Amy Chen',
-      patientId: 'P010',
+      patientId: 10,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '15:30',
       duration: 30,
       type: 'General Checkup',
@@ -226,11 +250,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8789 0123'
     },
     {
-      id: '11',
+      id: 11,
       patientName: 'David Kim',
-      patientId: 'P011',
+      patientId: 11,
       doctorName: 'Dr. Jennifer Wong',
-      doctorId: '2',
+      doctorId: 2,
       time: '16:00',
       duration: 30,
       type: 'Lab Results Review',
@@ -238,11 +262,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 9890 1234'
     },
     {
-      id: '12',
+      id: 12,
       patientName: 'Sophie Martin',
-      patientId: 'P012',
+      patientId: 12,
       doctorName: 'Dr. Kevin Lau',
-      doctorId: '4',
+      doctorId: 4,
       time: '16:30',
       duration: 30,
       type: 'Post-operative Check',
@@ -251,11 +275,11 @@ export const useStaffAppointments = () => {
     },
     // Additional appointments to demonstrate multiple appointments in same time slots
     {
-      id: '13',
+      id: 13,
       patientName: 'Peter Wong',
-      patientId: 'P013',
+      patientId: 13,
       doctorName: 'Dr. Rachel Lee',
-      doctorId: '3',
+      doctorId: 3,
       time: '09:00',
       duration: 30,
       type: 'Blood Pressure Check',
@@ -264,11 +288,11 @@ export const useStaffAppointments = () => {
       notes: 'Regular monitoring appointment'
     },
     {
-      id: '14',
+      id: 14,
       patientName: 'Linda Tan',
-      patientId: 'P014',
+      patientId: 14,
       doctorName: 'Dr. Michael Tan',
-      doctorId: '5',
+      doctorId: 5,
       time: '09:00',
       duration: 45,
       type: 'Child Development Assessment',
@@ -279,11 +303,11 @@ export const useStaffAppointments = () => {
       specialInstructions: 'Bring child\'s vaccination record'
     },
     {
-      id: '15',
+      id: 15,
       patientName: 'Alex Kumar',
-      patientId: 'P015',
+      patientId: 15,
       doctorName: 'Dr. Jennifer Wong',
-      doctorId: '2',
+      doctorId: 2,
       time: '10:30',
       duration: 30,
       type: 'Diabetes Follow-up',
@@ -291,11 +315,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 9234 5678'
     },
     {
-      id: '16',
+      id: 16,
       patientName: 'Grace Lim',
-      patientId: 'P016',
+      patientId: 16,
       doctorName: 'Dr. Michael Tan',
-      doctorId: '5',
+      doctorId: 5,
       time: '10:30',
       duration: 30,
       type: 'Pediatric Consultation',
@@ -306,11 +330,11 @@ export const useStaffAppointments = () => {
       notes: 'First-time patient'
     },
     {
-      id: '17',
+      id: 17,
       patientName: 'Daniel Lee',
-      patientId: 'P017',
+      patientId: 17,
       doctorName: 'Dr. Kevin Lau',
-      doctorId: '4',
+      doctorId: 4,
       time: '11:00',
       duration: 60,
       type: 'Surgical Consultation',
@@ -319,11 +343,11 @@ export const useStaffAppointments = () => {
       specialInstructions: 'Bring previous X-ray results'
     },
     {
-      id: '18',
+      id: 18,
       patientName: 'Michelle Chen',
-      patientId: 'P018',
+      patientId: 18,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '14:00',
       duration: 30,
       type: 'Annual Physical',
@@ -331,11 +355,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8567 8901'
     },
     {
-      id: '19',
+      id: 19,
       patientName: 'Ryan Ng',
-      patientId: 'P019',
+      patientId: 19,
       doctorName: 'Dr. Rachel Lee',
-      doctorId: '3',
+      doctorId: 3,
       time: '14:00',
       duration: 30,
       type: 'Allergy Testing',
@@ -345,11 +369,11 @@ export const useStaffAppointments = () => {
       checkInTime: '13:45'
     },
     {
-      id: '20',
+      id: 20,
       patientName: 'Catherine Wee',
-      patientId: 'P020',
+      patientId: 20,
       doctorName: 'Dr. Jennifer Wong',
-      doctorId: '2',
+      doctorId: 2,
       time: '15:00',
       duration: 30,
       type: 'Hypertension Review',
@@ -357,11 +381,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8789 0123'
     },
     {
-      id: '21',
+      id: 21,
       patientName: 'Benjamin Tay',
-      patientId: 'P021',
+      patientId: 21,
       doctorName: 'Dr. Kevin Lau',
-      doctorId: '4',
+      doctorId: 4,
       time: '15:00',
       duration: 45,
       type: 'Pre-operative Assessment',
@@ -370,11 +394,11 @@ export const useStaffAppointments = () => {
       specialInstructions: 'NPO (nothing by mouth) after midnight'
     },
     {
-      id: '22',
+      id: 22,
       patientName: 'Stephanie Goh',
-      patientId: 'P022',
+      patientId: 22,
       doctorName: 'Dr. Sarah Lim',
-      doctorId: '1',
+      doctorId: 1,
       time: '16:00',
       duration: 30,
       type: 'Medication Review',
@@ -382,11 +406,11 @@ export const useStaffAppointments = () => {
       patientPhone: '+65 8901 2345'
     },
     {
-      id: '23',
+      id: 23,
       patientName: 'Marcus Loh',
-      patientId: 'P023',
+      patientId: 23,
       doctorName: 'Dr. Rachel Lee',
-      doctorId: '3',
+      doctorId: 3,
       time: '16:00',
       duration: 30,
       type: 'Wound Care Follow-up',
@@ -397,11 +421,11 @@ export const useStaffAppointments = () => {
       completedTime: '16:25'
     },
     {
-      id: '24',
+      id: 24,
       patientName: 'Vivian Koh',
-      patientId: 'P024',
+      patientId: 24,
       doctorName: 'Dr. Michael Tan',
-      doctorId: '5',
+      doctorId: 5,
       time: '16:30',
       duration: 30,
       type: 'Immunization',
@@ -413,7 +437,7 @@ export const useStaffAppointments = () => {
 
   // Computed properties
   const appointmentsByDoctor = computed(() => {
-    const grouped = new Map<string, StaffAppointment[]>()
+    const grouped = new Map<number, StaffAppointment[]>()
     
     todaysAppointments.value.forEach(appointment => {
       const doctorId = appointment.doctorId
@@ -460,7 +484,7 @@ export const useStaffAppointments = () => {
   )
 
   // Actions
-  const checkInPatient = async (appointmentId: string) => {
+  const checkInPatient = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
     if (!appointment || appointment.status !== 'scheduled') {
       return false
@@ -496,7 +520,7 @@ export const useStaffAppointments = () => {
     }
   }
 
-  const markNoShow = async (appointmentId: string) => {
+  const markNoShow = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
     if (!appointment) {
       return false
@@ -515,7 +539,7 @@ export const useStaffAppointments = () => {
     }
   }
 
-  const markCompleted = async (appointmentId: string) => {
+  const markCompleted = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
     if (!appointment) {
       return false
@@ -539,7 +563,7 @@ export const useStaffAppointments = () => {
     }
   }
 
-  const cancelAppointment = async (appointmentId: string) => {
+  const cancelAppointment = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
     if (!appointment) {
       return false
@@ -552,24 +576,6 @@ export const useStaffAppointments = () => {
       console.error('Cancel appointment failed:', error)
       return false
     }
-  }
-
-  // Utility functions
-  const getStatusColor = (status: StaffAppointment['status']) => {
-    const colors = {
-      'scheduled': 'bg-gray-100 text-gray-800 border-gray-200',
-      'checked-in': 'bg-gray-200 text-gray-900 border-gray-300',
-      'in-progress': 'bg-gray-800 text-white border-gray-800',
-      'completed': 'bg-gray-600 text-white border-gray-600',
-      'no-show': 'bg-gray-400 text-white border-gray-400',
-      'cancelled': 'bg-gray-300 text-gray-700 border-gray-300'
-    }
-    return colors[status] || colors.scheduled
-  }
-
-  const getDoctorColor = (doctorId: string) => {
-    const doctor = doctors.value.find(d => d.id === doctorId)
-    return doctor?.color || 'gray'
   }
 
   const formatTime = (time: string) => {
@@ -623,8 +629,6 @@ export const useStaffAppointments = () => {
     cancelAppointment,
     
     // Utilities
-    getStatusColor,
-    getDoctorColor,
     formatTime,
     isTimeSlotBusy,
     getCurrentTime,

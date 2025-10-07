@@ -50,7 +50,6 @@ const stepperItems = [
 const clinicTypes = ['All', 'General', 'Specialist'] as const
 const regions = ['All', 'Central', 'West', 'East', 'North-East', 'North'] as const
 
-// Calendar setup
 const calendarValue = ref<CalendarDate>()
 
 const handleDateSelect = (date: DateValue | undefined) => {
@@ -149,9 +148,9 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             <CardTitle class="text-lg">{{ clinic.name }}</CardTitle>
                             <CardDescription>
                                 <div class="space-y-1">
-                                    <p>{{ clinic.type }} • {{ clinic.region }}</p>
-                                    <p class="text-sm">{{ clinic.location }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ clinic.address }}</p>
+                                    <p>{{ clinic.clinic_type }} • {{ clinic.region }}</p>
+                                    <p class="text-sm">{{ clinic.area }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ clinic.address_line }}</p>
                                 </div>
                             </CardDescription>
                         </CardHeader>
@@ -183,8 +182,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             <CardTitle class="text-lg">{{ doctor.name }}</CardTitle>
                             <CardDescription>
                                 <div class="space-y-1">
-                                    <p class="font-medium">{{ doctor.specialization }}</p>
-                                    <p class="text-sm text-muted-foreground">{{ doctor.experience }}</p>
+                                    <p class="font-medium">{{ doctor.specialty }}</p>
                                 </div>
                             </CardDescription>
                         </CardHeader>
@@ -232,7 +230,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 <Button v-for="slot in availableSlots" :key="slot.id"
                                     :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
                                     @click="selectTimeSlot(slot)">
-                                    {{ slot.time }}
+                                    {{ new Date(slot.slot_start).toLocaleTimeString() }} - {{ new Date(slot.slot_end).toLocaleTimeString() }}
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
@@ -258,12 +256,12 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 <div>
                                     <Label class="text-sm font-medium">Clinic</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ bookingData.clinic?.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ bookingData.clinic?.address }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.clinic?.address_line }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Doctor</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ bookingData.doctor?.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ bookingData.doctor?.specialization }}
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.doctor?.specialty }}
                                     </p>
                                 </div>
                             </div>
@@ -276,7 +274,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.time }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start }} - {{ bookingData.timeSlot?.slot_end }}</p>
                                 </div>
                             </div>
                         </div>

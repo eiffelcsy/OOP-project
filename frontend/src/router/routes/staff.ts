@@ -34,7 +34,7 @@ const staffRoutes: RouteRecordRaw[] = [
       {
         path: 'appointments',
         name: 'StaffTodaysAppointments',
-        component: () => import('@/features/appointments/pages/StaffTodaysAppointments.vue'),
+        component: () => import('@/features/appointments/pages/TodaysAppointments.vue'),
         meta: {
           title: 'Appointments',
           breadcrumb: 'Appointments'

@@ -95,7 +95,7 @@ const getStatusColor = (status: string) => {
           <p class="text-xs text-muted-foreground">
             Current: #{{ queueState.currentNumber || 'None' }}
             <br v-if="queueState.queueId" />
-            <span v-if="queueState.queueId" class="text-xs text-blue-600">ID: {{ queueState.queueId.split('_')[1] }}</span>
+            <span v-if="queueState.queueId" class="text-xs text-blue-600">ID: {{ queueState.queueId }}</span>
           </p>
         </CardContent>
       </Card>

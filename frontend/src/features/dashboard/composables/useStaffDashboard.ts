@@ -1,12 +1,13 @@
 import { ref, computed } from 'vue'
+import type { AppointmentStatus } from '@/types/database'
 
 // Types
-interface Appointment {
+interface DashboardAppointment {
   id: number
   patientName: string
   time: string
   type: string
-  status: 'scheduled' | 'checked-in' | 'completed' | 'no-show'
+  status: AppointmentStatus
   queueNumber: number
   doctor: string
 }
@@ -41,7 +42,7 @@ export function useStaffDashboard() {
     lastCalledTime: '2:15 PM'
   })
 
-  const todaysAppointments = ref<Appointment[]>([
+  const todaysAppointments = ref<DashboardAppointment[]>([
     {
       id: 1,
       patientName: 'Sarah Johnson',

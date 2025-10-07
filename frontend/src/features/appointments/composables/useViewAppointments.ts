@@ -1,24 +1,31 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import { CalendarDate, parseDate, getLocalTimeZone } from '@internationalized/date'
+import type { 
+  AppointmentWithDetails, 
+  TimeSlot, 
+  AppointmentStatus 
+} from '@/types/database'
 
-// Types
-export interface Appointment {
-  id: string
+// Extended appointment interface for view appointments
+export interface ViewAppointment {
+  id: number
   clinicName: string
   doctorName: string
   date: Date
   time: string
-  status: 'upcoming' | 'completed' | 'cancelled'
+  status: AppointmentStatus
   specialization: string
   address: string
   notes?: string
-}
-
-export interface TimeSlot {
-  id: string
-  time: string
-  available: boolean
+  // Database fields
+  patient_id: number
+  doctor_id: number | null
+  clinic_id: number | null
+  time_slot_id: number | null
+  treatment_summary: string | null
+  created_at: string
+  updated_at: string
 }
 
 export const useViewAppointments = () => {
