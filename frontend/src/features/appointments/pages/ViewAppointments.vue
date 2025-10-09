@@ -9,7 +9,7 @@ import { CalendarDate, today, getLocalTimeZone, type DateValue } from '@internat
 import { Icon } from '@iconify/vue'
 
 const {
-  upcomingAppointments,
+  scheduledAppointments,
   pastAppointments,
   availableSlots,
   isRescheduleDialogOpen,
@@ -79,7 +79,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
         Upcoming Appointments
       </h2>
       
-      <div v-if="upcomingAppointments.length === 0" class="text-center py-12">
+      <div v-if="scheduledAppointments.length === 0" class="text-center py-12">
         <Icon icon="lucide:calendar-x" class="w-16 h-16 mx-auto text-muted-foreground mb-4" />
         <p class="text-lg text-muted-foreground mb-2">No upcoming appointments</p>
         <p class="text-sm text-muted-foreground">Schedule your next appointment to see it here</p>
@@ -87,7 +87,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
 
       <div v-else class="space-y-4">
         <Card 
-          v-for="appointment in upcomingAppointments" 
+          v-for="appointment in scheduledAppointments" 
           :key="appointment.id"
         >
           <CardHeader>

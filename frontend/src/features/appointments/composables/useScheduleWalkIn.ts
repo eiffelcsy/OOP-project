@@ -1,41 +1,30 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
+import type { Tables } from '@/types/supabase'
 
-// Types for walk-in scheduling
-export interface WalkInPatient {
+// Type aliases from database
+type Doctor = Tables<'doctors'>
+type TimeSlot = Tables<'time_slots'>
+
+// Walk-in patient data interface
+interface WalkInPatientData {
   name: string
   phone: string
-  nric?: string
-  email?: string
-  dateOfBirth?: string
-  emergencyContact?: string
+  nric: string
+  email: string
+  dateOfBirth: string
+  emergencyContact: string
 }
 
-export interface WalkInBookingData {
-  patient: WalkInPatient | null
+// Walk-in booking data interface
+interface WalkInBookingData {
+  patient: WalkInPatientData | null
   doctor: Doctor | null
   date: DateValue | null
   timeSlot: TimeSlot | null
   appointmentType: string
-  notes?: string
+  notes: string
   urgency: 'normal' | 'urgent' | 'emergency'
-}
-
-export interface Doctor {
-  id: string
-  name: string
-  specialization: string
-  clinicId: string
-  image?: string
-  experience: string
-  isAvailable: boolean
-}
-
-export interface TimeSlot {
-  id: string
-  time: string
-  available: boolean
-  doctorId?: string
 }
 
 export const useScheduleWalkIn = () => {
@@ -55,52 +44,65 @@ export const useScheduleWalkIn = () => {
 
   // Staff clinic info (would come from auth context in real app)
   const staffClinic = ref({
-    id: '1',
+    id: 1,
     name: 'Singapore General Hospital',
-    type: 'General',
+    clinic_type: 'General',
     region: 'Central',
-    location: 'Outram Park',
-    address: 'Outram Road, Singapore 169608'
+    area: 'Outram Park',
+    address_line: 'Outram Road, Singapore 169608',
+    source_ref: null,
+    remarks: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    day_type: null,
+    day_of_week: null,
+    open_time: null,
+    close_time: null,
+    note: null
   })
 
   // Available doctors at staff's clinic
   const availableDoctors = ref<Doctor[]>([
     {
-      id: '1',
+      id: 1,
       name: 'Dr. Sarah Lim',
-      specialization: 'General Medicine',
-      clinicId: '1',
-      experience: '12 years experience',
-      isAvailable: true
+      specialty: 'General Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '2',
+      id: 2,
       name: 'Dr. Michael Tan',
-      specialization: 'Cardiology',
-      clinicId: '1',
-      experience: '15 years experience',
-      isAvailable: true
+      specialty: 'Cardiology',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '3',
+      id: 3,
       name: 'Dr. Jennifer Wong',
-      specialization: 'Internal Medicine',
-      clinicId: '1',
-      experience: '8 years experience',
-      isAvailable: false
+      specialty: 'Internal Medicine',
+      clinic_id: 1,
+      active: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     },
     {
-      id: '4',
+      id: 4,
       name: 'Dr. David Chen',
-      specialization: 'Emergency Medicine',
-      clinicId: '1',
-      experience: '10 years experience',
-      isAvailable: true
+      specialty: 'Emergency Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
   ])
 
   // Available time slots for today and next few days
-  const generateTimeSlots = (doctorId?: string): TimeSlot[] => {
+  const generateTimeSlots = (doctorId?: number): TimeSlot[] => {
     const slots: TimeSlot[] = []
     const baseSlots = [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -110,11 +112,20 @@ export const useScheduleWalkIn = () => {
     baseSlots.forEach((time, index) => {
       // Simulate some slots being unavailable
       const available = Math.random() > 0.3
+      const startTime = new Date()
+      startTime.setHours(parseInt(time.split(':')[0]), parseInt(time.split(':')[1]), 0, 0)
+      const endTime = new Date(startTime)
+      endTime.setMinutes(endTime.getMinutes() + 30)
+      
       slots.push({
-        id: `${time}-${doctorId || 'any'}`,
-        time: `${time}`,
-        available,
-        doctorId
+        id: index + 1,
+        doctor_id: doctorId || 1,
+        clinic_id: 1,
+        slot_start: startTime.toISOString(),
+        slot_end: endTime.toISOString(),
+        status: available ? 'available' : 'booked',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
     })
     
@@ -123,7 +134,7 @@ export const useScheduleWalkIn = () => {
 
   const availableSlots = computed(() => {
     if (!bookingData.value.doctor || !bookingData.value.date) return []
-    return generateTimeSlots(bookingData.value.doctor.id).filter(slot => slot.available)
+    return generateTimeSlots(bookingData.value.doctor.id).filter(slot => slot.status === 'available')
   })
 
   const appointmentTypes = [
@@ -154,7 +165,7 @@ export const useScheduleWalkIn = () => {
   const isFirstStep = computed(() => currentStep.value === 1)
 
   // Actions
-  const updatePatientInfo = (patientData: Partial<WalkInPatient>) => {
+  const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
     if (!bookingData.value.patient) {
       bookingData.value.patient = {
         name: '',

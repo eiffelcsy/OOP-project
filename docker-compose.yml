@@ -4,6 +4,9 @@ services:
       context: ./backend
     ports:
       - "8080:8080"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     env_file:
       - .env.backend
     networks:
@@ -12,6 +15,10 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
       - "3000:80"
     env_file:

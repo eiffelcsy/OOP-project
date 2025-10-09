@@ -243,7 +243,7 @@ const updatePatient = () => {
                     <h3 class="text-lg font-semibold">Available Doctors</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Card 
-                            v-for="doctor in availableDoctors.filter(d => d.isAvailable)" 
+                            v-for="doctor in availableDoctors.filter(d => d.active)" 
                             :key="doctor.id"
                             class="cursor-pointer transition-colors hover:bg-muted/50"
                             :class="{ 'ring-2 ring-primary': bookingData.doctor?.id === doctor.id }"
@@ -256,8 +256,7 @@ const updatePatient = () => {
                                 </CardTitle>
                                 <CardDescription>
                                     <div class="space-y-1">
-                                        <p class="font-medium">{{ doctor.specialization }}</p>
-                                        <p class="text-sm text-muted-foreground">{{ doctor.experience }}</p>
+                                        <p class="font-medium">{{ doctor.specialty }}</p>
                                     </div>
                                 </CardDescription>
                             </CardHeader>
@@ -299,7 +298,7 @@ const updatePatient = () => {
                                     size="sm"
                                     @click="selectTimeSlot(slot)"
                                 >
-                                    {{ formatTime(slot.time) }}
+                                    {{ formatTime(slot.slot_start) }}
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
@@ -348,12 +347,12 @@ const updatePatient = () => {
                                 <div>
                                     <Label class="text-sm font-medium">Clinic</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ staffClinic.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ staffClinic.address }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ staffClinic.address_line }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Doctor</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ bookingData.doctor?.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ bookingData.doctor?.specialization }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.doctor?.specialty }}</p>
                                 </div>
                             </div>
                             <div class="space-y-6">
@@ -365,7 +364,7 @@ const updatePatient = () => {
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ formatTime(bookingData.timeSlot?.time || '') }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ formatTime(bookingData.timeSlot?.slot_start || '') }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Appointment Type</Label>

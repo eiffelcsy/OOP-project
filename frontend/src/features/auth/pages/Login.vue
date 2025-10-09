@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Icon } from "@iconify/vue"
 import { useRouter } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 
 type UserRole = 'patient' | 'staff' | 'admin'
 
@@ -13,6 +14,7 @@ const email = ref('')
 const password = ref('')
 
 const router = useRouter()
+const { login, isLoading, error, currentUser } = useAuth()
 
 const roles = [
   {
@@ -36,24 +38,39 @@ const selectRole = (role: UserRole) => {
   selectedRole.value = role
 }
 
-const handleLogin = () => {
-  /* 
-    TODO: Implement login authentication logic
-    For now, we will just redirect to the appropriate page based on the selected role
-  */
-  console.log('Login attempt:', {
-    role: selectedRole.value,
+const handleLogin = async () => {
+  // Validate inputs
+  if (!email.value || !password.value) {
+    return
+  }
+
+  // Attempt login
+  const success = await login({
     email: email.value,
     password: password.value
   })
-  
-  // Route to the appropriate dashboard based on role
-  if (selectedRole.value === 'patient') {
-    router.push('/patient/dashboard')
-  } else if (selectedRole.value === 'staff') {
-    router.push('/staff/dashboard')
-  } else if (selectedRole.value === 'admin') {
-    router.push('/admin/dashboard')
+
+  if (success && currentUser.value) {
+    // Verify the user's role matches the selected role
+    if (currentUser.value.userType !== selectedRole.value) {
+      error.value = `Invalid credentials for ${selectedRole.value} role`
+      return
+    }
+
+    // Redirect to appropriate dashboard based on user type
+    switch (currentUser.value.userType) {
+      case 'patient':
+        router.push('/patient/dashboard')
+        break
+      case 'staff':
+        router.push('/staff/dashboard')
+        break
+      case 'admin':
+        router.push('/admin/dashboard')
+        break
+      default:
+        router.push('/')
+    }
   }
 }
 </script>
@@ -92,6 +109,11 @@ const handleLogin = () => {
 
     <!-- Login Form -->
     <div class="grid gap-4">
+      <!-- Error Message -->
+      <div v-if="error" class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        {{ error }}
+      </div>
+
       <div class="grid gap-2">
         <Label for="email">Email</Label>
         <Input
@@ -100,6 +122,7 @@ const handleLogin = () => {
           type="email"
           placeholder="m@example.com"
           required
+          :disabled="isLoading"
         />
       </div>
       <div class="grid gap-2">
@@ -116,11 +139,13 @@ const handleLogin = () => {
           id="password" 
           v-model="password"
           type="password" 
-          required 
+          required
+          :disabled="isLoading"
         />
       </div>
-      <Button type="submit" class="w-full" @click="handleLogin">
-        Login
+      <Button type="submit" class="w-full" @click="handleLogin" :disabled="isLoading">
+        <Icon v-if="isLoading" icon="svg-spinners:180-ring" class="mr-2" />
+        {{ isLoading ? 'Logging in...' : 'Login' }}
       </Button>
     </div>
 

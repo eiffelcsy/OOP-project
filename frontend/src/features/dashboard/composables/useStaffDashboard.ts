@@ -1,12 +1,15 @@
 import { ref, computed } from 'vue'
 
+// Type for appointment status
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+
 // Types
-interface Appointment {
+interface DashboardAppointment {
   id: number
   patientName: string
   time: string
   type: string
-  status: 'scheduled' | 'checked-in' | 'completed' | 'no-show'
+  status: AppointmentStatus
   queueNumber: number
   doctor: string
 }
@@ -41,7 +44,7 @@ export function useStaffDashboard() {
     lastCalledTime: '2:15 PM'
   })
 
-  const todaysAppointments = ref<Appointment[]>([
+  const todaysAppointments = ref<DashboardAppointment[]>([
     {
       id: 1,
       patientName: 'Sarah Johnson',

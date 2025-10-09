@@ -21,8 +21,6 @@ const {
   checkInPatient,
   markNoShow,
   markCompleted,
-  getStatusColor,
-  getDoctorColor,
   formatTime,
   isCurrentTimeSlot
 } = useStaffAppointments()
@@ -31,7 +29,7 @@ const {
 const viewMode = ref<'doctor' | 'timeline'>('doctor')
 
 // Selected doctor filter
-const selectedDoctorId = ref<string | null>(null)
+const selectedDoctorId = ref<number | null>(null)
 
 // Current time tracking
 const currentTime = ref(new Date().toLocaleTimeString('en-SG', { 
@@ -63,7 +61,7 @@ const filteredAppointmentsByDoctor = computed(() => {
 })
 
 // Get doctor by ID
-const getDoctorById = (doctorId: string) => {
+const getDoctorById = (doctorId: number) => {
   return doctors.value.find(d => d.id === doctorId)
 }
 
@@ -73,21 +71,21 @@ const getAppointmentsForTimeSlot = (timeSlot: string) => {
 }
 
 // Handle quick actions
-const handleCheckIn = async (appointmentId: string) => {
+const handleCheckIn = async (appointmentId: number) => {
   const success = await checkInPatient(appointmentId)
   if (success) {
     console.log('Patient checked in successfully')
   }
 }
 
-const handleNoShow = async (appointmentId: string) => {
+const handleNoShow = async (appointmentId: number) => {
   const success = await markNoShow(appointmentId)
   if (success) {
     console.log('Patient marked as no-show')
   }
 }
 
-const handleCompleted = async (appointmentId: string) => {
+const handleCompleted = async (appointmentId: number) => {
   const success = await markCompleted(appointmentId)
   if (success) {
     console.log('Appointment marked as completed')
@@ -241,7 +239,7 @@ const getUrgencyColor = (urgency: string) => {
           <div class="w-4 h-4 rounded-full bg-gray-400"></div>
           <h2 class="text-xl font-semibold">{{ getDoctorById(doctorId)?.name }}</h2>
           <Badge variant="outline">
-            {{ getDoctorById(doctorId)?.specialization }}
+            {{ getDoctorById(doctorId)?.specialty }}
           </Badge>
           <Badge variant="secondary">{{ appointments.length }} appointments</Badge>
         </div>
@@ -263,7 +261,7 @@ const getUrgencyColor = (urgency: string) => {
                 <div class="space-y-3 flex-1">
                   <div class="flex items-center gap-3">
                     <div class="text-lg font-medium">{{ formatTime(appointment.time) }}</div>
-                    <Badge :class="getStatusColor(appointment.status)" class="font-medium">
+                    <Badge class="font-medium">
                       {{ appointment.status.replace('-', ' ').toUpperCase() }}
                     </Badge>
                     <Badge 
@@ -397,7 +395,7 @@ const getUrgencyColor = (urgency: string) => {
                           {{ appointment.doctorName }} • {{ appointment.type }}
                         </div>
                       </div>
-                      <Badge :class="getStatusColor(appointment.status)" class="text-xs">
+                      <Badge class="text-xs">
                         {{ appointment.status.replace('-', ' ').toUpperCase() }}
                       </Badge>
                       <div v-if="appointment.queueNumber" class="text-xs text-muted-foreground">

@@ -1,24 +1,50 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import { CalendarDate, parseDate, getLocalTimeZone } from '@internationalized/date'
+import type { Tables } from '@/types/supabase'
 
-// Types
-export interface Appointment {
+// Type aliases from database
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+
+// TimeSlot interface for UI
+interface TimeSlot {
+  id: string
+  time: string
+  available: boolean
+}
+
+// Appointment interface for viewing (basic structure)
+interface Appointment {
   id: string
   clinicName: string
   doctorName: string
   date: Date
   time: string
-  status: 'upcoming' | 'completed' | 'cancelled'
+  status: AppointmentStatus
   specialization: string
   address: string
   notes?: string
 }
 
-export interface TimeSlot {
-  id: string
+// Extended appointment interface for view appointments
+export interface ViewAppointment {
+  id: number
+  clinicName: string
+  doctorName: string
+  date: Date
   time: string
-  available: boolean
+  status: AppointmentStatus
+  specialization: string
+  address: string
+  notes?: string
+  // Database fields
+  patient_id: number
+  doctor_id: number | null
+  clinic_id: number | null
+  time_slot_id: number | null
+  treatment_summary: string | null
+  created_at: string
+  updated_at: string
 }
 
 export const useViewAppointments = () => {
@@ -30,7 +56,7 @@ export const useViewAppointments = () => {
       doctorName: 'Dr. Sarah Lim',
       date: new Date('2025-10-15'),
       time: '10:30 AM',
-      status: 'upcoming',
+      status: 'scheduled',
       specialization: 'General Medicine',
       address: 'Outram Road, Singapore 169608',
       notes: 'Annual checkup'
@@ -85,10 +111,10 @@ export const useViewAppointments = () => {
   ])
 
   // Computed properties to separate appointments
-  const upcomingAppointments = computed(() => {
+  const scheduledAppointments = computed(() => {
     const now = new Date()
     return appointments.value
-      .filter(appointment => appointment.status === 'upcoming' && appointment.date >= now)
+      .filter(appointment => appointment.status === 'scheduled' && appointment.date >= now)
       .sort((a, b) => a.date.getTime() - b.date.getTime())
   })
 
@@ -97,7 +123,7 @@ export const useViewAppointments = () => {
     return appointments.value
       .filter(appointment => 
         (appointment.status === 'completed' || appointment.status === 'cancelled') || 
-        (appointment.status === 'upcoming' && appointment.date < now)
+        (appointment.status === 'scheduled' && appointment.date < now)
       )
       .sort((a, b) => b.date.getTime() - a.date.getTime())
   })
@@ -227,7 +253,7 @@ export const useViewAppointments = () => {
 
   const getStatusColor = (status: Appointment['status']) => {
     switch (status) {
-      case 'upcoming':
+      case 'scheduled':
         return 'bg-blue-100 text-blue-800 border-blue-200'
       case 'completed':
         return 'bg-green-100 text-green-800 border-green-200'
@@ -245,7 +271,7 @@ export const useViewAppointments = () => {
   return {
     // State
     appointments,
-    upcomingAppointments,
+    scheduledAppointments,
     pastAppointments,
     availableSlots,
     
