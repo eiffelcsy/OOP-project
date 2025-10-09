@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
-import type { AppointmentStatus } from '@/types/database'
+
+// Type for appointment status
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 
 // Types
 interface DashboardAppointment {

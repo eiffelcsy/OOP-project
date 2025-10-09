@@ -1,11 +1,31 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
-import type { 
-  Doctor, 
-  TimeSlot, 
-  WalkInPatientData, 
-  WalkInBookingData 
-} from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+// Type aliases from database
+type Doctor = Tables<'doctors'>
+type TimeSlot = Tables<'time_slots'>
+
+// Walk-in patient data interface
+interface WalkInPatientData {
+  name: string
+  phone: string
+  nric: string
+  email: string
+  dateOfBirth: string
+  emergencyContact: string
+}
+
+// Walk-in booking data interface
+interface WalkInBookingData {
+  patient: WalkInPatientData | null
+  doctor: Doctor | null
+  date: DateValue | null
+  timeSlot: TimeSlot | null
+  appointmentType: string
+  notes: string
+  urgency: 'normal' | 'urgent' | 'emergency'
+}
 
 export const useScheduleWalkIn = () => {
   // Current step (1-3: Patient Info, Doctor & Time, Confirmation)

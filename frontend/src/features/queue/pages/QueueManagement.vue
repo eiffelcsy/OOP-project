@@ -51,7 +51,6 @@ const getPriorityColor = (priority: string) => {
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'waiting': return 'bg-gray-100 text-gray-800'
     case 'checked-in': return 'bg-green-100 text-green-800'
     case 'called': return 'bg-blue-100 text-blue-800'
     case 'in-progress': return 'bg-yellow-100 text-yellow-800'
@@ -247,7 +246,7 @@ const getStatusColor = (status: string) => {
                   </span>
                   <div class="flex gap-1">
                     <Button 
-                      v-if="patient.status === 'waiting'"
+                      v-if="patient.status === 'checked-in'"
                       @click="updatePatientStatus(patient.id, 'checked-in')"
                       size="sm"
                       variant="outline"
@@ -280,7 +279,7 @@ const getStatusColor = (status: string) => {
             <h4 class="font-medium mb-2">Regular Patients</h4>
             <div class="space-y-2">
               <div 
-                v-for="patient in patients.filter(p => (p.status === 'waiting' || p.status === 'checked-in') && p.priority === 'normal')" 
+                v-for="patient in patients.filter(p => (p.status === 'checked-in' || p.status === 'in-progress') && p.priority === 'normal')" 
                 :key="patient.id"
                 class="flex items-center justify-between p-4 border rounded-lg"
               >
@@ -301,7 +300,7 @@ const getStatusColor = (status: string) => {
                   </span>
                   <div class="flex gap-1">
                     <Button 
-                      v-if="patient.status === 'waiting'"
+                      v-if="patient.status === 'checked-in'"
                       @click="updatePatientStatus(patient.id, 'checked-in')"
                       size="sm"
                       variant="outline"

@@ -1,10 +1,10 @@
 import { ref, computed } from 'vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
-import type { 
-  AppointmentWithDetails, 
-  Doctor, 
-  AppointmentStatus 
-} from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+// Type aliases from database
+type Doctor = Tables<'doctors'>
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 
 // Extended appointment interface for staff view
 export interface StaffAppointment {

@@ -1,11 +1,23 @@
 import { ref, computed, reactive } from 'vue'
-import type { 
-  QueueTicket, 
-  QueueState, 
-  QueuePriority, 
-  QueueTicketStatus,
-  Patient 
-} from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+// Type aliases from database
+type QueueTicket = Tables<'queue_tickets'>
+type Patient = Tables<'patients'>
+type QueuePriority = 'normal' | 'elderly' | 'emergency' | 'fast-track'
+type QueueTicketStatus = 'checked-in' | 'called' | 'in-progress' | 'completed' | 'no-show'
+
+// Queue state interface
+interface QueueState {
+  isActive: boolean
+  isPaused: boolean
+  currentNumber: number
+  totalServed: number
+  averageWaitTime: number
+  queueId: number | null
+  startedAt: Date | null
+  endedAt: Date | null
+}
 
 // Extended interface for queue management UI
 export interface QueuePatient {
@@ -49,7 +61,7 @@ export function useQueueManagement() {
       queueNumber: 1,
       name: 'John Smith',
       appointmentTime: '09:00',
-      status: 'waiting', // Using QueueTicketStatus
+      status: 'checked-in', // Using QueueTicketStatus
       priority: 'normal',
       estimatedTime: '09:15',
       checkInTime: '08:45'
@@ -63,7 +75,7 @@ export function useQueueManagement() {
       queueNumber: 2,
       name: 'Emily Johnson',
       appointmentTime: '09:30',
-      status: 'waiting',
+      status: 'checked-in',
       priority: 'elderly',
       estimatedTime: '09:45'
     },
@@ -76,7 +88,7 @@ export function useQueueManagement() {
       queueNumber: 3,
       name: 'Michael Brown',
       appointmentTime: '10:00',
-      status: 'waiting',
+      status: 'checked-in',
       priority: 'emergency',
       estimatedTime: '10:15'
     },
@@ -89,7 +101,7 @@ export function useQueueManagement() {
       queueNumber: 4,
       name: 'Sarah Davis',
       appointmentTime: '10:30',
-      status: 'waiting',
+      status: 'checked-in',
       priority: 'normal',
       estimatedTime: '10:45'
     },
@@ -102,7 +114,7 @@ export function useQueueManagement() {
       queueNumber: 5,
       name: 'Robert Wilson',
       appointmentTime: '11:00',
-      status: 'waiting',
+      status: 'checked-in',
       priority: 'normal',
       estimatedTime: '11:15'
     },
@@ -115,7 +127,7 @@ export function useQueueManagement() {
       queueNumber: 6,
       name: 'Lisa Anderson',
       appointmentTime: '11:30',
-      status: 'waiting',
+      status: 'checked-in',
       priority: 'elderly',
       estimatedTime: '11:45'
     }
@@ -123,7 +135,7 @@ export function useQueueManagement() {
 
   // Computed properties
   const waitingPatients = computed(() => 
-    patients.value.filter(p => p.status === 'waiting')
+    patients.value.filter(p => p.status === 'checked-in')
   )
 
   const priorityPatients = computed(() => 
@@ -135,7 +147,7 @@ export function useQueueManagement() {
   )
 
   const currentPatient = computed(() => 
-    patients.value.find(p => p.status === 'called' || p.status === 'in-progress')
+    patients.value.find(p => p.status === 'checked-in' || p.status === 'in-progress')
   )
 
   const completedToday = computed(() => 
@@ -202,7 +214,7 @@ export function useQueueManagement() {
     const patient = patients.value.find(p => p.id === patientId)
     if (patient) {
       patient.status = status
-      if (status === 'waiting') {
+      if (status === 'checked-in') {
         patient.checkInTime = new Date().toLocaleTimeString()
       }
     }
@@ -233,7 +245,7 @@ export function useQueueManagement() {
     queueState.endedAt = null
     patients.value.forEach(p => {
       if (p.status !== 'completed' && p.status !== 'no-show') {
-        p.status = 'waiting'
+        p.status = 'checked-in'
         p.checkInTime = undefined
         p.calledTime = undefined
       }

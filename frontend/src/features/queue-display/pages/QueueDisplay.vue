@@ -5,7 +5,7 @@ import { Icon } from '@iconify/vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 
 const route = useRoute()
-const queueId = computed(() => route.params.queueId as string)
+const queueId = computed(() => route.params.queueId as unknown as number)
 
 // Use the same queue management composable for real-time data
 const {

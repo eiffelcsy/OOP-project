@@ -1,13 +1,23 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
-import type { 
-  Clinic, 
-  Doctor, 
-  TimeSlot, 
-  BookingData,
-  Region,
-  ClinicType 
-} from '@/types/database'
+import type { Tables } from '@/types/supabase'
+
+// Type aliases from database
+type Clinic = Tables<'clinics'>
+type Doctor = Tables<'doctors'>
+type TimeSlot = Tables<'time_slots'>
+
+// Custom types for booking flow
+type Region = 'Central' | 'North' | 'South' | 'East' | 'North-East' | 'West'
+type ClinicType = 'General' | 'Specialist' | 'Polyclinic'
+
+// Booking data interface
+interface BookingData {
+  clinic: Clinic | null
+  doctor: Doctor | null
+  date: DateValue | null
+  timeSlot: TimeSlot | null
+}
 
 // TODO: Implement API service for backend communication
 // import { apiService } from '@/services/api'
