@@ -75,8 +75,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -92,8 +90,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -109,8 +105,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -126,8 +120,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -143,8 +135,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -160,8 +150,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -177,8 +165,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -194,8 +180,6 @@ export const useBookAppointment = () => {
       remarks: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      day_type: null,
-      day_of_week: null,
       open_time: null,
       close_time: null,
       note: null
@@ -374,7 +358,7 @@ export const useBookAppointment = () => {
     // Filter by search query
     if (clinicSearchQuery.value) {
       const query = clinicSearchQuery.value.toLowerCase()
-      filtered = filtered.filter(clinic => 
+      filtered = filtered.filter((clinic: Clinic) => 
         clinic.name.toLowerCase().includes(query) ||
         (clinic.area && clinic.area.toLowerCase().includes(query)) ||
         (clinic.address_line && clinic.address_line.toLowerCase().includes(query))
@@ -383,12 +367,12 @@ export const useBookAppointment = () => {
 
     // Filter by type
     if (selectedClinicType.value !== 'All') {
-      filtered = filtered.filter(clinic => clinic.clinic_type === selectedClinicType.value)
+      filtered = filtered.filter((clinic: Clinic) => clinic.clinic_type === selectedClinicType.value)
     }
 
     // Filter by region
     if (selectedRegion.value !== 'All') {
-      filtered = filtered.filter(clinic => clinic.region === selectedRegion.value)
+      filtered = filtered.filter((clinic: Clinic) => clinic.region === selectedRegion.value)
     }
 
     return filtered
@@ -398,14 +382,14 @@ export const useBookAppointment = () => {
     if (!bookingData.value.clinic) return []
     // TODO: Replace with actual API call when backend is ready
     // This should trigger fetchDoctorsByClinic(bookingData.value.clinic.id)
-    return allDoctors.value.filter(doctor => doctor.clinic_id === bookingData.value.clinic?.id && doctor.active)
+    return allDoctors.value.filter((doctor: Doctor) => doctor.clinic_id === bookingData.value.clinic?.id && doctor.active)
   })
 
   const availableSlots = computed(() => {
     // TODO: Replace with actual API call when backend is ready
     // This should trigger fetchAvailableTimeSlots(doctorId, date) when both doctor and date are selected
     if (!bookingData.value.doctor || !bookingData.value.date) return []
-    return availableTimeSlots.value.filter(slot => 
+    return availableTimeSlots.value.filter((slot: TimeSlot) => 
       slot.status === 'available' && 
       slot.doctor_id === bookingData.value.doctor?.id
     )

@@ -17,57 +17,42 @@ interface BreadcrumbItem {
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
+  const matched = route.matched.filter(r => r.meta?.breadcrumb)
   
-  const isDashboard = route.name === 'StaffDashboard'
-  items.push({
-    title: 'Dashboard',
-    path: isDashboard ? undefined : '/staff/dashboard',
-    isCurrentPage: isDashboard
-  })
-  
-  if (route.name === 'StaffTodaysAppointments') {
+  // Build breadcrumb trail
+  if (matched.length > 0) {
+    const currentRoute = matched[matched.length - 1]
+    
+    // Recursively build parent chain
+    const buildParentChain = (routeName: string): BreadcrumbItem[] => {
+      const parentChain: BreadcrumbItem[] = []
+      const foundRoute = router.getRoutes().find(r => r.name === routeName)
+      
+      if (foundRoute && foundRoute.meta?.breadcrumb) {
+        // If this route has a parent, recursively get its chain first
+        if (foundRoute.meta.parentRoute) {
+          parentChain.push(...buildParentChain(foundRoute.meta.parentRoute as string))
+        }
+        
+        // Add this route to the chain
+        parentChain.push({
+          title: foundRoute.meta.breadcrumb as string,
+          path: foundRoute.path,
+          isCurrentPage: false
+        })
+      }
+      
+      return parentChain
+    }
+    
+    // If current route has a parent, build the full chain
+    if (currentRoute.meta?.parentRoute) {
+      items.push(...buildParentChain(currentRoute.meta.parentRoute as string))
+    }
+    
+    // Add current route
     items.push({
-      title: 'Appointments',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'ScheduleWalkIn') {
-    items.push({
-      title: 'Appointments',
-      path: '/staff/appointments',
-      isCurrentPage: false
-    })
-    items.push({
-      title: 'Schedule Walk-in',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'StaffAppointmentHistory') {
-    items.push({
-      title: 'Appointments',
-      path: '/staff/appointments',
-      isCurrentPage: false
-    })
-    items.push({
-      title: 'Appointment History',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'QueueManagement') {
-    items.push({
-      title: 'Queue Management',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'StaffReports') {
-    items.push({
-      title: 'Reports',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'StaffProfile') {
-    items.push({
-      title: 'Profile',
+      title: currentRoute.meta.breadcrumb as string,
       path: undefined,
       isCurrentPage: true
     })

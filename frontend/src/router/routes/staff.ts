@@ -46,7 +46,8 @@ const staffRoutes: RouteRecordRaw[] = [
         component: () => import('@/features/appointments/pages/ScheduleWalkIn.vue'),
         meta: {
           title: 'Schedule Walk-in',
-          breadcrumb: 'Schedule Walk-in'
+          breadcrumb: 'Schedule Walk-in',
+          parentRoute: 'StaffTodaysAppointments'
         }
       },
       {

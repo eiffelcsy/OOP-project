@@ -15,27 +15,24 @@ A Spring Boot application for managing clinic appointments and queues. Check out
 Create environment files:
 - See **.env.backend.example** and **.env.frontend.example** for templates, replace the values for the variables accordingly.
 
-### 2. Run with Docker
+### 2. Run with provided start script (start.sh)
 
 ```bash
 # Build containers
-docker compose build
+./start.sh build
 
 # Start all services
-docker compose up -d
-
-# View logs
-docker compose logs -f
+./start.sh up
 
 # Stop services
-docker compose down
+./start.sh down
 ```
 
 ## Access
 
 - **Backend API**: http://localhost:8080
 - **Frontend**: http://localhost:3000
-- **Health Check**: http://localhost:8080/health
+- **Health Check**: http://localhost:8080/api/health
 
 ## Database
 

@@ -162,8 +162,6 @@ export type Database = {
           clinic_type: string | null
           close_time: string | null
           created_at: string | null
-          day_of_week: number | null
-          day_type: string | null
           id: number
           name: string
           note: string | null
@@ -179,8 +177,6 @@ export type Database = {
           clinic_type?: string | null
           close_time?: string | null
           created_at?: string | null
-          day_of_week?: number | null
-          day_type?: string | null
           id?: never
           name: string
           note?: string | null
@@ -196,8 +192,6 @@ export type Database = {
           clinic_type?: string | null
           close_time?: string | null
           created_at?: string | null
-          day_of_week?: number | null
-          day_type?: string | null
           id?: never
           name?: string
           note?: string | null
@@ -314,9 +308,9 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string | null
+          email: string
           full_name: string | null
           id: number
-          email: string | null
           metadata: Json | null
           updated_at: string | null
           user_id: string
@@ -324,9 +318,9 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
+          email: string
           full_name?: string | null
           id?: never
-          email?: string | null
           metadata?: Json | null
           updated_at?: string | null
           user_id: string
@@ -334,9 +328,9 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string | null
+          email?: string
           full_name?: string | null
           id?: never
-          email?: string | null
           metadata?: Json | null
           updated_at?: string | null
           user_id?: string
@@ -647,33 +641,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          display_name: string
-          email: string
-          enabled: boolean
-          id: number
-          password: string
-          user_type: string
-        }
-        Insert: {
-          display_name: string
-          email: string
-          enabled: boolean
-          id?: number
-          password: string
-          user_type: string
-        }
-        Update: {
-          display_name?: string
-          email?: string
-          enabled?: boolean
-          id?: number
-          password?: string
-          user_type?: string
-        }
-        Relationships: []
       }
     }
     Views: {

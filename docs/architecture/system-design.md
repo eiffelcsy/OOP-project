@@ -33,7 +33,7 @@ The frontend provides three distinct user interfaces:
 #### 3. Controller Layer (REST API)
 The system exposes RESTful APIs through specialized controllers:
 
-- **AuthController**: Handles user authentication and authorization
+- **UserController**: Handles user details fetching and authorization validation
 - **PatientController**: Manages patient-related operations
 - **StaffController**: Handles staff-specific functionalities  
 - **AdminController**: Provides administrative operations

@@ -17,39 +17,46 @@ interface BreadcrumbItem {
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
+  const matched = route.matched.filter(r => r.meta?.breadcrumb)
   
-  const isDashboard = route.name === 'PatientDashboard'
-  items.push({
-    title: 'Dashboard',
-    path: isDashboard ? undefined : '/patient/dashboard',
-    isCurrentPage: isDashboard
-  })
-  
-  if (route.name === 'PatientAppointments') {
+  // Build breadcrumb trail
+  if (matched.length > 0) {
+    const currentRoute = matched[matched.length - 1]
+    
+    // Recursively build parent chain
+    const buildParentChain = (routeName: string): BreadcrumbItem[] => {
+      const parentChain: BreadcrumbItem[] = []
+      const foundRoute = router.getRoutes().find(r => r.name === routeName)
+      
+      if (foundRoute && foundRoute.meta?.breadcrumb) {
+        // If this route has a parent, recursively get its chain first
+        if (foundRoute.meta.parentRoute) {
+          parentChain.push(...buildParentChain(foundRoute.meta.parentRoute as string))
+        }
+        
+        // Add this route to the chain
+        parentChain.push({
+          title: foundRoute.meta.breadcrumb as string,
+          path: foundRoute.path,
+          isCurrentPage: false
+        })
+      }
+      
+      return parentChain
+    }
+    
+    // If current route has a parent, build the full chain
+    if (currentRoute.meta?.parentRoute) {
+      items.push(...buildParentChain(currentRoute.meta.parentRoute as string))
+    }
+    
+    // Add current route
     items.push({
-      title: 'My Appointments',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'BookAppointment') {
-    items.push({
-      title: 'My Appointments',
-      path: '/patient/appointments',
-      isCurrentPage: false
-    })
-    items.push({
-      title: 'Book Appointment',
+      title: currentRoute.meta.breadcrumb as string,
       path: undefined,
       isCurrentPage: true
     })
   }
-//   } else if (route.name === 'PatientMedicalRecords') {
-//     items.push({
-//       title: 'Medical Records',
-//       path: undefined,
-//       isCurrentPage: true
-//     })
-//   }
   
   return items
 })

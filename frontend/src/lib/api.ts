@@ -11,6 +11,11 @@ export const apiClient = {
         'Content-Type': 'application/json'
       }
     })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
     return response.json()
   },
 
@@ -24,6 +29,51 @@ export const apiClient = {
       },
       body: JSON.stringify(data)
     })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    return response.json()
+  },
+
+  async put(endpoint: string, data: any) {
+    const token = await this.getToken()
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    return response.json()
+  },
+
+  async delete(endpoint: string) {
+    const token = await this.getToken()
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+    
+    // DELETE may return no content
+    if (response.status === 204) {
+      return null
+    }
+    
     return response.json()
   },
 

@@ -24,26 +24,22 @@ const patientRoutes: RouteRecordRaw[] = [
       },
       {
         path: 'appointments',
-        children: [
-          {
-            path: '',
-            name: 'PatientAppointments',
-            component: () => import('@/features/appointments/pages/ViewAppointments.vue'),
-            meta: {
-              title: 'My Appointments',
-              breadcrumb: 'Appointments'
-            }
-          },
-          {
-            path: 'book',
-            name: 'BookAppointment',
-            component: () => import('@/features/appointments/pages/BookAppointment.vue'),
-            meta: {
-              title: 'Book Appointment',
-              breadcrumb: 'Book Appointment'
-            }
-          }
-        ]
+        name: 'PatientAppointments',
+        component: () => import('@/features/appointments/pages/ViewAppointments.vue'),
+        meta: {
+          title: 'My Appointments',
+          breadcrumb: 'Appointments'
+        }
+      },
+      {
+        path: 'appointments/book',
+        name: 'BookAppointment',
+        component: () => import('@/features/appointments/pages/BookAppointment.vue'),
+        meta: {
+          title: 'Book Appointment',
+          breadcrumb: 'Book Appointment',
+          parentRoute: 'PatientAppointments'
+        }
       },
       {
         path: 'medical-records',

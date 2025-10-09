@@ -54,8 +54,6 @@ export const useScheduleWalkIn = () => {
     remarks: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    day_type: null,
-    day_of_week: null,
     open_time: null,
     close_time: null,
     note: null

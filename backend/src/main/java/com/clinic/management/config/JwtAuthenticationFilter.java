@@ -1,5 +1,6 @@
 package com.clinic.management.config;
 
+import com.clinic.management.service.UserRoleService;
 import com.clinic.management.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -14,14 +15,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UserRoleService userRoleService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserRoleService userRoleService) {
         this.jwtUtil = jwtUtil;
+        this.userRoleService = userRoleService;
     }
 
     @Override
@@ -39,14 +43,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 if (jwtUtil.validateToken(token)) {
                     String userId = jwtUtil.extractUserId(token);
-                    String email = jwtUtil.extractEmail(token);
                     
-                    // Create authentication token
+                    // Get user roles from database
+                    List<String> roles = userRoleService.getUserRoles(userId);
+                    
+                    // Log roles for debugging
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("User " + userId + " has roles: " + roles);
+                    }
+                    
+                    // Convert role strings to GrantedAuthority objects
+                    // Spring Security's hasRole() adds "ROLE_" prefix, so we need to add it here
+                    List<SimpleGrantedAuthority> authorities = roles.stream()
+                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .collect(Collectors.toList());
+                    
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Granted authorities: " + authorities);
+                    }
+                    
+                    // Create authentication token with proper roles
                     UsernamePasswordAuthenticationToken authentication = 
                         new UsernamePasswordAuthenticationToken(
                             userId,
                             null,
-                            List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                            authorities
                         );
                     
                     authentication.setDetails(

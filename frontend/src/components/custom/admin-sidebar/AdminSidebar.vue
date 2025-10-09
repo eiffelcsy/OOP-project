@@ -135,14 +135,6 @@ import { Icon } from "@iconify/vue"
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <a href="/admin/clinics/configuration">
-                          <Icon icon="lucide:settings" class="size-4" />
-                          <span>Configuration</span>
-                        </a>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>

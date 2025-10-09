@@ -17,41 +17,42 @@ interface BreadcrumbItem {
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
+  const matched = route.matched.filter(r => r.meta?.breadcrumb)
   
-  const isDashboard = route.name === 'AdminDashboard'
-  items.push({
-    title: 'Dashboard',
-    path: isDashboard ? undefined : '/admin/dashboard',
-    isCurrentPage: isDashboard
-  })
-  
-  if (route.name === 'AdminUsers') {
+  // Build breadcrumb trail
+  if (matched.length > 0) {
+    const currentRoute = matched[matched.length - 1]
+    
+    // Recursively build parent chain
+    const buildParentChain = (routeName: string): BreadcrumbItem[] => {
+      const parentChain: BreadcrumbItem[] = []
+      const foundRoute = router.getRoutes().find(r => r.name === routeName)
+      
+      if (foundRoute && foundRoute.meta?.breadcrumb) {
+        // If this route has a parent, recursively get its chain first
+        if (foundRoute.meta.parentRoute) {
+          parentChain.push(...buildParentChain(foundRoute.meta.parentRoute as string))
+        }
+        
+        // Add this route to the chain
+        parentChain.push({
+          title: foundRoute.meta.breadcrumb as string,
+          path: foundRoute.path,
+          isCurrentPage: false
+        })
+      }
+      
+      return parentChain
+    }
+    
+    // If current route has a parent, build the full chain
+    if (currentRoute.meta?.parentRoute) {
+      items.push(...buildParentChain(currentRoute.meta.parentRoute as string))
+    }
+    
+    // Add current route
     items.push({
-      title: 'User Management',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'AdminClinics') {
-    items.push({
-      title: 'Clinic Management',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'AdminSystemAlerts') {
-    items.push({
-      title: 'System Alerts',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'AdminReports') {
-    items.push({
-      title: 'Reports & Analytics',
-      path: undefined,
-      isCurrentPage: true
-    })
-  } else if (route.name === 'AdminSettings') {
-    items.push({
-      title: 'System Settings',
+      title: currentRoute.meta.breadcrumb as string,
       path: undefined,
       isCurrentPage: true
     })

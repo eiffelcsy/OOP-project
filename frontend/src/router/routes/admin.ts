@@ -21,6 +21,36 @@ const adminRoutes: RouteRecordRaw[] = [
           title: 'Dashboard',
           breadcrumb: 'Dashboard'
         }
+      },
+      {
+        path: 'clinics',
+        name: 'AdminClinics',
+        component: () => import('@/features/clinic-management/pages/AdminClinics.vue'),
+        meta: {
+          title: 'All Clinics',
+          breadcrumb: 'Clinics',
+          parentRoute: 'AdminDashboard'
+        }
+      },
+      {
+        path: 'clinics/create',
+        name: 'AdminCreateClinic',
+        component: () => import('@/features/clinic-management/pages/AdminCreateClinic.vue'),
+        meta: {
+          title: 'Create Clinic',
+          breadcrumb: 'Create Clinic',
+          parentRoute: 'AdminClinics'
+        }
+      },
+      {
+        path: 'clinics/:id',
+        name: 'AdminClinicDetails',
+        component: () => import('@/features/clinic-management/pages/AdminClinicDetails.vue'),
+        meta: {
+          title: 'Clinic Details',
+          breadcrumb: 'Clinic Details',
+          parentRoute: 'AdminClinics'
+        }
       }
     ]
   }
