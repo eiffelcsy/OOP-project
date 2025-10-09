@@ -32,10 +32,10 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/**", "/api/health").permitAll()  // Temporarily allow admin endpoints
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
-                .requestMatchers("/api/patient/**").hasAnyRole("ADMIN", "PATIENT")
+                .requestMatchers("/api/public/**", "/api/health", "api/admin/**", "api/staff/**", "api/patient/**").permitAll()  // Temporarily allow all endpoints, once development is complete, remove as needed
+                // .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
+                // .requestMatchers("/api/patient/**").hasAnyRole("ADMIN", "PATIENT")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
