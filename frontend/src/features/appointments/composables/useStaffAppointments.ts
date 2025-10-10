@@ -63,7 +63,6 @@ export const useStaffAppointments = () => {
   }
 
   const timeSlots = ref<TimeSlot[]>(generateTimeSlots())
-
   // Sample doctors data
   const doctors = ref<Doctor[]>([
     {
@@ -113,6 +112,8 @@ export const useStaffAppointments = () => {
     }
   ])
 
+  const todayDate = new Date().toISOString().slice(0, 10) // 'YYYY-MM-DD'
+
   // Today's appointments data (simulated for current date)
   const todaysAppointments = ref<StaffAppointment[]>([
     {
@@ -128,7 +129,8 @@ export const useStaffAppointments = () => {
       queueNumber: 1,
       patientPhone: '+65 9123 4567',
       notes: 'Regular annual checkup',
-      checkInTime: '08:45'
+      checkInTime: '08:45',
+      date: todayDate
     },
     {
       id: 2,
@@ -141,7 +143,8 @@ export const useStaffAppointments = () => {
       type: 'Follow-up',
       status: 'scheduled',
       patientPhone: '+65 8765 4321',
-      specialInstructions: 'Patient has anxiety about blood tests'
+      specialInstructions: 'Patient has anxiety about blood tests',
+      date: todayDate
     },
     {
       id: 3,
@@ -155,7 +158,8 @@ export const useStaffAppointments = () => {
       status: 'in-progress',
       queueNumber: 2,
       patientPhone: '+65 9876 5432',
-      checkInTime: '09:45'
+      checkInTime: '09:45',
+      date: todayDate
     },
     {
       id: 4,
@@ -167,7 +171,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Blood Test Review',
       status: 'scheduled',
-      patientPhone: '+65 8123 4567'
+      patientPhone: '+65 8123 4567',
+      date: todayDate
     },
     {
       id: 5,
@@ -182,7 +187,8 @@ export const useStaffAppointments = () => {
       queueNumber: 3,
       patientPhone: '+65 9234 5678',
       checkInTime: '10:45',
-      completedTime: '11:25'
+      completedTime: '11:25',
+      date: todayDate
     },
     {
       id: 6,
@@ -194,7 +200,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'General Checkup',
       status: 'scheduled',
-      patientPhone: '+65 8345 6789'
+      patientPhone: '+65 8345 6789',
+      date: todayDate
     },
     {
       id: 7,
@@ -209,7 +216,8 @@ export const useStaffAppointments = () => {
       queueNumber: 4,
       patientPhone: '+65 9456 7890',
       checkInTime: '13:45',
-      specialInstructions: 'Fasting required before surgery'
+      specialInstructions: 'Fasting required before surgery',
+      date: todayDate
     },
     {
       id: 8,
@@ -221,7 +229,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Follow-up',
       status: 'scheduled',
-      patientPhone: '+65 8567 8901'
+      patientPhone: '+65 8567 8901',
+      date: todayDate
     },
     {
       id: 9,
@@ -235,7 +244,8 @@ export const useStaffAppointments = () => {
       status: 'no-show',
       queueNumber: 5,
       patientPhone: '+65 9678 9012',
-      notes: 'Child patient, parent required'
+      notes: 'Child patient, parent required',
+      date: todayDate
     },
     {
       id: 10,
@@ -247,7 +257,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'General Checkup',
       status: 'scheduled',
-      patientPhone: '+65 8789 0123'
+      patientPhone: '+65 8789 0123',
+      date: todayDate
     },
     {
       id: 11,
@@ -259,7 +270,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Lab Results Review',
       status: 'scheduled',
-      patientPhone: '+65 9890 1234'
+      patientPhone: '+65 9890 1234',
+      date: todayDate
     },
     {
       id: 12,
@@ -271,7 +283,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Post-operative Check',
       status: 'scheduled',
-      patientPhone: '+65 8901 2345'
+      patientPhone: '+65 8901 2345',
+      date: todayDate
     },
     // Additional appointments to demonstrate multiple appointments in same time slots
     {
@@ -285,7 +298,8 @@ export const useStaffAppointments = () => {
       type: 'Blood Pressure Check',
       status: 'scheduled',
       patientPhone: '+65 9012 3456',
-      notes: 'Regular monitoring appointment'
+      notes: 'Regular monitoring appointment',
+      date: todayDate
     },
     {
       id: 14,
@@ -300,7 +314,8 @@ export const useStaffAppointments = () => {
       queueNumber: 6,
       patientPhone: '+65 8123 4567',
       checkInTime: '08:50',
-      specialInstructions: 'Bring child\'s vaccination record'
+      specialInstructions: 'Bring child\'s vaccination record',
+      date: todayDate
     },
     {
       id: 15,
@@ -312,7 +327,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Diabetes Follow-up',
       status: 'scheduled',
-      patientPhone: '+65 9234 5678'
+      patientPhone: '+65 9234 5678',
+      date: todayDate
     },
     {
       id: 16,
@@ -327,7 +343,8 @@ export const useStaffAppointments = () => {
       queueNumber: 7,
       patientPhone: '+65 8345 6789',
       checkInTime: '10:15',
-      notes: 'First-time patient'
+      notes: 'First-time patient',
+      date: todayDate
     },
     {
       id: 17,
@@ -340,7 +357,8 @@ export const useStaffAppointments = () => {
       type: 'Surgical Consultation',
       status: 'scheduled',
       patientPhone: '+65 9456 7890',
-      specialInstructions: 'Bring previous X-ray results'
+      specialInstructions: 'Bring previous X-ray results',
+      date: todayDate
     },
     {
       id: 18,
@@ -352,7 +370,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Annual Physical',
       status: 'scheduled',
-      patientPhone: '+65 8567 8901'
+      patientPhone: '+65 8567 8901',
+      date: todayDate
     },
     {
       id: 19,
@@ -366,7 +385,8 @@ export const useStaffAppointments = () => {
       status: 'checked-in',
       queueNumber: 8,
       patientPhone: '+65 9678 9012',
-      checkInTime: '13:45'
+      checkInTime: '13:45',
+      date: todayDate
     },
     {
       id: 20,
@@ -378,7 +398,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Hypertension Review',
       status: 'scheduled',
-      patientPhone: '+65 8789 0123'
+      patientPhone: '+65 8789 0123',
+      date: todayDate
     },
     {
       id: 21,
@@ -391,7 +412,8 @@ export const useStaffAppointments = () => {
       type: 'Pre-operative Assessment',
       status: 'scheduled',
       patientPhone: '+65 9890 1234',
-      specialInstructions: 'NPO (nothing by mouth) after midnight'
+      specialInstructions: 'NPO (nothing by mouth) after midnight',
+      date: todayDate
     },
     {
       id: 22,
@@ -403,7 +425,8 @@ export const useStaffAppointments = () => {
       duration: 30,
       type: 'Medication Review',
       status: 'scheduled',
-      patientPhone: '+65 8901 2345'
+      patientPhone: '+65 8901 2345',
+      date: todayDate
     },
     {
       id: 23,
@@ -418,7 +441,8 @@ export const useStaffAppointments = () => {
       queueNumber: 9,
       patientPhone: '+65 9012 3456',
       checkInTime: '15:45',
-      completedTime: '16:25'
+      completedTime: '16:25',
+      date: todayDate
     },
     {
       id: 24,
@@ -431,7 +455,8 @@ export const useStaffAppointments = () => {
       type: 'Immunization',
       status: 'scheduled',
       patientPhone: '+65 8123 4567',
-      notes: 'HPV vaccine series - dose 2'
+      notes: 'HPV vaccine series - dose 2',
+      date: todayDate
     }
   ])
 

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Icon } from '@iconify/vue'
 
+
 const {
   todaysAppointments,
   doctors,
@@ -25,11 +26,26 @@ const {
   isCurrentTimeSlot
 } = useStaffAppointments()
 
+
 // View modes
 const viewMode = ref<'doctor' | 'timeline'>('doctor')
 
+
 // Selected doctor filter
 const selectedDoctorId = ref<number | null>(null)
+
+// Selected date filter (format YYYY-MM-DD)
+const selectedDate = ref(new Date().toISOString().slice(0, 10))
+
+// Selected clinic filter
+const selectedClinicId = ref<number | null>(null)
+
+// Static list of clinics (replace or fetch from composable as necessary)
+const clinics = ref([
+  { id: 1, name: 'Clinic A' },
+  { id: 2, name: 'Clinic B' },
+  { id: 3, name: 'Clinic C' }
+])
 
 // Current time tracking
 const currentTime = ref(new Date().toLocaleTimeString('en-SG', { 
@@ -47,28 +63,54 @@ setInterval(() => {
   })
 }, 60000)
 
-// Filtered appointments based on selected doctor
+
+// Filtered appointments based on selected doctor, date, and clinic
 const filteredAppointmentsByDoctor = computed(() => {
-  if (!selectedDoctorId.value) {
-    return appointmentsByDoctor.value
+  // Filter appointments by date first
+  let filteredByDate = new Map<number, any[]>()
+  appointmentsByDoctor.value.forEach((appointments, doctorId) => {
+    const filteredAppts = appointments.filter(appt => appt.date === selectedDate.value)
+    if (filteredAppts.length > 0) {
+      filteredByDate.set(doctorId, filteredAppts)
+    }
+  })
+
+  // Then filter by clinic if selected
+  if (selectedClinicId.value !== null) {
+    let filteredByClinic = new Map<number, any[]>()
+    filteredByDate.forEach((appointments, doctorId) => {
+      const filtered = appointments.filter(appt => appt.clinicId === selectedClinicId.value)
+      if (filtered.length > 0) {
+        filteredByClinic.set(doctorId, filtered)
+      }
+    })
+    filteredByDate = filteredByClinic
   }
-  
-  const filtered = new Map()
-  if (appointmentsByDoctor.value.has(selectedDoctorId.value)) {
-    filtered.set(selectedDoctorId.value, appointmentsByDoctor.value.get(selectedDoctorId.value))
+
+  // Finally filter by selected doctor if selected
+  if (!selectedDoctorId.value) {
+    return filteredByDate
+  }
+
+  const filtered = new Map<number, any[]>()
+  if (filteredByDate.has(selectedDoctorId.value)) {
+    filtered.set(selectedDoctorId.value, filteredByDate.get(selectedDoctorId.value))
   }
   return filtered
 })
+
 
 // Get doctor by ID
 const getDoctorById = (doctorId: number) => {
   return doctors.value.find(d => d.id === doctorId)
 }
 
+
 // Get appointments for a specific time slot
 const getAppointmentsForTimeSlot = (timeSlot: string) => {
   return appointmentsByTimeSlot.value.get(timeSlot) || []
 }
+
 
 // Handle quick actions
 const handleCheckIn = async (appointmentId: number) => {
@@ -78,6 +120,7 @@ const handleCheckIn = async (appointmentId: number) => {
   }
 }
 
+
 const handleNoShow = async (appointmentId: number) => {
   const success = await markNoShow(appointmentId)
   if (success) {
@@ -85,12 +128,14 @@ const handleNoShow = async (appointmentId: number) => {
   }
 }
 
+
 const handleCompleted = async (appointmentId: number) => {
   const success = await markCompleted(appointmentId)
   if (success) {
     console.log('Appointment marked as completed')
   }
 }
+
 
 // Get priority badge for urgent appointments
 const getUrgencyIndicator = (appointment: any) => {
@@ -102,6 +147,7 @@ const getUrgencyIndicator = (appointment: any) => {
   }
   return 'normal'
 }
+
 
 const getUrgencyColor = (urgency: string) => {
   switch (urgency) {
@@ -116,9 +162,9 @@ const getUrgencyColor = (urgency: string) => {
   <div class="space-y-8 p-8">
     <!-- Header -->
     <div class="flex items-center justify-between">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
-        <p class="text-muted-foreground">{{ new Date().toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
+      <div class="flex flex-col gap-1">
+        <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
+        <p class="text-muted-foreground">{{ new Date(selectedDate).toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
       </div>
       <div class="flex items-center gap-4">
         <div class="text-sm text-muted-foreground">
@@ -145,66 +191,35 @@ const getUrgencyColor = (urgency: string) => {
       </div>
     </div>
 
-    <!-- Statistics Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">Total Appointments</CardTitle>
-          <Icon icon="lucide:calendar" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ totalAppointments }}</div>
-          <p class="text-xs text-muted-foreground">Scheduled for today</p>
-        </CardContent>
-      </Card>
+    <!-- Filters: Date & Clinic -->
+    <div class="flex items-center gap-6 mb-4">
+      <div class="flex items-center gap-2">
+        <label for="dateFilter" class="font-medium">Select Date:</label>
+        <input
+          id="dateFilter"
+          type="date"
+          v-model="selectedDate"
+          class="border rounded px-2 py-1"
+        />
+      </div>
 
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">Checked In</CardTitle>
-          <Icon icon="lucide:user-check" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ checkedInCount }}</div>
-          <p class="text-xs text-muted-foreground">Waiting in queue</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">In Progress</CardTitle>
-          <Icon icon="lucide:clock" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ inProgressCount }}</div>
-          <p class="text-xs text-muted-foreground">Currently being seen</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">Completed</CardTitle>
-          <Icon icon="lucide:check-circle" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ completedCount }}</div>
-          <p class="text-xs text-muted-foreground">Finished today</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">No Shows</CardTitle>
-          <Icon icon="lucide:x-circle" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ noShowCount }}</div>
-          <p class="text-xs text-muted-foreground">Did not attend</p>
-        </CardContent>
-      </Card>
+      <div class="flex items-center gap-2">
+        <label for="clinicFilter" class="font-medium">Select Clinic:</label>
+        <select
+          id="clinicFilter"
+          v-model="selectedClinicId"
+          class="border rounded px-2 py-1"
+        >
+          <option :value="null">All Clinics</option>
+          <option v-for="clinic in clinics" :key="clinic.id" :value="clinic.id">
+            {{ clinic.name }}
+          </option>
+        </select>
+      </div>
     </div>
 
     <!-- Doctor Filter (for Doctor view) -->
-    <div v-if="viewMode === 'doctor'" class="flex items-center gap-4">
+    <div v-if="viewMode === 'doctor'" class="flex items-center gap-4 mb-6">
       <span class="text-sm font-medium">Filter by Doctor:</span>
       <div class="flex gap-2 flex-wrap">
         <Button 
