@@ -59,8 +59,9 @@ export const useBookAppointment = () => {
 
   // Search and filter states for Step 1
   const clinicSearchQuery = ref('')
-  const selectedClinicType = ref<'All' | ClinicType>('All')
-  const selectedRegion = ref<'All' | Region>('All')
+  // Use generic strings so we can accept DB values (e.g., 'GENERAL', 'SPECIALIST')
+  const selectedClinicType = ref<string>('All')
+  const selectedRegion = ref<string>('All')
 
   // Dummy data for clinics (using database-aligned structure)
   const allClinics = ref<Clinic[]>([
@@ -365,14 +366,16 @@ export const useBookAppointment = () => {
       )
     }
 
-    // Filter by type
+    // Filter by type (normalize both stored and selected values)
     if (selectedClinicType.value !== 'All') {
-      filtered = filtered.filter((clinic: Clinic) => clinic.clinic_type === selectedClinicType.value)
+      const sel = selectedClinicType.value.toString().trim().toUpperCase()
+      filtered = filtered.filter((clinic: Clinic) => ((clinic.clinic_type ?? '').toString().trim().toUpperCase()) === sel)
     }
 
-    // Filter by region
+    // Filter by region (normalize both stored and selected values)
     if (selectedRegion.value !== 'All') {
-      filtered = filtered.filter((clinic: Clinic) => clinic.region === selectedRegion.value)
+      const sel = selectedRegion.value.toString().trim().toUpperCase()
+      filtered = filtered.filter((clinic: Clinic) => ((clinic.region ?? '').toString().trim().toUpperCase()) === sel)
     }
 
     return filtered
@@ -412,6 +415,25 @@ export const useBookAppointment = () => {
 
   const isLastStep = computed(() => currentStep.value === 4)
   const isFirstStep = computed(() => currentStep.value === 1)
+
+  // Dynamic lists for UI filters (derive from loaded clinics)
+  const distinctClinicTypes = computed(() => {
+    const s = new Set<string>()
+    allClinics.value.forEach(c => {
+      const t = (c.clinic_type ?? '')?.toString().trim().toUpperCase()
+      if (t) s.add(t)
+    })
+    return ['All', ...Array.from(s)]
+  })
+
+  const distinctRegions = computed(() => {
+    const s = new Set<string>()
+    allClinics.value.forEach(c => {
+      const r = (c.region ?? '')?.toString().trim().toUpperCase()
+      if (r) s.add(r)
+    })
+    return ['All', ...Array.from(s)]
+  })
 
   // Actions
   const selectClinic = (clinic: Clinic) => {
@@ -518,6 +540,47 @@ export const useBookAppointment = () => {
   }
   */
 
+  // New: load clinics from backend API
+  const loadClinics = async () => {
+    try {
+      const res = await fetch('/api/patient/clinics')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data: Clinic[] = await res.json()
+      console.log('Loaded clinics from backend:', data)
+      // Map backend fields to the expected client shape if necessary
+      allClinics.value = data.map(c => {
+        const raw = c as any
+        const safeDate = (val: any) => {
+          if (!val) return null
+          const ts = Date.parse(val)
+          return isNaN(ts) ? null : new Date(ts).toISOString()
+        }
+
+        return ({
+          id: raw.id,
+          name: raw.name,
+          // backend returns snake_case column names per DB types
+          clinic_type: raw.clinic_type ?? 'General',
+          region: raw.region ?? null,
+          area: raw.area ?? null,
+          address_line: raw.address_line ?? '',
+          source_ref: raw.source_ref ?? null,
+          remarks: raw.remarks ?? null,
+          created_at: safeDate(raw.created_at),
+          updated_at: safeDate(raw.updated_at),
+          open_time: null,
+          close_time: null,
+          note: raw.note ?? null
+        } as Clinic)
+      })
+    } catch (error) {
+      console.error('Failed to load clinics from backend, using dummy data. Error:', error)
+    }
+  }
+
+  // Load clinics proactively so UI shows real data when available
+  loadClinics().catch(err => console.warn('loadClinics failed:', err))
+
   const confirmBooking = async () => {
     try {
       // TODO: Uncomment and use the actual API method when backend is ready
@@ -572,6 +635,8 @@ export const useBookAppointment = () => {
     canProceedToNextStep,
     isLastStep,
     isFirstStep,
+    distinctClinicTypes,
+    distinctRegions,
     
     // Actions
     selectClinic,

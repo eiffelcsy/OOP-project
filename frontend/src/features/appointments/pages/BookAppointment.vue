@@ -19,6 +19,8 @@ const {
     filteredClinics,
     availableDoctors,
     availableSlots,
+    distinctClinicTypes,
+    distinctRegions,
     canProceedToNextStep,
     isLastStep,
     isFirstStep,
@@ -47,8 +49,14 @@ const stepperItems = [
     { title: 'Confirmation', description: 'Review and confirm your appointment' }
 ]
 
-const clinicTypes = ['All', 'General', 'Specialist'] as const
-const regions = ['All', 'Central', 'West', 'East', 'North-East', 'North'] as const
+// clinicTypes and regions are derived from the composable now
+// We'll use the computed lists provided by useBookAppointment
+const formatLabel = (val: string) => {
+    if (!val) return ''
+    if (val === 'All') return 'All'
+    // normalize like 'GENERAL' -> 'General', 'NORTH-EAST' -> 'North-East'
+    return val.toLowerCase().split(/[ _-]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('-')
+}
 
 const calendarValue = ref<CalendarDate>()
 
@@ -117,20 +125,20 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             <div>
                                 <Label>Clinic Type</Label>
                                 <div class="flex flex-wrap gap-2 mt-2">
-                                    <Button v-for="type in clinicTypes" :key="type"
-                                        :variant="selectedClinicType === type ? 'default' : 'outline'" size="sm"
-                                        @click="selectedClinicType = type">
-                                        {{ type }}
-                                    </Button>
+                                    <Button v-for="type in distinctClinicTypes" :key="type"
+                                            :variant="selectedClinicType === type ? 'default' : 'outline'" size="sm"
+                                            @click="selectedClinicType = type">
+                                            {{ formatLabel(type) }}
+                                        </Button>
                                 </div>
                             </div>
                             <div>
                                 <Label>Region</Label>
                                 <div class="flex flex-wrap gap-2 mt-2">
-                                    <Button v-for="region in regions" :key="region"
+                                    <Button v-for="region in distinctRegions" :key="region"
                                         :variant="selectedRegion === region ? 'default' : 'outline'" size="sm"
                                         @click="selectedRegion = region">
-                                        {{ region }}
+                                        {{ formatLabel(region) }}
                                     </Button>
                                 </div>
                             </div>

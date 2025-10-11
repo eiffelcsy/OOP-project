@@ -26,8 +26,8 @@ Composable:
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
 import type { Session } from '@supabase/supabase-js'
-import type { 
-  Tables,  
+import type {
+  Tables,
 } from '@/types/supabase'
 
 export interface AuthUser {
@@ -49,8 +49,8 @@ export interface RegisterData {
   userType: string
 }
 
-
-export const useAuth = () => {
+// Create a factory that constructs the auth state and methods
+const createAuth = () => {
   const currentUser = ref<AuthUser | null>(null)
   const session = ref<Session | null>(null)
   const isLoading = ref(false)
@@ -192,7 +192,7 @@ export const useAuth = () => {
       isLoading.value = true
       const { error: signOutError } = await supabase.auth.signOut()
       if (signOutError) throw signOutError
-      
+
       currentUser.value = null
       session.value = null
       error.value = null
@@ -207,7 +207,7 @@ export const useAuth = () => {
     try {
       isLoading.value = true
       const { data: { session: currentSession } } = await supabase.auth.getSession()
-      
+
       if (currentSession?.user) {
         session.value = currentSession
         currentUser.value = await fetchUserProfile(currentSession.user.id)
@@ -226,7 +226,7 @@ export const useAuth = () => {
     // Listen for auth state changes
     supabase.auth.onAuthStateChange(async (event, newSession) => {
       session.value = newSession
-      
+
       if (newSession?.user) {
         currentUser.value = await fetchUserProfile(newSession.user.id)
       } else {
@@ -257,4 +257,12 @@ export const useAuth = () => {
     initializeAuth,
     getAccessToken
   }
+}
+
+// Singleton instance so every import of useAuth() shares the same state
+let authInstance: ReturnType<typeof createAuth> | null = null
+
+export const useAuth = () => {
+  if (!authInstance) authInstance = createAuth()
+  return authInstance
 }

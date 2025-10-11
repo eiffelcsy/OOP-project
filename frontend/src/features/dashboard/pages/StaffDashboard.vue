@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useAuth } from '@/features/auth/composables/useAuth'
+
+// expose current user for template
+const { currentUser } = useAuth()
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -256,7 +260,7 @@ onMounted(() => {
   <div class="space-y-8 p-8">
     <!-- Dashboard Title -->
     <div class="flex flex-col gap-1">
-      <h1 class="text-3xl font-bold tracking-tight">Welcome back, Sarah!</h1>
+  <h1 class="text-3xl font-bold tracking-tight">Welcome back, {{ currentUser?.profile?.full_name || currentUser?.profile?.email || 'there' }}!</h1>
       <p class="text-muted-foreground">Manage today's appointments and queue operations.</p>
     </div>
 
