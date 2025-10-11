@@ -1,0 +1,61 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Debug port
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    env_file:
+      - .env.backend
+    volumes:
+      # Mount source code for hot reload
+      - ./backend/src:/app/src
+      - ./backend/pom.xml:/app/pom.xml
+      # Use named volume for Maven dependencies to avoid re-downloading
+      - maven-repo:/root/.m2
+    networks:
+      - clinic-network
+    environment:
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - SPRING_DEVTOOLS_LIVERELOAD_ENABLED=true
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:5173"  # Map host 3000 to container 5173 (Vite default)
+    env_file:
+      - .env.frontend
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/tsconfig.app.json:/app/tsconfig.app.json
+      - ./frontend/tsconfig.node.json:/app/tsconfig.node.json
+      - ./frontend/package.json:/app/package.json
+      # Use named volume for node_modules to avoid conflicts
+      - node-modules:/app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - clinic-network
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
+networks:
+  clinic-network:
+    driver: bridge
+
+volumes:
+  maven-repo:
+  node-modules:
