@@ -543,8 +543,22 @@ export const useBookAppointment = () => {
   // New: load clinics from backend API
   const loadClinics = async () => {
     try {
-      const res = await fetch('/api/patient/clinics')
+      // Resolve API base from Vite env (works in dev and production)
+      const env = (import.meta.env as any)
+      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+      const endpoint = `${apiBase.replace(/\/+$/, '')}/patient/clinics`
+
+      const res = await fetch(endpoint, { headers: { Accept: 'application/json' } })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+      const contentType = (res.headers.get('content-type') || '')
+      if (!contentType.includes('application/json')) {
+        // Received HTML or other unexpected response (commonly index.html from dev server)
+        const text = await res.text()
+        console.error('Expected JSON from clinics endpoint but got:', text.slice(0, 1000))
+        throw new Error('Invalid JSON response from clinics endpoint')
+      }
+
       const data: Clinic[] = await res.json()
       console.log('Loaded clinics from backend:', data)
       // Map backend fields to the expected client shape if necessary
