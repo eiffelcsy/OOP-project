@@ -2,19 +2,26 @@ package com.clinic.management.model;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "doctors")
 public class Doctor {
 
     @Id
-    @Column(name = "clinic_id")
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "doctor_id")
+    private Long doctorId;
+
+    @Column(name = "clinic_id", nullable = false)
     private Long clinicId;
 
     @Column(nullable = false)
     private String name;
 
     private String specialty;
+
+    @Column(nullable = false)
     private Boolean active;
 
     @Column(name = "created_at", columnDefinition = "timestamptz")
@@ -25,14 +32,22 @@ public class Doctor {
 
     public Doctor() {}
 
-    public Doctor(Long clinicId, String name, String specialty, Boolean active,
-                  OffsetDateTime createdAt, OffsetDateTime updatedAt) {
+    public Doctor(Long clinicId, String name, String specialty, Boolean active, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
         this.clinicId = clinicId;
         this.name = name;
         this.specialty = specialty;
         this.active = active;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    // Getters and setters
+    public Long getDoctorId() {
+        return doctorId;
+    }
+
+    public void setDoctorId(Long doctorId) {
+        this.doctorId = doctorId;
     }
 
     public Long getClinicId() {
@@ -81,5 +96,18 @@ public class Doctor {
 
     public void setUpdatedAt(OffsetDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Doctor)) return false;
+        Doctor doctor = (Doctor) o;
+        return Objects.equals(doctorId, doctor.doctorId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(doctorId);
     }
 }

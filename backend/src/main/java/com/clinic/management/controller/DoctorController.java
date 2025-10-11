@@ -17,33 +17,15 @@ public class DoctorController {
         this.service = service;
     }
 
-    // ✅ GET all active doctors
+    // ✅ GET all doctors
     @GetMapping("/doctors")
     public List<Doctor> getAllDoctors() {
-        return service.getActiveDoctors();
+        return service.getAllDoctors();
     }
 
-    // ✅ GET doctor by ID
+    // ✅ GET doctors by clinicId
     @GetMapping("/doctors/{clinicId}")
-    public Doctor getDoctorById(@PathVariable Long clinicId) {
-        return service.getDoctorById(clinicId);
-    }
-
-    // ✅ POST - add a new doctor
-    @PostMapping("/doctors")
-    public Doctor addDoctor(@RequestBody Doctor doctor) {
-        return service.addDoctor(doctor);
-    }
-
-    // ✅ PUT - update doctor
-    @PutMapping("/doctors/{clinicId}")
-    public Doctor updateDoctor(@PathVariable Long clinicId, @RequestBody Doctor updatedDoctor) {
-        return service.updateDoctor(clinicId, updatedDoctor);
-    }
-
-    // ✅ DELETE - remove doctor
-    @DeleteMapping("/doctors/{clinicId}")
-    public void deleteDoctor(@PathVariable Long clinicId) {
-        service.deleteDoctor(clinicId);
+    public List<Doctor> getDoctorsByClinic(@PathVariable Long clinicId) {
+        return service.getDoctorsByClinicId(clinicId);
     }
 }

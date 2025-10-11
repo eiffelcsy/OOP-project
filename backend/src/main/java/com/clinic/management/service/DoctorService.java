@@ -15,33 +15,15 @@ public class DoctorService {
         this.repository = repository;
     }
 
+    // Get all doctors
     public List<Doctor> getAllDoctors() {
         return repository.findAll();
     }
 
-    public List<Doctor> getActiveDoctors() {
-        return repository.findByActiveTrue();
+    // Get doctors by clinicId
+    public List<Doctor> getDoctorsByClinicId(Long clinicId) {
+        return repository.findByClinicId(clinicId);
     }
 
-    public Doctor getDoctorById(Long clinicId) {
-        return repository.findById(clinicId)
-                .orElseThrow(() -> new RuntimeException("Doctor not found with ID: " + clinicId));
-    }
-
-    public Doctor addDoctor(Doctor doctor) {
-        return repository.save(doctor);
-    }
-
-    public Doctor updateDoctor(Long clinicId, Doctor updatedDoctor) {
-        Doctor existing = getDoctorById(clinicId);
-        existing.setName(updatedDoctor.getName());
-        existing.setSpecialty(updatedDoctor.getSpecialty());
-        existing.setActive(updatedDoctor.getActive());
-        existing.setUpdatedAt(updatedDoctor.getUpdatedAt());
-        return repository.save(existing);
-    }
-
-    public void deleteDoctor(Long clinicId) {
-        repository.deleteById(clinicId);
-    }
+    // Optional: add, update, delete methods if needed later
 }
