@@ -6,6 +6,7 @@
 
 # ViewAppointments (Patients)
 
+# # # # #  STAFF # # # # #
 # ViewAppointments (Staff)
 1. GET /api/staff/appointments
 
@@ -15,3 +16,9 @@
 # ManagementAppointments (Staff)
 3. PUT /api/staff/appointments/:id
 4. DELETE /api/staff/appointments/:id
+
+# # # # # DOCTOR # # # # #
+1. GET /api/doctors
+2. GET /api/doctors/{clinicId}
+
+
