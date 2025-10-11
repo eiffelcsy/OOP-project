@@ -6,6 +6,12 @@
 
 # ViewAppointments (Patients)
 
-# ScheduleWalkIn (Staff)
+# ViewAppointments (Staff)
+1. GET /api/staff/appointments
 
-# TodaysAppointments (Staff)
+# ScheduleWalkIn (Staff)
+2. POST /api/staff/appointments
+
+# ManagementAppointments (Staff)
+3. PUT /api/staff/appointments/:id
+4. DELETE /api/staff/appointments/:id
