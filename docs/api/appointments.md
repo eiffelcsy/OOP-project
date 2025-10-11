@@ -6,18 +6,16 @@
 
 # ViewAppointments (Patients)
 
-# # # # #  STAFF # # # # #
-# ViewAppointments (Staff)
+#####  STAFF #####
+# ViewAppointments
 1. GET /api/staff/appointments
-
-# ScheduleWalkIn (Staff)
+# ScheduleWalkIn 
 2. POST /api/staff/appointments
-
-# ManagementAppointments (Staff)
+# ManagementAppointments
 3. PUT /api/staff/appointments/:id
 4. DELETE /api/staff/appointments/:id
 
-# # # # # DOCTOR # # # # #
+##### DOCTOR #####
 1. GET /api/doctors
 2. GET /api/doctors/{clinicId}
 
