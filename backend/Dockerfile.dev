@@ -1,0 +1,23 @@
+# Development Dockerfile for Spring Boot with hot-reload
+FROM openjdk:21-slim
+
+WORKDIR /app
+
+# Install maven for hot reload with spring-boot-devtools
+RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
+
+# Copy Maven wrapper and pom.xml
+COPY mvnw .
+COPY mvnw.cmd .
+COPY .mvn .mvn
+COPY pom.xml .
+
+# Download dependencies (this layer will be cached)
+RUN ./mvnw dependency:go-offline || true
+
+# Expose port 8080
+EXPOSE 8080
+
+# Run with Spring Boot Maven plugin (enables hot reload)
+# The source code will be mounted as a volume
+CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"]

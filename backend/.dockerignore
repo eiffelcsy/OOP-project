@@ -1,0 +1,43 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+.npm
+.yarn
+
+# Build outputs
+dist/
+build/
+target/
+
+# IDE
+.vscode/
+.idea/
+*.iml
+.DS_Store
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Tests
+**/*.test.js
+**/*.test.ts
+**/*.spec.js
+**/*.spec.ts
+coverage/
+
+# Misc
+.dockerignore
+Dockerfile
+Dockerfile.dev
+docker-compose*.yml
