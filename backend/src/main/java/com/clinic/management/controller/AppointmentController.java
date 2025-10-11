@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/staff/appointments")
+@RequestMapping("/api")
 public class AppointmentController {
 
     private final AppointmentService service;
@@ -17,7 +17,7 @@ public class AppointmentController {
     }
 
     // # ViewAppointments
-    @GetMapping
+    @GetMapping("/staff/appointments")
     public List<Appointment> getAppointments(
             @RequestParam(required = false) Long doctorId,
             @RequestParam(required = false) Long clinicId,
