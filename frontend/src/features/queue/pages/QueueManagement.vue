@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useQueueManagement } from '../composables/useQueueManagement'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +13,7 @@ const {
   currentPatient,
   completedToday,
   noShowToday,
+  initializeQueueState,
   startQueue,
   pauseQueue,
   resumeQueue,
@@ -21,6 +23,11 @@ const {
   moveToFastTrack,
   removeFromFastTrack
 } = useQueueManagement()
+
+// Initialize queue state when component mounts
+onMounted(async () => {
+  await initializeQueueState()
+})
 
 const openQueueDisplay = () => {
   if (!queueState.queueId) {

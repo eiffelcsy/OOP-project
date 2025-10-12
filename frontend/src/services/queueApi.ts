@@ -7,23 +7,23 @@ import { apiClient } from '@/lib/api'
 
 // Queue API request/response types
 export interface CreateQueueRequest {
-  clinicId: number
-  queueStatus?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  clinic_id: number  // Backend uses snake_case
+  queue_status?: 'ACTIVE' | 'PAUSED' | 'CLOSED'  // Backend uses snake_case
 }
 
 export interface UpdateQueueRequest {
-  clinicId?: number
-  queueStatus?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  expectedUpdatedAt?: string // ISO-8601 timestamp for optimistic locking
+  clinic_id?: number  // Backend uses snake_case
+  queue_status?: 'ACTIVE' | 'PAUSED' | 'CLOSED'  // Backend uses snake_case
+  expected_updated_at?: number // Unix timestamp for optimistic locking
 }
 
 export interface QueueResponse {
   id: number
-  clinicId: number
-  clinicName: string | null
-  queueStatus: 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  createdAt: string // ISO-8601 timestamp
-  updatedAt: string // ISO-8601 timestamp
+  clinic_id: number  // Backend uses snake_case
+  clinic_name: string | null
+  queue_status: 'ACTIVE' | 'PAUSED' | 'CLOSED'  // Backend uses snake_case
+  created_at: number // Unix timestamp from backend
+  updated_at: number // Unix timestamp from backend
 }
 
 export interface ListQueuesOptions {

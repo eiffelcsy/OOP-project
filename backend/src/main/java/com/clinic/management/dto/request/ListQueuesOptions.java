@@ -100,8 +100,46 @@ public class ListQueuesOptions {
         return statuses;
     }
     
-    public void setStatuses(List<QueueStatus> statuses) {
-        this.statuses = statuses != null ? statuses : new ArrayList<>();
+    /**
+     * Set statuses from comma-separated string or list (for query parameter parsing)
+     * This allows the frontend to send: statuses=ACTIVE,PAUSED
+     * Spring will call this with the comma-separated string
+     * @param statusesInput Either comma-separated string or list of status values
+     */
+    public void setStatuses(Object statusesInput) {
+        if (statusesInput == null) {
+            this.statuses = new ArrayList<>();
+            return;
+        }
+        
+        // If it's already a list, use it directly
+        if (statusesInput instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<QueueStatus> statusList = (List<QueueStatus>) statusesInput;
+            this.statuses = statusList;
+            return;
+        }
+        
+        // Otherwise, treat it as a string
+        String statusesStr = statusesInput.toString();
+        if (statusesStr.trim().isEmpty()) {
+            this.statuses = new ArrayList<>();
+            return;
+        }
+        
+        String[] statusArray = statusesStr.split(",");
+        List<QueueStatus> parsedStatuses = new ArrayList<>();
+        
+        for (String status : statusArray) {
+            try {
+                parsedStatuses.add(QueueStatus.valueOf(status.trim().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                // Skip invalid status values
+                System.err.println("Invalid queue status: " + status);
+            }
+        }
+        
+        this.statuses = parsedStatuses;
     }
     
     public boolean isIncludeCount() {

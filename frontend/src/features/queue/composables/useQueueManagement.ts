@@ -1,6 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import type { Tables } from '@/types/supabase'
-import { queueApi, type QueueResponse } from '@/services/queueApi'
+import { queueApi, type QueueResponse, type CreateQueueRequest } from '@/services/queueApi'
+import { getCurrentUserClinicId } from '@/services/staffApi'
 
 // Type aliases from database
 type QueueTicket = Tables<'queue_tickets'>
@@ -161,14 +162,75 @@ export function useQueueManagement() {
 
   // Queue management actions
   /**
+   * Initialize queue state by checking for existing active/paused queue
+   * Called when the component mounts
+   */
+  const initializeQueueState = async () => {
+    try {
+      console.log('Initializing queue state...')
+      const clinicId = await getCurrentUserClinicId()
+      console.log('Clinic ID:', clinicId)
+      
+      // Query for active or paused queues for this clinic
+      const result = await queueApi.listQueues({
+        clinicId: clinicId,
+        statuses: ['ACTIVE', 'PAUSED'],
+        size: 1,
+        sortBy: 'created_at',
+        sortDir: 'DESC'
+      })
+
+      console.log('List queues result:', result)
+
+      if (result.data && result.data.length > 0) {
+        const existingQueue = result.data[0]
+        
+        console.log('DEBUG: queue_status value:', existingQueue.queue_status)
+        console.log('DEBUG: queue_status type:', typeof existingQueue.queue_status)
+        console.log('DEBUG: Comparison result:', existingQueue.queue_status === 'PAUSED')
+        
+        // Update local state to reflect existing queue
+        queueState.isActive = true
+        queueState.isPaused = existingQueue.queue_status === 'PAUSED'
+        queueState.queueId = existingQueue.id
+        queueState.startedAt = new Date(existingQueue.created_at * 1000) // Convert Unix timestamp to Date
+        queueState.endedAt = null
+
+        console.log('Loaded existing queue:', existingQueue)
+        console.log('Queue state updated:', {
+          isActive: queueState.isActive,
+          isPaused: queueState.isPaused,
+          queueId: queueState.queueId
+        })
+      } else {
+        // No active queue found
+        console.log('No active or paused queue found')
+        queueState.isActive = false
+        queueState.isPaused = false
+        queueState.queueId = null
+        queueState.startedAt = null
+        queueState.endedAt = null
+      }
+    } catch (error) {
+      console.error('Failed to initialize queue state:', error)
+      console.error('Error details:', error instanceof Error ? error.message : String(error))
+      // Don't show alert on initialization failure, just log
+    }
+  }
+
+  /**
    * Start a new queue
-   * Creates a new queue in the database with clinic_id=2 and status=ACTIVE
+   * Creates a new queue in the database using the authenticated user's clinic_id
    */
   const startQueue = async () => {
     try {
-      const requestData: { clinicId: number; queueStatus: 'ACTIVE' | 'PAUSED' | 'CLOSED' } = {
-        clinicId: 2, // Hardcoded as per requirement
-        queueStatus: 'ACTIVE' as const
+      // Get the authenticated user's clinic_id from the staff table
+      const clinicId = await getCurrentUserClinicId()
+      
+      // Backend expects snake_case property names
+      const requestData: CreateQueueRequest = {
+        clinic_id: clinicId,
+        queue_status: 'ACTIVE' as const
       }
       
       console.log('Creating queue with request:', JSON.stringify(requestData))
@@ -180,46 +242,109 @@ export function useQueueManagement() {
       queueState.isActive = true
       queueState.isPaused = false
       queueState.queueId = queueResponse.id
-      queueState.startedAt = new Date(queueResponse.createdAt)
+      queueState.startedAt = new Date(queueResponse.created_at * 1000)
       queueState.endedAt = null
 
       console.log('Queue started successfully:', queueResponse)
     } catch (error) {
       console.error('Failed to start queue:', error)
-      // Optionally show error notification to user
-      alert('Failed to start queue. Please try again.')
+      
+      // Show user-friendly error message
+      if (error instanceof Error) {
+        if (error.message.includes('not authenticated')) {
+          alert('You must be logged in to start a queue. Please sign in and try again.')
+        } else if (error.message.includes('not associated with any staff record')) {
+          alert('Your account is not associated with any clinic. Please contact your administrator.')
+        } else {
+          alert(`Failed to start queue: ${error.message}`)
+        }
+      } else {
+        alert('Failed to start queue. Please try again.')
+      }
       throw error
     }
   }
 
-  const pauseQueue = () => {
-    queueState.isPaused = true
+  const pauseQueue = async () => {
+    try {
+      console.log('Pausing queue...', queueState.queueId)
+      if (!queueState.queueId) {
+        throw new Error('No active queue to pause')
+      }
+
+      // Update queue status to PAUSED in backend
+      // Backend expects snake_case property names
+      const updateRequest = {
+        queue_status: 'PAUSED' as const
+      }
+      console.log('Sending update request:', updateRequest)
+      
+      const updatedQueue = await queueApi.updateQueue(queueState.queueId, updateRequest)
+      console.log('Queue paused successfully:', updatedQueue)
+
+      // Update local state
+      queueState.isPaused = true
+
+    } catch (error) {
+      console.error('Failed to pause queue:', error)
+      console.error('Error details:', error instanceof Error ? error.message : String(error))
+      alert('Failed to pause queue. Please try again.')
+      throw error
+    }
   }
 
-  const resumeQueue = () => {
-    queueState.isPaused = false
+  const resumeQueue = async () => {
+    try {
+      console.log('Resuming queue...', queueState.queueId)
+      if (!queueState.queueId) {
+        throw new Error('No paused queue to resume')
+      }
+
+      // Update queue status to ACTIVE in backend
+      // Backend expects snake_case property names
+      const updateRequest = {
+        queue_status: 'ACTIVE' as const
+      }
+      console.log('Sending update request:', updateRequest)
+      
+      const updatedQueue = await queueApi.updateQueue(queueState.queueId, updateRequest)
+      console.log('Queue resumed successfully:', updatedQueue)
+
+      // Update local state
+      queueState.isPaused = false
+
+    } catch (error) {
+      console.error('Failed to resume queue:', error)
+      console.error('Error details:', error instanceof Error ? error.message : String(error))
+      alert('Failed to resume queue. Please try again.')
+      throw error
+    }
   }
 
   const endQueue = async () => {
     try {
       // Update queue status to CLOSED in backend
+      // Backend expects snake_case property names
       if (queueState.queueId) {
         await queueApi.updateQueue(queueState.queueId, {
-          queueStatus: 'CLOSED'
+          queue_status: 'CLOSED'
         })
       }
 
-      // Update local state
+      // Update local state - reset everything as queue is now closed
       queueState.isActive = false
       queueState.isPaused = false
+      queueState.queueId = null
       queueState.endedAt = new Date()
 
       console.log('Queue ended successfully')
     } catch (error) {
       console.error('Failed to end queue:', error)
+      alert('Failed to end queue. Please try again.')
       // Still update local state even if API call fails
       queueState.isActive = false
       queueState.isPaused = false
+      queueState.queueId = null
       queueState.endedAt = new Date()
     }
   }
@@ -302,6 +427,7 @@ export function useQueueManagement() {
     noShowToday,
     
     // Actions
+    initializeQueueState,
     startQueue,
     pauseQueue,
     resumeQueue,

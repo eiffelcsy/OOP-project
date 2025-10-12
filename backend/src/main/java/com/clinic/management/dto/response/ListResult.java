@@ -1,7 +1,6 @@
 package com.clinic.management.dto.response;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Generic list result wrapper
@@ -45,8 +44,8 @@ public class ListResult<T> {
         this.data = data;
     }
     
-    public Optional<Long> getCount() {
-        return Optional.ofNullable(count);
+    public Long getCount() {
+        return count;
     }
     
     public void setCount(Long count) {
