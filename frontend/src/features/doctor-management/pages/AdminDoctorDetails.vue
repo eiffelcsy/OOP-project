@@ -3,6 +3,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDoctors, type DoctorResponse } from '../composables/useDoctors'
 import { useSchedules, type ScheduleResponse, type CreateScheduleRequest, type UpdateScheduleRequest } from '../composables/useSchedules'
+import { useClinics, type ClinicResponse } from '@/features/clinic-management/composables/useClinics'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const { fetchDoctorById, updateDoctor, deleteDoctor, loading, error } = useDoctors()
+const { fetchClinicById } = useClinics()
 const { 
   schedules, 
   loading: schedulesLoading, 
@@ -39,6 +41,7 @@ const {
 } = useSchedules()
 
 const doctor = ref<DoctorResponse | null>(null)
+const clinic = ref<ClinicResponse | null>(null)
 const isEditing = ref(false)
 const showDeleteDialog = ref(false)
 const successMessage = ref('')
@@ -93,6 +96,14 @@ const scheduleFormData = reactive<Partial<CreateScheduleRequest>>({
 
 const doctorId = computed(() => parseInt(route.params.id as string))
 
+const formatTimeForDisplay = (time: string) => {
+  if (!time) return 'Not set'
+  return time.substring(0, 5) // HH:MM
+}
+
+// Validation error message
+const scheduleValidationError = ref<string | null>(null)
+
 // Filter schedules based on day and validity
 const filteredSchedules = computed(() => {
   let filtered = schedules.value
@@ -145,10 +156,20 @@ const loadDoctor = async () => {
   if (data) {
     doctor.value = data
     Object.assign(editFormData, data)
+    // Load clinic data to get operating hours
+    await loadClinic(data.clinicId)
     // Load schedules from API
     await loadSchedules()
   } else {
     router.push({ name: 'AdminDoctorsByClinic' })
+  }
+}
+
+// Load clinic data
+const loadClinic = async (clinicId: number) => {
+  const data = await fetchClinicById(clinicId)
+  if (data) {
+    clinic.value = data
   }
 }
 
@@ -161,10 +182,16 @@ const loadSchedules = async () => {
 const handleAddSchedule = () => {
   isEditingSchedule.value = false
   editingScheduleId.value = null
+  scheduleValidationError.value = null
+  
+  // Set default times to clinic hours if available
+  const defaultStartTime = clinic.value?.openTime || '09:00:00'
+  const defaultEndTime = clinic.value?.closeTime || '17:00:00'
+  
   Object.assign(scheduleFormData, {
     dayOfWeek: 1,
-    startTime: '09:00:00',
-    endTime: '17:00:00',
+    startTime: defaultStartTime,
+    endTime: defaultEndTime,
     slotDurationMinutes: 30,
     validFrom: null,
     validTo: null
@@ -175,6 +202,7 @@ const handleAddSchedule = () => {
 const handleEditSchedule = (schedule: ScheduleResponse) => {
   isEditingSchedule.value = true
   editingScheduleId.value = schedule.id
+  scheduleValidationError.value = null
   Object.assign(scheduleFormData, {
     dayOfWeek: schedule.dayOfWeek,
     startTime: schedule.startTime,
@@ -188,6 +216,33 @@ const handleEditSchedule = (schedule: ScheduleResponse) => {
 
 const handleSaveSchedule = async () => {
   if (!doctorId.value) return
+
+  // Clear previous validation error
+  scheduleValidationError.value = null
+
+  // Validate schedule times are within clinic operating hours
+  if (clinic.value?.openTime && clinic.value?.closeTime) {
+    const scheduleStart = scheduleFormData.startTime!
+    const scheduleEnd = scheduleFormData.endTime!
+    const clinicOpen = clinic.value.openTime
+    const clinicClose = clinic.value.closeTime
+
+    // Compare times (in HH:MM:SS format)
+    if (scheduleStart < clinicOpen) {
+      scheduleValidationError.value = `Start time must be at or after clinic opening time (${formatTimeForDisplay(clinicOpen)})`
+      return
+    }
+
+    if (scheduleEnd > clinicClose) {
+      scheduleValidationError.value = `End time must be at or before clinic closing time (${formatTimeForDisplay(clinicClose)})`
+      return
+    }
+
+    if (scheduleStart >= scheduleEnd) {
+      scheduleValidationError.value = 'Start time must be before end time'
+      return
+    }
+  }
 
   const scheduleData = {
     doctorId: doctorId.value,
@@ -208,6 +263,7 @@ const handleSaveSchedule = async () => {
 
   if (result) {
     showScheduleDialog.value = false
+    scheduleValidationError.value = null
     successMessage.value = isEditingSchedule.value ? 'Schedule updated successfully!' : 'Schedule created successfully!'
     setTimeout(() => {
       successMessage.value = ''
@@ -741,6 +797,31 @@ onMounted(() => {
             {{ isEditingSchedule ? 'Update the schedule details below' : 'Create a new schedule for this doctor' }}
           </DialogDescription>
         </DialogHeader>
+
+        <!-- Clinic Operating Hours Info -->
+        <div v-if="clinic?.openTime && clinic?.closeTime" class="bg-muted/50 p-4 rounded-lg border">
+          <div class="flex items-start gap-3">
+            <Icon icon="lucide:info" class="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div>
+              <p class="text-sm font-medium">Clinic Operating Hours</p>
+              <p class="text-sm text-muted-foreground mt-1">
+                {{ clinic.name }}: {{ formatTimeForDisplay(clinic.openTime) }} - {{ formatTimeForDisplay(clinic.closeTime) }}
+              </p>
+              <p class="text-xs text-muted-foreground mt-1">
+                Schedule times must be within these hours
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation Error -->
+        <div v-if="scheduleValidationError" class="bg-destructive/10 border border-destructive p-4 rounded-lg">
+          <div class="flex items-start gap-3">
+            <Icon icon="lucide:alert-circle" class="h-5 w-5 text-destructive mt-0.5" />
+            <p class="text-sm text-destructive">{{ scheduleValidationError }}</p>
+          </div>
+        </div>
+
         <form @submit.prevent="handleSaveSchedule" class="space-y-4">
           <div class="grid grid-cols-2 gap-6">
             <div class="space-y-2 col-span-2">
@@ -766,6 +847,8 @@ onMounted(() => {
                 v-model="scheduleFormData.startTime" 
                 type="time"
                 step="60"
+                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
+                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
                 required 
               />
             </div>
@@ -777,6 +860,8 @@ onMounted(() => {
                 v-model="scheduleFormData.endTime" 
                 type="time"
                 step="60"
+                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
+                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
                 required 
               />
             </div>
