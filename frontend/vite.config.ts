@@ -28,7 +28,7 @@ export default defineConfig({
     // Proxy API calls to backend in development to avoid CORS and index.html fallbacks
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://backend:8080',
         changeOrigin: true,
         secure: false,
         rewrite: (p) => p.replace(/^\/api/, '/api')

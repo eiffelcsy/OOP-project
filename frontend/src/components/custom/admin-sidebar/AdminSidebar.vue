@@ -94,14 +94,6 @@ import { Icon } from "@iconify/vue"
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild>
-                        <a href="/admin/users/roles">
-                          <Icon icon="lucide:shield-check" class="size-4" />
-                          <span>Manage Roles</span>
-                        </a>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>

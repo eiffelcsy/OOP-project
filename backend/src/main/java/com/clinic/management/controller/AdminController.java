@@ -1,44 +1,57 @@
 package com.clinic.management.controller;
 
+import com.clinic.management.dto.request.CreateClinicRequest;
+import com.clinic.management.dto.request.CreateUserRequest;
+import com.clinic.management.dto.request.UpdateUserRequest;
+import com.clinic.management.dto.response.UserResponse;
+import com.clinic.management.dto.request.UpdateClinicRequest;
+import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.model.Clinic;
 import com.clinic.management.service.ClinicService;
+import com.clinic.management.service.UserService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Admin clinic management operations
- * Provides endpoints for CRUD operations on clinics
+ * Provides endpoints for CRUD operations on clinics, users
  */
 @RestController
 @RequestMapping("/api/admin")
 @CrossOrigin(origins = "*") // Configure appropriately for production
+@Validated
 public class AdminController {
 
     private final ClinicService clinicService;
+    private final UserService userService;
     
     @Autowired
-    public AdminController(ClinicService clinicService) {
+    public AdminController(ClinicService clinicService, UserService userService) {
         this.clinicService = clinicService;
+        this.userService = userService;
     }
+    
+    // ================================ CLINIC MANAGEMENT ENDPOINTS ================================
     
     /**
      * GET /api/admin/clinics
      * Fetch all clinics
-     * @return List of all clinics
+     * @return List of all clinics as ClinicResponse DTOs
      */
     @GetMapping("/clinics")
-    public ResponseEntity<List<Clinic>> getAllClinics() {
-        try {
-            List<Clinic> clinics = clinicService.getAllClinics();
-            return ResponseEntity.ok(clinics);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    public ResponseEntity<List<ClinicResponse>> getAllClinics() {
+        List<Clinic> clinics = clinicService.getAllClinics();
+        List<ClinicResponse> responses = clinics.stream()
+            .map(ClinicResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
     }
     
     /**
@@ -48,53 +61,39 @@ public class AdminController {
      * @return Clinic data or 404 if not found
      */
     @GetMapping("/clinics/{id}")
-    public ResponseEntity<Clinic> getClinicById(@PathVariable Long id) {
-        try {
-            Optional<Clinic> clinic = clinicService.getClinicById(id);
-            return clinic.map(ResponseEntity::ok)
-                        .orElse(ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    public ResponseEntity<ClinicResponse> getClinicById(@PathVariable Long id) {
+        return clinicService.getClinicById(id)
+            .map(clinic -> ResponseEntity.ok(ClinicResponse.from(clinic)))
+            .orElse(ResponseEntity.notFound().build());
     }
     
     /**
      * POST /api/admin/clinics
      * Create a new clinic
-     * @param clinic Clinic data
+     * @param request Create clinic request (validated)
      * @return Created clinic with 201 status
      */
     @PostMapping("/clinics")
-    public ResponseEntity<?> createClinic(@RequestBody Clinic clinic) {
-        try {
-            Clinic createdClinic = clinicService.createClinic(clinic);
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdClinic);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .body("Failed to create clinic: " + e.getMessage());
-        }
+    public ResponseEntity<ClinicResponse> createClinic(@Valid @RequestBody CreateClinicRequest request) {
+        Clinic createdClinic = clinicService.createClinic(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(ClinicResponse.from(createdClinic));
     }
     
     /**
      * PUT /api/admin/clinics/{id}
      * Update an existing clinic
      * @param id Clinic ID
-     * @param clinic Updated clinic data
+     * @param request Update clinic request (validated, all fields optional)
      * @return Updated clinic or error response
      */
     @PutMapping("/clinics/{id}")
-    public ResponseEntity<?> updateClinic(@PathVariable Long id, @RequestBody Clinic clinic) {
-        try {
-            Clinic updatedClinic = clinicService.updateClinic(id, clinic);
-            return ResponseEntity.ok(updatedClinic);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .body("Failed to update clinic: " + e.getMessage());
-        }
+    public ResponseEntity<ClinicResponse> updateClinic(
+        @PathVariable Long id,
+        @Valid @RequestBody UpdateClinicRequest request
+    ) {
+        Clinic updatedClinic = clinicService.updateClinic(id, request);
+        return ResponseEntity.ok(ClinicResponse.from(updatedClinic));
     }
     
     /**
@@ -104,79 +103,71 @@ public class AdminController {
      * @return 204 No Content on success
      */
     @DeleteMapping("/clinics/{id}")
-    public ResponseEntity<?> deleteClinic(@PathVariable Long id) {
-        try {
-            clinicService.deleteClinic(id);
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .body("Failed to delete clinic: " + e.getMessage());
-        }
+    public ResponseEntity<Void> deleteClinic(@PathVariable Long id) {
+        clinicService.deleteClinic(id);
+        return ResponseEntity.noContent().build();
     }
-    
+
+    // ================================ USER MANAGEMENT ENDPOINTS ================================
+
     /**
-     * GET /api/admin/clinics/search?name={name}
-     * Search clinics by name (partial match)
-     * @param name Partial clinic name
-     * @return List of matching clinics
+     * GET /api/admin/users
+     * Fetch all users
+     * @return List of all users as UserResponse DTOs
      */
-    @GetMapping("/clinics/search")
-    public ResponseEntity<List<Clinic>> searchClinics(@RequestParam String name) {
-        try {
-            List<Clinic> clinics = clinicService.searchClinicsByName(name);
-            return ResponseEntity.ok(clinics);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    @GetMapping("/users")
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = userService.getAllUsers();
+        return ResponseEntity.ok(users);
     }
-    
+
     /**
-     * GET /api/admin/clinics/region/{region}
-     * Get clinics by region
-     * @param region Region name
-     * @return List of clinics in the region
+     * GET /api/admin/users/{id}
+     * Fetch single user by ID
+     * @param id User ID
+     * @return User data or 404 if not found
      */
-    @GetMapping("/clinics/region/{region}")
-    public ResponseEntity<List<Clinic>> getClinicsByRegion(@PathVariable String region) {
-        try {
-            List<Clinic> clinics = clinicService.getClinicsByRegion(region);
-            return ResponseEntity.ok(clinics);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    @GetMapping("/users/{id}")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
     }
-    
+
     /**
-     * GET /api/admin/clinics/area/{area}
-     * Get clinics by area
-     * @param area Area name
-     * @return List of clinics in the area
+     * POST /api/admin/users
+     * Create a new user
+     * @param request Create user request (validated)
+     * @return Created user with 201 status
      */
-    @GetMapping("/clinics/area/{area}")
-    public ResponseEntity<List<Clinic>> getClinicsByArea(@PathVariable String area) {
-        try {
-            List<Clinic> clinics = clinicService.getClinicsByArea(area);
-            return ResponseEntity.ok(clinics);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    @PostMapping("/users")
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
+        UserResponse user = userService.createUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
-    
+
     /**
-     * GET /api/admin/clinics/type/{type}
-     * Get clinics by type
-     * @param type Clinic type
-     * @return List of clinics of that type
+     * PUT /api/admin/users/{id}
+     * Update an existing user
+     * @param id User ID
+     * @param request Update user request (validated, all fields optional)
+     * @return Updated user or error response
      */
-    @GetMapping("/clinics/type/{type}")
-    public ResponseEntity<List<Clinic>> getClinicsByType(@PathVariable String type) {
-        try {
-            List<Clinic> clinics = clinicService.getClinicsByType(type);
-            return ResponseEntity.ok(clinics);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    @PutMapping("/users/{id}")
+    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
+        UserResponse user = userService.updateUser(id, request);
+        return ResponseEntity.ok(user);
+    }
+
+    /**
+     * DELETE /api/admin/users/{id}
+     * Delete a user
+     * @param id User ID
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.noContent().build();
     }
 }

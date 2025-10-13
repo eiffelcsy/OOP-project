@@ -51,6 +51,36 @@ const adminRoutes: RouteRecordRaw[] = [
           breadcrumb: 'Clinic Details',
           parentRoute: 'AdminClinics'
         }
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('@/features/user-management/pages/AdminUsers.vue'),
+        meta: {
+          title: 'All Users',
+          breadcrumb: 'Users',
+          parentRoute: 'AdminDashboard'
+        }
+      },
+      {
+        path: 'users/create',
+        name: 'AdminCreateUser',
+        component: () => import('@/features/user-management/pages/AdminCreateUsers.vue'),
+        meta: {
+          title: 'Create User',
+          breadcrumb: 'Create User',
+          parentRoute: 'AdminUsers'
+        }
+      },
+      {
+        path: 'users/:id',
+        name: 'AdminUserDetails',
+        component: () => import('@/features/user-management/pages/AdminUserDetails.vue'),
+        meta: {
+          title: 'User Details',
+          breadcrumb: 'User Details',
+          parentRoute: 'AdminUsers'
+        }
       }
     ]
   }

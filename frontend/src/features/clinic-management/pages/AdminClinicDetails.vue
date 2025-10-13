@@ -18,6 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 
 const route = useRoute()
 const router = useRouter()
@@ -27,6 +32,8 @@ const clinic = ref<Clinic | null>(null)
 const isEditing = ref(false)
 const showDeleteDialog = ref(false)
 const successMessage = ref('')
+const showAdditionalInfo = ref(false)
+const showMetadata = ref(false)
 
 const editFormData = reactive<Partial<Clinic>>({})
 
@@ -175,12 +182,13 @@ onMounted(() => {
 
       <!-- View Mode -->
       <div v-if="!isEditing" class="space-y-6">
-        <!-- Basic Information -->
+        <!-- All Clinic Information -->
         <Card>
           <CardHeader>
             <CardTitle>Clinic Information</CardTitle>
           </CardHeader>
-          <CardContent class="space-y-4">
+          <CardContent class="space-y-6">
+            <!-- Basic Information -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <Label class="text-muted-foreground">Clinic Name</Label>
@@ -199,84 +207,92 @@ onMounted(() => {
                 <p class="text-base font-medium">{{ clinic.area || 'Not specified' }}</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <!-- Location Details -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Location Details</CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div>
-              <Label class="text-muted-foreground">Address</Label>
-              <p class="text-base font-medium">{{ clinic.address_line || 'Not specified' }}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- Operating Hours -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Operating Hours</CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label class="text-muted-foreground">Opening Time</Label>
-                <p class="text-base font-medium">{{ clinic.open_time || 'Not set' }}</p>
-              </div>
-              <div>
-                <Label class="text-muted-foreground">Closing Time</Label>
-                <p class="text-base font-medium">{{ clinic.close_time || 'Not set' }}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <!-- Additional Information -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Information</CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div>
-              <Label class="text-muted-foreground">Note</Label>
-              <p class="text-base font-medium">{{ clinic.note || 'No notes' }}</p>
-            </div>
             <Separator />
-            <div>
-              <Label class="text-muted-foreground">Remarks</Label>
-              <p class="text-base font-medium">{{ clinic.remarks || 'No remarks' }}</p>
-            </div>
-            <Separator />
-            <div>
-              <Label class="text-muted-foreground">Source Reference</Label>
-              <p class="text-base font-medium">{{ clinic.source_ref || 'No reference' }}</p>
-            </div>
-          </CardContent>
-        </Card>
 
-        <!-- Metadata -->
-        <Card>
-          <CardHeader>
-            <CardTitle>Metadata</CardTitle>
-          </CardHeader>
-          <CardContent class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Location Details -->
+            <div>
+              <h3 class="text-sm font-semibold mb-4">Location Details</h3>
               <div>
-                <Label class="text-muted-foreground">Created At</Label>
-                <p class="text-base font-medium">
-                  {{ clinic.created_at ? new Date(clinic.created_at).toLocaleString() : 'Unknown' }}
-                </p>
-              </div>
-              <div>
-                <Label class="text-muted-foreground">Last Updated</Label>
-                <p class="text-base font-medium">
-                  {{ clinic.updated_at ? new Date(clinic.updated_at).toLocaleString() : 'Unknown' }}
-                </p>
+                <Label class="text-muted-foreground">Address</Label>
+                <p class="text-base font-medium">{{ clinic.address_line || 'Not specified' }}</p>
               </div>
             </div>
+
+            <Separator />
+
+            <!-- Operating Hours -->
+            <div>
+              <h3 class="text-sm font-semibold mb-4">Operating Hours</h3>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Label class="text-muted-foreground">Opening Time</Label>
+                  <p class="text-base font-medium">{{ clinic.open_time || 'Not set' }}</p>
+                </div>
+                <div>
+                  <Label class="text-muted-foreground">Closing Time</Label>
+                  <p class="text-base font-medium">{{ clinic.close_time || 'Not set' }}</p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <!-- Additional Information (Collapsible) -->
+            <Collapsible v-model:open="showAdditionalInfo">
+              <CollapsibleTrigger class="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 class="text-sm font-semibold">Additional Information</h3>
+                <Icon 
+                  :icon="showAdditionalInfo ? 'lucide:chevron-up' : 'lucide:chevron-down'" 
+                  class="h-4 w-4" 
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent class="pt-4">
+                <div class="space-y-4">
+                  <div>
+                    <Label class="text-muted-foreground">Note</Label>
+                    <p class="text-base font-medium">{{ clinic.note || 'No notes' }}</p>
+                  </div>
+                  <div>
+                    <Label class="text-muted-foreground">Remarks</Label>
+                    <p class="text-base font-medium">{{ clinic.remarks || 'No remarks' }}</p>
+                  </div>
+                  <div>
+                    <Label class="text-muted-foreground">Source Reference</Label>
+                    <p class="text-base font-medium">{{ clinic.source_ref || 'No reference' }}</p>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            <!-- Metadata (Collapsible) -->
+            <Collapsible v-model:open="showMetadata">
+              <CollapsibleTrigger class="flex items-center justify-between w-full hover:opacity-70 transition-opacity">
+                <h3 class="text-sm font-semibold">Metadata</h3>
+                <Icon 
+                  :icon="showMetadata ? 'lucide:chevron-up' : 'lucide:chevron-down'" 
+                  class="h-4 w-4" 
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent class="pt-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <Label class="text-muted-foreground">Created At</Label>
+                    <p class="text-base font-medium">
+                      {{ clinic.created_at ? new Date(clinic.created_at).toLocaleString() : 'Unknown' }}
+                    </p>
+                  </div>
+                  <div>
+                    <Label class="text-muted-foreground">Last Updated</Label>
+                    <p class="text-base font-medium">
+                      {{ clinic.updated_at ? new Date(clinic.updated_at).toLocaleString() : 'Unknown' }}
+                    </p>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </CardContent>
         </Card>
       </div>

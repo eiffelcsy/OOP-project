@@ -1,5 +1,7 @@
 package com.clinic.management.service;
 
+import com.clinic.management.dto.request.CreateClinicRequest;
+import com.clinic.management.dto.request.UpdateClinicRequest;
 import com.clinic.management.model.Clinic;
 import com.clinic.management.repository.ClinicRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,15 +45,27 @@ public class ClinicService {
     
     /**
      * Create a new clinic
-     * @param clinic Clinic data
+     * @param request Create clinic request with validation
      * @return Created clinic
      * @throws IllegalArgumentException if clinic with same name already exists
      */
-    public Clinic createClinic(Clinic clinic) {
+    public Clinic createClinic(CreateClinicRequest request) {
         // Check if clinic with same name already exists
-        if (clinic.getName() != null && clinicRepository.existsByName(clinic.getName())) {
-            throw new IllegalArgumentException("Clinic with name '" + clinic.getName() + "' already exists");
+        if (clinicRepository.existsByName(request.getName())) {
+            throw new IllegalArgumentException("Clinic with name '" + request.getName() + "' already exists");
         }
+        
+        // Map DTO to entity
+        Clinic clinic = new Clinic();
+        clinic.setName(request.getName());
+        clinic.setAddressLine(request.getAddressLine());
+        clinic.setArea(request.getArea());
+        clinic.setRegion(request.getRegion());
+        clinic.setClinicType(request.getClinicType());
+        clinic.setOpenTime(request.getOpenTime());
+        clinic.setCloseTime(request.getCloseTime());
+        clinic.setNote(request.getNote());
+        clinic.setRemarks(request.getRemarks());
         
         return clinicRepository.save(clinic);
     }
@@ -59,51 +73,48 @@ public class ClinicService {
     /**
      * Update an existing clinic
      * @param id Clinic ID
-     * @param clinicData Updated clinic data
+     * @param request Update clinic request (all fields optional)
      * @return Updated clinic
      * @throws IllegalArgumentException if clinic not found or name conflict
      */
-    public Clinic updateClinic(Long id, Clinic clinicData) {
+    public Clinic updateClinic(Long id, UpdateClinicRequest request) {
         Clinic existingClinic = clinicRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Clinic not found with id: " + id));
         
         // Check if updating name would cause conflict
-        if (clinicData.getName() != null && !clinicData.getName().equals(existingClinic.getName())) {
-            if (clinicRepository.existsByName(clinicData.getName())) {
-                throw new IllegalArgumentException("Clinic with name '" + clinicData.getName() + "' already exists");
+        if (request.getName() != null && !request.getName().equals(existingClinic.getName())) {
+            if (clinicRepository.existsByName(request.getName())) {
+                throw new IllegalArgumentException("Clinic with name '" + request.getName() + "' already exists");
             }
         }
         
         // Update fields if provided
-        if (clinicData.getName() != null) {
-            existingClinic.setName(clinicData.getName());
+        if (request.getName() != null) {
+            existingClinic.setName(request.getName());
         }
-        if (clinicData.getAddressLine() != null) {
-            existingClinic.setAddressLine(clinicData.getAddressLine());
+        if (request.getAddressLine() != null) {
+            existingClinic.setAddressLine(request.getAddressLine());
         }
-        if (clinicData.getArea() != null) {
-            existingClinic.setArea(clinicData.getArea());
+        if (request.getArea() != null) {
+            existingClinic.setArea(request.getArea());
         }
-        if (clinicData.getRegion() != null) {
-            existingClinic.setRegion(clinicData.getRegion());
+        if (request.getRegion() != null) {
+            existingClinic.setRegion(request.getRegion());
         }
-        if (clinicData.getClinicType() != null) {
-            existingClinic.setClinicType(clinicData.getClinicType());
+        if (request.getClinicType() != null) {
+            existingClinic.setClinicType(request.getClinicType());
         }
-        if (clinicData.getOpenTime() != null) {
-            existingClinic.setOpenTime(clinicData.getOpenTime());
+        if (request.getOpenTime() != null) {
+            existingClinic.setOpenTime(request.getOpenTime());
         }
-        if (clinicData.getCloseTime() != null) {
-            existingClinic.setCloseTime(clinicData.getCloseTime());
+        if (request.getCloseTime() != null) {
+            existingClinic.setCloseTime(request.getCloseTime());
         }
-        if (clinicData.getNote() != null) {
-            existingClinic.setNote(clinicData.getNote());
+        if (request.getNote() != null) {
+            existingClinic.setNote(request.getNote());
         }
-        if (clinicData.getRemarks() != null) {
-            existingClinic.setRemarks(clinicData.getRemarks());
-        }
-        if (clinicData.getSourceRef() != null) {
-            existingClinic.setSourceRef(clinicData.getSourceRef());
+        if (request.getRemarks() != null) {
+            existingClinic.setRemarks(request.getRemarks());
         }
         
         return clinicRepository.save(existingClinic);
