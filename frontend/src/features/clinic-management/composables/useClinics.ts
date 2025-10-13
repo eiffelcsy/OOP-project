@@ -1,25 +1,35 @@
 import { ref } from 'vue'
-import { apiClient } from '@/lib/api'
 import { useRouter } from 'vue-router'
-import type { Tables, TablesInsert, TablesUpdate } from '@/types/supabase'
+import { 
+  clinicsApi, 
+  type ClinicResponse, 
+  type CreateClinicRequest, 
+  type UpdateClinicRequest 
+} from '@/services/clinicsApi'
+import type { Tables } from '@/types/supabase'
 
-// Use the generated Supabase types
+/**
+ * Clinics Composable
+ * Handles state management and navigation for clinic-related operations
+ */
+
+// Use Supabase types for data model
 export type Clinic = Tables<'clinics'>
-export type ClinicInsert = TablesInsert<'clinics'>
-export type ClinicUpdate = TablesUpdate<'clinics'>
 
 export function useClinics() {
   const router = useRouter()
-  const clinics = ref<Clinic[]>([])
+  const clinics = ref<ClinicResponse[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Fetch all clinics from Spring Boot backend
+  /**
+   * Fetch all clinics and update state
+   */
   const fetchClinics = async () => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiClient.get('/api/admin/clinics')
+      const data = await clinicsApi.getAllClinics()
       clinics.value = data || []
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clinics'
@@ -29,13 +39,15 @@ export function useClinics() {
     }
   }
 
-  // Fetch single clinic by ID from Spring Boot backend
+  /**
+   * Fetch single clinic by ID
+   */
   const fetchClinicById = async (id: number) => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiClient.get(`/api/admin/clinics/${id}`)
-      return data as Clinic
+      const data = await clinicsApi.getClinicById(id)
+      return data
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clinic'
       console.error('Error fetching clinic:', err)
@@ -45,17 +57,19 @@ export function useClinics() {
     }
   }
 
-  // Create new clinic via Spring Boot backend
-  const createClinic = async (clinicData: Partial<Clinic>) => {
+  /**
+   * Create new clinic and refresh list
+   */
+  const createClinic = async (clinicData: CreateClinicRequest) => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiClient.post('/api/admin/clinics', clinicData)
+      const data = await clinicsApi.createClinic(clinicData)
       
       // Refresh clinics list
       await fetchClinics()
       
-      return data as Clinic
+      return data
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to create clinic'
       console.error('Error creating clinic:', err)
@@ -65,17 +79,19 @@ export function useClinics() {
     }
   }
 
-  // Update clinic via Spring Boot backend
-  const updateClinic = async (id: number, clinicData: Partial<Clinic>) => {
+  /**
+   * Update clinic and refresh list
+   */
+  const updateClinic = async (id: number, clinicData: UpdateClinicRequest) => {
     loading.value = true
     error.value = null
     try {
-      const data = await apiClient.put(`/api/admin/clinics/${id}`, clinicData)
+      const data = await clinicsApi.updateClinic(id, clinicData)
       
       // Refresh clinics list
       await fetchClinics()
       
-      return data as Clinic
+      return data
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to update clinic'
       console.error('Error updating clinic:', err)
@@ -85,12 +101,14 @@ export function useClinics() {
     }
   }
 
-  // Delete clinic via Spring Boot backend
+  /**
+   * Delete clinic and refresh list
+   */
   const deleteClinic = async (id: number) => {
     loading.value = true
     error.value = null
     try {
-      await apiClient.delete(`/api/admin/clinics/${id}`)
+      await clinicsApi.deleteClinic(id)
       
       // Refresh clinics list
       await fetchClinics()
@@ -105,27 +123,43 @@ export function useClinics() {
     }
   }
 
-  // Navigate to clinic details
+  /**
+   * Navigate to clinic details page
+   */
   const navigateToClinic = (id: number) => {
     router.push({ name: 'AdminClinicDetails', params: { id } })
   }
 
-  // Navigate to create clinic
+  /**
+   * Navigate to create clinic page
+   */
   const navigateToCreateClinic = () => {
     router.push({ name: 'AdminCreateClinic' })
   }
 
   return {
+    // State
     clinics,
     loading,
     error,
+    
+    // API operations
     fetchClinics,
     fetchClinicById,
     createClinic,
     updateClinic,
     deleteClinic,
+    
+    // Navigation
     navigateToClinic,
     navigateToCreateClinic
   }
 }
+
+// Re-export types for convenience
+export type { 
+  ClinicResponse, 
+  CreateClinicRequest, 
+  UpdateClinicRequest 
+} from '@/services/clinicsApi'
 

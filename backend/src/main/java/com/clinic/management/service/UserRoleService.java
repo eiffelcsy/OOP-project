@@ -12,6 +12,7 @@ import java.util.List;
 /**
  * Service to determine user roles based on database records
  * Checks which table(s) a user belongs to and returns appropriate Spring Security roles
+ * Used for authorization and role-based access control
  */
 @Service
 public class UserRoleService {

@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClinics, type Clinic } from '../composables/useClinics'
+import { useDoctors } from '@/features/doctor-management/composables/useDoctors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,14 @@ import {
 const route = useRoute()
 const router = useRouter()
 const { fetchClinicById, updateClinic, deleteClinic, loading, error } = useClinics()
+const { 
+  doctors, 
+  loading: doctorsLoading, 
+  error: doctorsError, 
+  fetchDoctorsByClinicId,
+  navigateToDoctor,
+  navigateToCreateDoctor
+} = useDoctors()
 
 const clinic = ref<Clinic | null>(null)
 const isEditing = ref(false)
@@ -48,11 +57,24 @@ const loadClinic = async () => {
     clinic.value = data
     // Copy data to edit form
     Object.assign(editFormData, data)
+    // Load doctors for this clinic
+    await loadDoctors()
   } else {
     // Clinic not found, redirect back
     router.push({ name: 'AdminClinics' })
   }
 }
+
+const loadDoctors = async () => {
+  await fetchDoctorsByClinicId(clinicId.value)
+}
+
+// Doctor statistics
+const doctorStats = computed(() => ({
+  total: doctors.value.length,
+  active: doctors.value.filter(d => d.active).length,
+  inactive: doctors.value.filter(d => !d.active).length
+}))
 
 const handleEdit = () => {
   if (clinic.value) {
@@ -137,7 +159,6 @@ onMounted(() => {
               <h1 class="text-3xl font-bold tracking-tight">{{ clinic.name }}</h1>
               <Badge variant="secondary">{{ clinic.clinic_type }}</Badge>
             </div>
-            <p class="text-muted-foreground">Clinic ID: {{ clinic.id }}</p>
           </div>
         </div>
         <div class="flex gap-2">
@@ -210,7 +231,8 @@ onMounted(() => {
 
             <Separator />
 
-            <!-- Location Details -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <!-- Location Details -->
             <div>
               <h3 class="text-sm font-semibold mb-4">Location Details</h3>
               <div>
@@ -218,8 +240,6 @@ onMounted(() => {
                 <p class="text-base font-medium">{{ clinic.address_line || 'Not specified' }}</p>
               </div>
             </div>
-
-            <Separator />
 
             <!-- Operating Hours -->
             <div>
@@ -234,6 +254,7 @@ onMounted(() => {
                   <p class="text-base font-medium">{{ clinic.close_time || 'Not set' }}</p>
                 </div>
               </div>
+            </div>
             </div>
 
             <Separator />
@@ -293,6 +314,99 @@ onMounted(() => {
                 </div>
               </CollapsibleContent>
             </Collapsible>
+          </CardContent>
+        </Card>
+
+        <!-- Doctors at This Clinic -->
+        <Card>
+          <CardHeader>
+            <div class="flex items-center justify-between">
+              <div>
+                <CardTitle>Doctors</CardTitle>
+                <CardDescription>Doctors assigned to this clinic</CardDescription>
+              </div>
+              <Button size="sm" @click="navigateToCreateDoctor">
+                <Icon icon="lucide:plus" class="mr-2 h-4 w-4" />
+                Add Doctor
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent class="space-y-4">
+            <!-- Doctor Stats -->
+            <div class="grid grid-cols-3 gap-4">
+              <div class="p-4 border rounded-lg">
+                <div class="text-2xl font-bold">{{ doctorStats.total }}</div>
+                <p class="text-xs text-muted-foreground">Total Doctors</p>
+              </div>
+              <div class="p-4 border rounded-lg">
+                <div class="text-2xl font-bold">{{ doctorStats.active }}</div>
+                <p class="text-xs text-muted-foreground">Active</p>
+              </div>
+              <div class="p-4 border rounded-lg">
+                <div class="text-2xl font-bold">{{ doctorStats.inactive }}</div>
+                <p class="text-xs text-muted-foreground">Inactive</p>
+              </div>
+            </div>
+
+            <Separator />
+
+            <!-- Loading State -->
+            <div v-if="doctorsLoading" class="space-y-3">
+              <Skeleton v-for="i in 3" :key="i" class="h-16 w-full" />
+            </div>
+
+            <!-- Error State -->
+            <div v-else-if="doctorsError" class="text-center py-8">
+              <Icon icon="lucide:alert-circle" class="h-8 w-8 mx-auto text-destructive mb-2" />
+              <p class="text-sm text-destructive">{{ doctorsError }}</p>
+            </div>
+
+            <!-- Doctors List -->
+            <div v-else-if="doctors.length > 0" class="space-y-2">
+              <div 
+                v-for="doctor in doctors" 
+                :key="doctor.id"
+                class="p-4 border rounded-lg hover:border-primary/50 transition-all cursor-pointer group"
+                @click="navigateToDoctor(doctor.id)"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3 flex-1">
+                    <div class="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Icon icon="lucide:user-round" class="h-5 w-5 text-primary" />
+                    </div>
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="font-semibold">{{ doctor.name }}</p>
+                        <Badge :variant="doctor.active ? 'default' : 'secondary'" class="text-xs">
+                          {{ doctor.active ? 'Active' : 'Inactive' }}
+                        </Badge>
+                      </div>
+                      <div class="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Icon icon="lucide:stethoscope" class="h-3 w-3" />
+                        <span>{{ doctor.specialty || 'General Practice' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <Icon 
+                    icon="lucide:chevron-right" 
+                    class="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" 
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else class="text-center py-8">
+              <Icon icon="lucide:user-round" class="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 class="text-lg font-semibold mb-2">No doctors yet</h3>
+              <p class="text-muted-foreground mb-4">
+                Get started by adding your first doctor to this clinic
+              </p>
+              <Button @click="navigateToCreateDoctor">
+                <Icon icon="lucide:plus" class="mr-2 h-4 w-4" />
+                Add First Doctor
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

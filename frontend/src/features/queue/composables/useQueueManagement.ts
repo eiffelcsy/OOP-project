@@ -1,7 +1,7 @@
 import { ref, computed, reactive } from 'vue'
 import type { Tables } from '@/types/supabase'
 import { queueApi, type QueueResponse, type CreateQueueRequest } from '@/services/queueApi'
-import { getCurrentUserClinicId } from '@/services/staffApi'
+import { useAuth } from '@/features/auth/composables/useAuth'
 
 // Type aliases from database
 type QueueTicket = Tables<'queue_tickets'>
@@ -40,6 +40,9 @@ export interface QueuePatient {
 }
 
 export function useQueueManagement() {
+  // Get auth state for accessing current user's clinic
+  const { currentUser } = useAuth()
+
   // Queue state
   const queueState = reactive<QueueState>({
     isActive: false,
@@ -160,6 +163,15 @@ export function useQueueManagement() {
     patients.value.filter(p => p.status === 'no-show').length
   )
 
+  // Helper function to get current user's clinic ID
+  const getClinicId = (): number => {
+    const clinicId = currentUser.value?.staff?.clinic_id
+    if (!clinicId) {
+      throw new Error('User is not associated with any clinic. Please contact your administrator.')
+    }
+    return clinicId
+  }
+
   // Queue management actions
   /**
    * Initialize queue state by checking for existing active/paused queue
@@ -168,7 +180,7 @@ export function useQueueManagement() {
   const initializeQueueState = async () => {
     try {
       console.log('Initializing queue state...')
-      const clinicId = await getCurrentUserClinicId()
+      const clinicId = getClinicId()
       console.log('Clinic ID:', clinicId)
       
       // Query for active or paused queues for this clinic
@@ -224,8 +236,8 @@ export function useQueueManagement() {
    */
   const startQueue = async () => {
     try {
-      // Get the authenticated user's clinic_id from the staff table
-      const clinicId = await getCurrentUserClinicId()
+      // Get the authenticated user's clinic_id
+      const clinicId = getClinicId()
       
       // Backend expects snake_case property names
       const requestData: CreateQueueRequest = {
@@ -253,8 +265,8 @@ export function useQueueManagement() {
       if (error instanceof Error) {
         if (error.message.includes('not authenticated')) {
           alert('You must be logged in to start a queue. Please sign in and try again.')
-        } else if (error.message.includes('not associated with any staff record')) {
-          alert('Your account is not associated with any clinic. Please contact your administrator.')
+        } else if (error.message.includes('not associated with any clinic')) {
+          alert(error.message)
         } else {
           alert(`Failed to start queue: ${error.message}`)
         }

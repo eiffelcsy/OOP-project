@@ -90,7 +90,7 @@ import { Icon } from "@iconify/vue"
                       <SidebarMenuSubButton asChild>
                         <a href="/admin/users/create">
                           <Icon icon="lucide:user-plus" class="size-4" />
-                          <span>Create User</span>
+                          <span>Add New User</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
@@ -124,6 +124,39 @@ import { Icon } from "@iconify/vue"
                         <a href="/admin/clinics/create">
                           <Icon icon="lucide:plus" class="size-4" />
                           <span>Add New Clinic</span>
+                        </a>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </SidebarMenuItem>
+            </Collapsible>
+
+            <Collapsible key="DoctorManagement" title="Doctor Management" default-open class="group/collapsible">
+              <SidebarMenuItem>
+                <CollapsibleTrigger as-child>
+                  <SidebarMenuButton>
+                    <Icon icon="lucide:briefcase-medical" class="size-4" />
+                    <span>Doctor Management</span>
+                    <Icon icon="lucide:chevron-right"
+                      class="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                  </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <a href="/admin/doctors">
+                          <Icon icon="lucide:briefcase-medical" class="size-4" />
+                          <span>Doctors By Clinic</span>
+                        </a>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild>
+                        <a href="/admin/doctors/create">
+                          <Icon icon="lucide:plus" class="size-4" />
+                          <span>Add New Doctor</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>

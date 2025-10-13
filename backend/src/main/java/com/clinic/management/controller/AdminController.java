@@ -1,13 +1,23 @@
 package com.clinic.management.controller;
 
 import com.clinic.management.dto.request.CreateClinicRequest;
+import com.clinic.management.dto.request.CreateDoctorRequest;
+import com.clinic.management.dto.request.CreateScheduleRequest;
 import com.clinic.management.dto.request.CreateUserRequest;
+import com.clinic.management.dto.request.UpdateDoctorRequest;
+import com.clinic.management.dto.request.UpdateScheduleRequest;
 import com.clinic.management.dto.request.UpdateUserRequest;
+import com.clinic.management.dto.response.DoctorResponse;
+import com.clinic.management.dto.response.ScheduleResponse;
 import com.clinic.management.dto.response.UserResponse;
 import com.clinic.management.dto.request.UpdateClinicRequest;
 import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.model.Clinic;
+import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Schedule;
 import com.clinic.management.service.ClinicService;
+import com.clinic.management.service.DoctorService;
+import com.clinic.management.service.ScheduleService;
 import com.clinic.management.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,11 +41,15 @@ public class AdminController {
 
     private final ClinicService clinicService;
     private final UserService userService;
+    private final DoctorService doctorService;
+    private final ScheduleService scheduleService;
     
     @Autowired
-    public AdminController(ClinicService clinicService, UserService userService) {
+    public AdminController(ClinicService clinicService, UserService userService, DoctorService doctorService, ScheduleService scheduleService) {
         this.clinicService = clinicService;
         this.userService = userService;
+        this.doctorService = doctorService;
+        this.scheduleService = scheduleService;
     }
     
     // ================================ CLINIC MANAGEMENT ENDPOINTS ================================
@@ -170,4 +184,143 @@ public class AdminController {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ================================ DOCTOR MANAGEMENT ENDPOINTS ================================
+
+    /**
+     * GET /api/admin/doctors/clinic/{clinicId}
+     * Fetch all doctors by clinicId
+     * @param clinicId Clinic ID
+     * @return List of all doctors by clinicId as DoctorResponse DTOs
+     */
+    @GetMapping("/doctors/clinic/{clinicId}")
+    public ResponseEntity<List<DoctorResponse>> getDoctorsByClinicId(@PathVariable Long clinicId) {
+        List<Doctor> doctors = doctorService.getDoctorsByClinicId(clinicId);
+        List<DoctorResponse> responses = doctors.stream()
+            .map(DoctorResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * GET /api/admin/doctors/{id}
+     * Fetch a single doctor by ID
+     * @param id Doctor ID
+     * @return Doctor as DoctorResponse DTO
+     */
+    @GetMapping("/doctors/{id}")
+    public ResponseEntity<DoctorResponse> getDoctorById(@PathVariable Long id) {
+        Doctor doctor = doctorService.getDoctorById(id);
+        return ResponseEntity.ok(DoctorResponse.from(doctor));
+    }
+
+    /**
+     * POST /api/admin/doctors
+     * Create a new doctor
+     * @param request Create doctor request (validated)
+     * @return Created doctor with 201 status
+     */
+    @PostMapping("/doctors")
+    public ResponseEntity<DoctorResponse> createDoctor(@Valid @RequestBody CreateDoctorRequest request) {
+        Doctor createdDoctor = doctorService.createDoctor(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(DoctorResponse.from(createdDoctor));
+    }
+
+    /**
+     * PUT /api/admin/doctors/{id}
+     * Update an existing doctor
+     * @param id Doctor ID
+     * @param request Update doctor request (validated, all fields optional)
+     * @return Updated doctor or error response
+     */
+    @PutMapping("/doctors/{id}")
+    public ResponseEntity<DoctorResponse> updateDoctor(@PathVariable Long id, @Valid @RequestBody UpdateDoctorRequest request) {
+        Doctor updatedDoctor = doctorService.updateDoctor(id, request);
+        return ResponseEntity.ok(DoctorResponse.from(updatedDoctor));
+    }
+
+    /**
+     * DELETE /api/admin/doctors/{id}
+     * Delete a doctor
+     * @param id Doctor ID
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/doctors/{id}")
+    public ResponseEntity<Void> deleteDoctor(@PathVariable Long id) {
+        doctorService.deleteDoctor(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ================================ DOCTOR SCHEDULES MANAGEMENT ENDPOINTS ================================
+
+    /**
+     * GET /api/admin/doctors/{doctorId}/schedules
+     * Fetch all schedules for a specific doctor
+     * @param doctorId Doctor ID
+     * @return List of all schedules for the doctor as ScheduleResponse DTOs
+     */
+    @GetMapping("/doctors/{doctorId}/schedules")
+    public ResponseEntity<List<ScheduleResponse>> getSchedulesByDoctorId(@PathVariable Long doctorId) {
+        List<Schedule> schedules = scheduleService.getSchedulesByDoctorId(doctorId);
+        List<ScheduleResponse> responses = schedules.stream()
+            .map(ScheduleResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
+    
+    /**
+     * POST /api/admin/schedules
+     * Create a new schedule
+     * @param request Create schedule request (validated)
+     * @return Created schedule with 201 status
+     */
+    @PostMapping("/schedules")
+    public ResponseEntity<ScheduleResponse> createSchedule(@Valid @RequestBody CreateScheduleRequest request) {
+        Schedule schedule = new Schedule();
+        schedule.setDoctorId(request.getDoctorId());
+        schedule.setDayOfWeek(request.getDayOfWeek());
+        schedule.setStartTime(request.getStartTime());
+        schedule.setEndTime(request.getEndTime());
+        schedule.setSlotDurationMinutes(request.getSlotDurationMinutes());
+        schedule.setValidFrom(request.getValidFrom());
+        schedule.setValidTo(request.getValidTo());
+        
+        Schedule createdSchedule = scheduleService.createSchedule(schedule);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ScheduleResponse.from(createdSchedule));
+    }
+    
+    /**
+     * PUT /api/admin/schedules/{id}
+     * Update an existing schedule
+     * @param id Schedule ID
+     * @param request Update schedule request (validated, all fields optional)
+     * @return Updated schedule or error response
+     */
+    @PutMapping("/schedules/{id}")
+    public ResponseEntity<ScheduleResponse> updateSchedule(@PathVariable Long id, @Valid @RequestBody UpdateScheduleRequest request) {
+        Schedule schedule = new Schedule();
+        schedule.setDoctorId(request.getDoctorId());
+        schedule.setDayOfWeek(request.getDayOfWeek());
+        schedule.setStartTime(request.getStartTime());
+        schedule.setEndTime(request.getEndTime());
+        schedule.setSlotDurationMinutes(request.getSlotDurationMinutes());
+        schedule.setValidFrom(request.getValidFrom());
+        schedule.setValidTo(request.getValidTo());
+        
+        Schedule updatedSchedule = scheduleService.updateSchedule(id, schedule);
+        return ResponseEntity.ok(ScheduleResponse.from(updatedSchedule));
+    }
+    
+    /**
+     * DELETE /api/admin/schedules/{id}
+     * Delete a schedule
+     * @param id Schedule ID
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/schedules/{id}")
+    public ResponseEntity<Void> deleteSchedule(@PathVariable Long id) {
+        scheduleService.deleteSchedule(id);
+        return ResponseEntity.noContent().build();
+    }
+    
 }

@@ -1,9 +1,17 @@
 import { ref, computed } from 'vue'
+import type { Tables } from '@/types/supabase'
 
-// Type for appointment status
+// Use Supabase types for data model
+type Appointment = Tables<'appointments'>
+type Patient = Tables<'patients'>
+type Doctor = Tables<'doctors'>
+type QueueTicket = Tables<'queue_tickets'>
+
+// Type for appointment status (matches database enum)
 type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+type QueueStatus = 'active' | 'paused' | 'stopped'
 
-// Types
+// Dashboard-specific types for UI presentation
 interface DashboardAppointment {
   id: number
   patientName: string
@@ -24,7 +32,7 @@ interface TodaysOverview {
 interface QueueControl {
   nowServing: number
   patientsWaiting: number
-  queueStatus: 'active' | 'paused' | 'stopped'
+  queueStatus: QueueStatus
   lastCalledTime: string
 }
 
