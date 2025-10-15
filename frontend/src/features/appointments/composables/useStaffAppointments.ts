@@ -1,8 +1,9 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
 
+const { currentUser, initializeAuth } = useAuth()
 
 // Type aliases from database
 type Doctor = Tables<'doctors'>
@@ -45,7 +46,6 @@ export interface TimeSlot {
 }
 
 export const useStaffAppointments = () => {
-  const { currentUser } = useAuth()
   const { updatePatientStatus } = useQueueManagement()
 
   // Generate time slots for the day (8 AM to 6 PM, every 30 minutes)
@@ -70,26 +70,44 @@ export const useStaffAppointments = () => {
   const doctors = ref<Doctor[]>([])
 
   // Fetch doctors for the current staff's clinic
-  const fetchDoctors = async () => {
-    // if (!currentUser.value?.staff) return
-    // const clinicId = currentUser.value.staff.clinic_id
-    // console.log('Fetching doctors for clinic ID:', clinicId)
+  const fetchDoctors = async (clinicId: number) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/5`)
+      console.log('Fetching doctors for clinic ID:', clinicId)
+      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
 
       const data: Tables<'doctors'>[] = await res.json()
       doctors.value = data.map((doc, index) => ({
         ...doc,
-        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5]
+        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5],
       }))
     } catch (error) {
       console.error('Error fetching doctors:', error)
     }
   }
-  onMounted(() => {
-    fetchDoctors()
+
+  onMounted(async () => {
+    // Ensure the auth state is initialized
+    await initializeAuth()
+
+    // Watch for currentUser to be ready and contain staff data
+    watch(
+      () => currentUser.value,
+      (user) => {
+        if (user?.staff?.clinic_id) {
+          const staffId = user.staff.id
+          const clinicId = user.staff.clinic_id
+          console.log('Auth loaded. Staff ID:', staffId)
+          console.log('Clinic ID:', clinicId)
+          fetchDoctors(clinicId)
+        } else {
+          console.warn('Waiting for staff info to be available...')
+        }
+      },
+      { immediate: true } // run instantly if already loaded
+    )
   })
+
 
   // Today's appointments data (simulated for current date)
   const todaysAppointments = ref<StaffAppointment[]>([
@@ -612,4 +630,5 @@ export const useStaffAppointments = () => {
     getCurrentTime,
     isCurrentTimeSlot
   }
-} 
+}
+
