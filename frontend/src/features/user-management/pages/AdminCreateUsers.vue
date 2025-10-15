@@ -18,12 +18,12 @@ const formData = reactive<CreateUserRequest>({
     role: 'patient',
     password: '',
     // Patient fields
-    nric: null,
-    phone: null,
-    dob: null,
-    address: null,
+    nric: '',
+    phone: '',
+    dob: '',
+    address: '',
     // Staff fields
-    clinic_id: null,
+    clinic_id: undefined,
     staff_role: null
 })
 
