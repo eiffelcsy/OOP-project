@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'vue-sonner'
 
 const { users, loading, error, fetchUsers, navigateToUser, navigateToCreateUser } = useUsers()
 
@@ -64,8 +65,17 @@ const getRoleBadgeVariant = (role: string) => {
   }
 }
 
-onMounted(() => {
-  fetchUsers()
+onMounted(async () => {
+  await fetchUsers()
+  if (error.value) {
+    toast.error('Failed to Load Users', {
+      description: error.value,
+      action: {
+        label: 'Retry',
+        onClick: () => fetchUsers()
+      }
+    })
+  }
 })
 </script>
 
@@ -167,16 +177,6 @@ onMounted(() => {
               {{ role }}
             </Button>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Error Message -->
-    <Card v-if="error" class="border-destructive">
-      <CardContent class="pt-6">
-        <div class="flex items-center gap-2 text-destructive">
-          <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-          <p>{{ error }}</p>
         </div>
       </CardContent>
     </Card>

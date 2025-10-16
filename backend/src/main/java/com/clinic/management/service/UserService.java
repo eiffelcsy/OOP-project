@@ -16,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.HttpClientErrorException;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -79,6 +84,8 @@ public class UserService {
     
     /**
      * Create a new user (creates Supabase auth user + profile + role-specific entity)
+     * Note: Profile creation is handled by Supabase trigger automatically
+     * Note: Patient record creation is handled by Supabase trigger for patients
      */
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
@@ -87,26 +94,32 @@ public class UserService {
             throw new ValidationException("User with email " + request.getEmail() + " already exists");
         }
         
-        // 2. Create Supabase auth user
-        String userId = createSupabaseAuthUser(request.getEmail(), request.getPassword(), request.getFullName());
+        // 2. Create Supabase auth user (trigger will create profile + patient if role=patient)
+        String userId = createSupabaseAuthUser(request);
         
         try {
-            // 3. Create Profile
-            Profile profile = new Profile();
-            profile.setUserId(userId);
-            profile.setEmail(request.getEmail());
-            profile.setFullName(request.getFullName());
-            profile.setAvatarUrl(request.getAvatarUrl());
-            profile = profileRepository.save(profile);
+            // 3. Wait briefly for trigger to complete (profile creation)
+            Thread.sleep(500);
             
-            // 4. Create role-specific entity
+            // 4. Fetch the profile created by trigger
+            Profile profile = profileRepository.findByUserId(userId)
+                    .orElseThrow(() -> new RuntimeException("Profile was not created by trigger for user: " + userId));
+            
+            // 5. Update profile with additional fields not set by trigger
+            if (request.getAvatarUrl() != null) {
+                profile.setAvatarUrl(request.getAvatarUrl());
+                profile = profileRepository.save(profile);
+            }
+            
+            // 6. Create or update role-specific entity
             Patient patient = null;
             Staff staff = null;
             Admin admin = null;
             
             switch (request.getRole().toLowerCase()) {
                 case "patient":
-                    patient = createPatient(userId, request);
+                    // Patient record created by trigger, update with additional fields
+                    patient = updatePatientDetails(userId, request);
                     break;
                 case "staff":
                     staff = createStaff(userId, request);
@@ -118,9 +131,13 @@ public class UserService {
                     throw new ValidationException("Invalid role: " + request.getRole());
             }
             
-            // 5. Return combined user response
+            // 7. Return combined user response
             return UserResponse.from(profile, patient, staff, admin);
             
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            deleteSupabaseAuthUser(userId);
+            throw new RuntimeException("User creation interrupted", e);
         } catch (Exception e) {
             // Rollback: Delete Supabase user if database operations fail
             deleteSupabaseAuthUser(userId);
@@ -181,9 +198,26 @@ public class UserService {
     
     /**
      * Delete user (deletes role-specific entity, profile, and Supabase auth user)
+     * This method coordinates the deletion process:
+     * 1. First commits database deletions in a transaction
+     * 2. Then calls Supabase API to delete auth user
+     */
+    public void deleteUser(Long profileId) {
+        // Step 1: Delete from database and commit transaction
+        String userId = deleteDatabaseRecords(profileId);
+        
+        // Step 2: Delete Supabase auth user (after database commit)
+        deleteSupabaseAuthUser(userId);
+    }
+    
+    /**
+     * Delete database records for user (profile and role-specific entities)
+     * This runs in its own transaction and commits before returning
+     * @param profileId The profile ID to delete
+     * @return The userId for subsequent Supabase deletion
      */
     @Transactional
-    public void deleteUser(Long profileId) {
+    private String deleteDatabaseRecords(Long profileId) {
         // 1. Fetch profile
         Profile profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("User not found with id: " + profileId));
@@ -198,8 +232,8 @@ public class UserService {
         // 3. Delete profile
         profileRepository.delete(profile);
         
-        // 4. Delete Supabase auth user
-        deleteSupabaseAuthUser(userId);
+        // Transaction commits here when method returns
+        return userId;
     }
     
     // ==================== PRIVATE HELPER METHODS ====================
@@ -218,15 +252,21 @@ public class UserService {
     }
     
     /**
-     * Create patient entity
+     * Update patient entity with additional details not set by trigger
+     * Trigger creates patient with user_id and phone only
      */
-    private Patient createPatient(String userId, CreateUserRequest request) {
-        Patient patient = new Patient();
-        patient.setUserId(userId);
-        patient.setNric(request.getNric());
-        patient.setPhone(request.getPhone());
-        patient.setDob(request.getDob());
-        patient.setAddress(request.getAddress());
+    private Patient updatePatientDetails(String userId, CreateUserRequest request) {
+        // Fetch patient created by trigger
+        Patient patient = patientRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Patient was not created by trigger for user: " + userId));
+        
+        // Update with additional fields
+        if (request.getNric() != null) patient.setNric(request.getNric());
+        if (request.getDob() != null) patient.setDob(request.getDob());
+        if (request.getAddress() != null) patient.setAddress(request.getAddress());
+        // Phone is already set by trigger, but update if provided
+        if (request.getPhone() != null) patient.setPhone(request.getPhone());
+        
         return patientRepository.save(patient);
     }
     
@@ -262,9 +302,11 @@ public class UserService {
     
     /**
      * Create Supabase auth user using Admin API
+     * Includes metadata for trigger to create profile and patient records
+     * @param request User creation request with all user data
      * @return UUID of created user
      */
-    private String createSupabaseAuthUser(String email, String password, String fullName) {
+    private String createSupabaseAuthUser(CreateUserRequest request) {
         String url = supabaseUrl + "/auth/v1/admin/users";
         
         HttpHeaders headers = new HttpHeaders();
@@ -273,18 +315,32 @@ public class UserService {
         headers.set("Authorization", "Bearer " + supabaseServiceKey);
         
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("email", email);
-        requestBody.put("password", password);
+        requestBody.put("email", request.getEmail());
+        requestBody.put("password", request.getPassword());
         requestBody.put("email_confirm", true); // Auto-confirm email
         
+        // raw_user_meta_data for trigger
+        Map<String, String> rawUserMetadata = new HashMap<>();
+        rawUserMetadata.put("full_name", request.getFullName());
+        rawUserMetadata.put("user_type", request.getRole().toLowerCase());
+        
+        // Add phone for patient trigger
+        if ("patient".equals(request.getRole().toLowerCase()) && request.getPhone() != null) {
+            rawUserMetadata.put("phone", request.getPhone());
+        }
+        
+        requestBody.put("raw_user_meta_data", rawUserMetadata);
+        
+        // user_metadata for Supabase Auth (optional, for consistency)
         Map<String, String> userMetadata = new HashMap<>();
-        userMetadata.put("full_name", fullName);
+        userMetadata.put("full_name", request.getFullName());
         requestBody.put("user_metadata", userMetadata);
         
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
         
         try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
+            @SuppressWarnings("unchecked")
+            ResponseEntity<Map<String, Object>> response = (ResponseEntity<Map<String, Object>>) (ResponseEntity<?>) restTemplate.exchange(url, HttpMethod.POST, entity, Map.class);
             Map<String, Object> responseBody = response.getBody();
             
             if (responseBody == null || !responseBody.containsKey("id")) {
@@ -300,30 +356,45 @@ public class UserService {
     
     /**
      * Delete Supabase auth user using Admin API
+     * Uses Java 11+ HttpClient with HTTP/2 support (matching curl behavior)
      * Note: This method catches all exceptions including timeouts because:
      * 1. Database cleanup is more important than Supabase auth deletion
      * 2. Supabase may timeout but still complete the deletion successfully
      * 3. If user doesn't exist (404), that's acceptable
      */
     private void deleteSupabaseAuthUser(String userId) {
-        String url = supabaseUrl + "/auth/v1/admin/users/" + userId;
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("apikey", supabaseServiceKey);
-        headers.set("Authorization", "Bearer " + supabaseServiceKey);
-        
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        
         try {
-            restTemplate.exchange(url, HttpMethod.DELETE, entity, Void.class);
-            logger.info("Successfully deleted Supabase auth user: {}", userId);
+            // Create HttpClient with HTTP/2 support and timeouts
+            HttpClient client = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_2)
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+            
+            // Build request with headers (same as working curl command)
+            String urlString = supabaseUrl + "/auth/v1/admin/users/" + userId;
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(urlString))
+                    .timeout(Duration.ofSeconds(60))
+                    .DELETE()
+                    .header("apikey", supabaseServiceKey)
+                    .header("Authorization", "Bearer " + supabaseServiceKey)
+                    .build();
+            
+            // Send request
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            int statusCode = response.statusCode();
+            
+            if (statusCode >= 200 && statusCode < 300) {
+                logger.info("Successfully deleted Supabase auth user: {} (Status: {})", userId, statusCode);
+            } else if (statusCode == 404) {
+                logger.info("Supabase auth user {} not found (404) - may have been already deleted", userId);
+            } else {
+                logger.warn("Failed to delete Supabase auth user {} - HTTP {}: {}. Database cleanup completed successfully.", 
+                           userId, statusCode, response.body());
+            }
         } catch (Exception e) {
-            // Log but don't throw - catches all exceptions including:
-            // - HttpClientErrorException (4xx errors like 404 Not Found)
-            // - HttpServerErrorException (5xx errors like 504 Gateway Timeout)
-            // - ResourceAccessException (network/timeout issues)
-            logger.warn("Failed to delete Supabase auth user {}: {}. User may have been deleted despite the error. Database cleanup completed successfully.", 
-                       userId, e.getMessage());
+            logger.warn("Failed to delete Supabase auth user {} - {}: {}. User may have been deleted despite the error. Database cleanup completed successfully.", 
+                       userId, e.getClass().getSimpleName(), e.getMessage());
         }
     }
 }

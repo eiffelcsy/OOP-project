@@ -21,7 +21,32 @@ import {
   CollapsibleContent,
   Collapsible,
 } from "@/components/ui/collapsible"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
 import { Icon } from "@iconify/vue"
+import { useAuth } from "@/features/auth/composables/useAuth"
+import { useRouter } from "vue-router"
+import { computed } from "vue"
+
+const { currentUser, logout } = useAuth()
+const router = useRouter()
+
+const userName = computed(() => {
+  return currentUser.value?.profile?.full_name || "Admin User"
+})
+
+const userEmail = computed(() => {
+  return currentUser.value?.email || "admin@clinicams.com"
+})
+
+const handleLogout = async () => {
+  await logout()
+  router.push("/login")
+}
 
 </script>
 
@@ -213,18 +238,30 @@ import { Icon } from "@iconify/vue"
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem>
-          <SidebarMenuButton size="lg" as-child>
-            <a href="/admin/profile">
-              <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <Icon icon="lucide:user-cog" class="size-4" />
-              </div>
-              <div class="flex flex-col gap-0.5 leading-none">
-                <span class="font-semibold">System Admin</span>
-                <span class="text-xs">admin@clinicams.com</span>
-              </div>
-              <Icon icon="lucide:chevrons-up-down" class="ml-auto" />
-            </a>
-          </SidebarMenuButton>
+          <Popover>
+            <PopoverTrigger as-child>
+              <SidebarMenuButton size="lg">
+                <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Icon icon="lucide:user-cog" class="size-4" />
+                </div>
+                <div class="flex flex-col gap-0.5 leading-none">
+                  <span class="font-semibold">{{ userName }}</span>
+                  <span class="text-xs">{{ userEmail }}</span>
+                </div>
+                <Icon icon="lucide:chevrons-up-down" class="ml-auto" />
+              </SidebarMenuButton>
+            </PopoverTrigger>
+            <PopoverContent class="w-56 p-2" align="end">
+              <Button 
+                variant="ghost" 
+                class="w-full justify-start" 
+                @click="handleLogout"
+              >
+                <Icon icon="lucide:log-out" class="mr-2 size-4" />
+                Logout
+              </Button>
+            </PopoverContent>
+          </Popover>
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>

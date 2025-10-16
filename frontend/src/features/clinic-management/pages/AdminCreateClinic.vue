@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Icon } from '@iconify/vue'
+import { toast } from 'vue-sonner'
 
 const router = useRouter()
 const { createClinic, loading, error } = useClinics()
@@ -58,16 +59,37 @@ const validateForm = () => {
 
 const handleSubmit = async () => {
   if (!validateForm()) {
+    toast.error('Validation Failed', {
+      description: 'Please check all required fields',
+      action: {
+        label: 'Review',
+        onClick: () => {}
+      }
+    })
     return
   }
   
-  const result = await createClinic(formData)
-  
-  if (result) {
-    successMessage.value = true
+  try {
+    const result = await createClinic(formData)
+    toast.success('Clinic Created', {
+      description: 'New clinic has been successfully created',
+      action: {
+        label: 'View Details',
+        onClick: () => router.push({ name: 'AdminClinicDetails', params: { id: result.id } })
+      }
+    })
     setTimeout(() => {
       router.push({ name: 'AdminClinicDetails', params: { id: result.id } })
     }, 1500)
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to create clinic')
+    toast.error('Creation Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSubmit()
+      }
+    })
   }
 }
 
@@ -89,26 +111,6 @@ const handleCancel = () => {
         Cancel
       </Button>
     </div>
-
-    <!-- Success Message -->
-    <Card v-if="successMessage" class="border-green-500 bg-green-50 dark:bg-green-950">
-      <CardContent class="pt-6">
-        <div class="flex items-center gap-2 text-green-700 dark:text-green-400">
-          <Icon icon="lucide:check-circle" class="h-5 w-5" />
-          <p class="font-medium">Clinic created successfully! Redirecting...</p>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Error Message -->
-    <Card v-if="error" class="border-destructive">
-      <CardContent class="pt-6">
-        <div class="flex items-center gap-2 text-destructive">
-          <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-          <p>{{ error }}</p>
-        </div>
-      </CardContent>
-    </Card>
 
     <!-- Form -->
     <form @submit.prevent="handleSubmit" class="space-y-6">

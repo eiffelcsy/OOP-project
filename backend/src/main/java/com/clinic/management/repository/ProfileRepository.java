@@ -2,6 +2,9 @@ package com.clinic.management.repository;
 
 import com.clinic.management.model.Profile;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -15,10 +18,12 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     
     /**
      * Find profile by Supabase auth user ID
-     * @param userId UUID from auth.users.id
+     * This is the primary way to look up a profile from JWT authentication
+     * @param userId UUID from auth.users.id (as String)
      * @return Optional containing the profile if found
      */
-    Optional<Profile> findByUserId(String userId);
+    @Query(value = "SELECT * FROM profiles WHERE user_id = CAST(:userId AS uuid)", nativeQuery = true)
+    Optional<Profile> findByUserId(@Param("userId") String userId);
     
     /**
      * Find profile by email address
@@ -29,10 +34,11 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     
     /**
      * Check if a profile exists for a given user ID
-     * @param userId UUID from auth.users.id
+     * @param userId UUID from auth.users.id (as String)
      * @return true if profile exists
      */
-    boolean existsByUserId(String userId);
+    @Query(value = "SELECT EXISTS(SELECT 1 FROM profiles WHERE user_id = CAST(:userId AS uuid))", nativeQuery = true)
+    boolean existsByUserId(@Param("userId") String userId);
     
     /**
      * Check if a profile exists with the given email
@@ -43,8 +49,10 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     
     /**
      * Delete profile by user ID
-     * @param userId UUID from auth.users.id
+     * @param userId UUID from auth.users.id (as String)
      */
-    void deleteByUserId(String userId);
+    @Modifying
+    @Query(value = "DELETE FROM profiles WHERE user_id = CAST(:userId AS uuid)", nativeQuery = true)
+    void deleteByUserId(@Param("userId") String userId);
 }
 

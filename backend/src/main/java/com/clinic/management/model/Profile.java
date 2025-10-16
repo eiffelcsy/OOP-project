@@ -1,6 +1,9 @@
 package com.clinic.management.model;
 
+import com.clinic.management.util.UuidToStringConverter;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 /**
@@ -20,6 +23,7 @@ public class Profile {
      * This is a UUID stored as String, not a JPA relationship
      * because auth.users is in a different schema
      */
+    @Convert(converter = UuidToStringConverter.class)
     @Column(name = "user_id", nullable = false, unique = true)
     private String userId;
     
@@ -36,7 +40,8 @@ public class Profile {
      * JSON metadata stored as String
      * Can be parsed using Jackson ObjectMapper when needed
      */
-    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata", columnDefinition = "jsonb")
     private String metadata;
     
     @Column(name = "created_at", updatable = false)

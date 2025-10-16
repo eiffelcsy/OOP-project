@@ -3,6 +3,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDoctors, type DoctorResponse } from '../composables/useDoctors'
 import { useSchedules, type ScheduleResponse, type CreateScheduleRequest, type UpdateScheduleRequest } from '../composables/useSchedules'
+import { useClinics, type ClinicResponse } from '@/features/clinic-management/composables/useClinics'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,10 +25,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
 const { fetchDoctorById, updateDoctor, deleteDoctor, loading, error } = useDoctors()
+const { fetchClinicById } = useClinics()
 const { 
   schedules, 
   loading: schedulesLoading, 
@@ -39,6 +42,7 @@ const {
 } = useSchedules()
 
 const doctor = ref<DoctorResponse | null>(null)
+const clinic = ref<ClinicResponse | null>(null)
 const isEditing = ref(false)
 const showDeleteDialog = ref(false)
 const successMessage = ref('')
@@ -93,6 +97,14 @@ const scheduleFormData = reactive<Partial<CreateScheduleRequest>>({
 
 const doctorId = computed(() => parseInt(route.params.id as string))
 
+const formatTimeForDisplay = (time: string) => {
+  if (!time) return 'Not set'
+  return time.substring(0, 5) // HH:MM
+}
+
+// Validation error message
+const scheduleValidationError = ref<string | null>(null)
+
 // Filter schedules based on day and validity
 const filteredSchedules = computed(() => {
   let filtered = schedules.value
@@ -141,14 +153,28 @@ const isScheduleValid = (schedule: ScheduleResponse) => {
 }
 
 const loadDoctor = async () => {
-  const data = await fetchDoctorById(doctorId.value)
-  if (data) {
+  try {
+    const data = await fetchDoctorById(doctorId.value)
     doctor.value = data
     Object.assign(editFormData, data)
+    // Load clinic data to get operating hours
+    await loadClinic(data.clinicId)
     // Load schedules from API
     await loadSchedules()
-  } else {
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to load doctor')
+    toast.error('Load Failed', {
+      description: errorMessage
+    })
     router.push({ name: 'AdminDoctorsByClinic' })
+  }
+}
+
+// Load clinic data
+const loadClinic = async (clinicId: number) => {
+  const data = await fetchClinicById(clinicId)
+  if (data) {
+    clinic.value = data
   }
 }
 
@@ -161,10 +187,16 @@ const loadSchedules = async () => {
 const handleAddSchedule = () => {
   isEditingSchedule.value = false
   editingScheduleId.value = null
+  scheduleValidationError.value = null
+  
+  // Set default times to clinic hours if available
+  const defaultStartTime = clinic.value?.openTime || '09:00:00'
+  const defaultEndTime = clinic.value?.closeTime || '17:00:00'
+  
   Object.assign(scheduleFormData, {
     dayOfWeek: 1,
-    startTime: '09:00:00',
-    endTime: '17:00:00',
+    startTime: defaultStartTime,
+    endTime: defaultEndTime,
     slotDurationMinutes: 30,
     validFrom: null,
     validTo: null
@@ -175,6 +207,7 @@ const handleAddSchedule = () => {
 const handleEditSchedule = (schedule: ScheduleResponse) => {
   isEditingSchedule.value = true
   editingScheduleId.value = schedule.id
+  scheduleValidationError.value = null
   Object.assign(scheduleFormData, {
     dayOfWeek: schedule.dayOfWeek,
     startTime: schedule.startTime,
@@ -188,6 +221,33 @@ const handleEditSchedule = (schedule: ScheduleResponse) => {
 
 const handleSaveSchedule = async () => {
   if (!doctorId.value) return
+
+  // Clear previous validation error
+  scheduleValidationError.value = null
+
+  // Validate schedule times are within clinic operating hours
+  if (clinic.value?.openTime && clinic.value?.closeTime) {
+    const scheduleStart = scheduleFormData.startTime!
+    const scheduleEnd = scheduleFormData.endTime!
+    const clinicOpen = clinic.value.openTime
+    const clinicClose = clinic.value.closeTime
+
+    // Compare times (in HH:MM:SS format)
+    if (scheduleStart < clinicOpen) {
+      scheduleValidationError.value = `Start time must be at or after clinic opening time (${formatTimeForDisplay(clinicOpen)})`
+      return
+    }
+
+    if (scheduleEnd > clinicClose) {
+      scheduleValidationError.value = `End time must be at or before clinic closing time (${formatTimeForDisplay(clinicClose)})`
+      return
+    }
+
+    if (scheduleStart >= scheduleEnd) {
+      scheduleValidationError.value = 'Start time must be before end time'
+      return
+    }
+  }
 
   const scheduleData = {
     doctorId: doctorId.value,
@@ -208,10 +268,22 @@ const handleSaveSchedule = async () => {
 
   if (result) {
     showScheduleDialog.value = false
-    successMessage.value = isEditingSchedule.value ? 'Schedule updated successfully!' : 'Schedule created successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    scheduleValidationError.value = null
+    toast.success(isEditingSchedule.value ? 'Schedule Updated' : 'Schedule Created', {
+      description: isEditingSchedule.value ? 'Schedule has been updated successfully' : 'New schedule has been created successfully',
+      action: {
+        label: 'View',
+        onClick: () => {}
+      }
+    })
+  } else if (schedulesError.value) {
+    toast.error('Schedule Operation Failed', {
+      description: schedulesError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSaveSchedule()
+      }
+    })
   }
 }
 
@@ -227,10 +299,21 @@ const handleConfirmDeleteSchedule = async () => {
   if (success) {
     showDeleteScheduleDialog.value = false
     scheduleToDelete.value = null
-    successMessage.value = 'Schedule deleted successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success('Schedule Deleted', {
+      description: 'The schedule has been permanently deleted',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
+  } else if (schedulesError.value) {
+    toast.error('Delete Failed', {
+      description: schedulesError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => handleConfirmDeleteSchedule()
+      }
+    })
   }
 }
 
@@ -281,26 +364,54 @@ const handleCustomSpecialtyChange = (value: string) => {
 }
 
 const handleSave = async () => {
-  const result = await updateDoctor(doctorId.value, {
-    name: editFormData.name,
-    specialty: editFormData.specialty,
-    active: editFormData.active,
-    clinicId: editFormData.clinic_id
-  })
-  if (result) {
+  try {
+    const result = await updateDoctor(doctorId.value, {
+      name: editFormData.name,
+      specialty: editFormData.specialty,
+      active: editFormData.active,
+      clinicId: editFormData.clinic_id
+    })
     doctor.value = result
     isEditing.value = false
-    successMessage.value = 'Doctor updated successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success('Doctor Updated', {
+      description: 'Doctor profile has been updated successfully',
+      action: {
+        label: 'View',
+        onClick: () => {}
+      }
+    })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to update doctor')
+    toast.error('Update Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSave()
+      }
+    })
   }
 }
 
 const handleDelete = async () => {
-  const success = await deleteDoctor(doctorId.value)
-  if (success) {
+  try {
+    await deleteDoctor(doctorId.value)
+    toast.success('Doctor Deleted', {
+      description: 'The doctor profile has been permanently deleted',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
     router.push({ name: 'AdminDoctorsByClinic' })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to delete doctor')
+    toast.error('Delete Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleDelete()
+      }
+    })
   }
 }
 
@@ -373,26 +484,6 @@ onMounted(() => {
           </Button>
         </div>
       </div>
-
-      <!-- Success Message -->
-      <Card v-if="successMessage" class="border-green-500 bg-green-50 dark:bg-green-950">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-green-700 dark:text-green-400">
-            <Icon icon="lucide:check-circle" class="h-5 w-5" />
-            <p class="font-medium">{{ successMessage }}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Error Message -->
-      <Card v-if="error" class="border-destructive">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-destructive">
-            <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-            <p>{{ error }}</p>
-          </div>
-        </CardContent>
-      </Card>
 
       <!-- View Mode -->
       <div v-if="!isEditing" class="space-y-6">
@@ -741,6 +832,31 @@ onMounted(() => {
             {{ isEditingSchedule ? 'Update the schedule details below' : 'Create a new schedule for this doctor' }}
           </DialogDescription>
         </DialogHeader>
+
+        <!-- Clinic Operating Hours Info -->
+        <div v-if="clinic?.openTime && clinic?.closeTime" class="bg-muted/50 p-4 rounded-lg border">
+          <div class="flex items-start gap-3">
+            <Icon icon="lucide:info" class="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div>
+              <p class="text-sm font-medium">Clinic Operating Hours</p>
+              <p class="text-sm text-muted-foreground mt-1">
+                {{ clinic.name }}: {{ formatTimeForDisplay(clinic.openTime) }} - {{ formatTimeForDisplay(clinic.closeTime) }}
+              </p>
+              <p class="text-xs text-muted-foreground mt-1">
+                Schedule times must be within these hours
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validation Error -->
+        <div v-if="scheduleValidationError" class="bg-destructive/10 border border-destructive p-4 rounded-lg">
+          <div class="flex items-start gap-3">
+            <Icon icon="lucide:alert-circle" class="h-5 w-5 text-destructive mt-0.5" />
+            <p class="text-sm text-destructive">{{ scheduleValidationError }}</p>
+          </div>
+        </div>
+
         <form @submit.prevent="handleSaveSchedule" class="space-y-4">
           <div class="grid grid-cols-2 gap-6">
             <div class="space-y-2 col-span-2">
@@ -766,6 +882,8 @@ onMounted(() => {
                 v-model="scheduleFormData.startTime" 
                 type="time"
                 step="60"
+                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
+                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
                 required 
               />
             </div>
@@ -777,6 +895,8 @@ onMounted(() => {
                 v-model="scheduleFormData.endTime" 
                 type="time"
                 step="60"
+                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
+                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
                 required 
               />
             </div>

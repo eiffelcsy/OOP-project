@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { toast } from 'vue-sonner'
 
 const router = useRouter()
 const { createDoctor, loading, error } = useDoctors()
@@ -98,12 +99,37 @@ const handleCustomSpecialtyChange = (value: string) => {
 }
 
 const handleSubmit = async () => {
-  if (!isFormValid.value) return
+  if (!isFormValid.value) {
+    toast.error('Invalid Form', {
+      description: 'Please fill in all required fields',
+      action: {
+        label: 'Review',
+        onClick: () => {}
+      }
+    })
+    return
+  }
 
-  const result = await createDoctor(formData)
-  if (result) {
+  try {
+    const result = await createDoctor(formData)
+    toast.success('Doctor Created', {
+      description: 'New doctor profile has been successfully created',
+      action: {
+        label: 'View Profile',
+        onClick: () => router.push({ name: 'AdminDoctorDetails', params: { id: result.id } })
+      }
+    })
     // Navigate to the new doctor's details page
     router.push({ name: 'AdminDoctorDetails', params: { id: result.id } })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to create doctor')
+    toast.error('Creation Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSubmit()
+      }
+    })
   }
 }
 
@@ -128,16 +154,6 @@ onMounted(() => {
         <p class="text-muted-foreground">Create a new doctor profile</p>
       </div>
     </div>
-
-    <!-- Error Message -->
-    <Card v-if="error" class="border-destructive">
-      <CardContent class="pt-6">
-        <div class="flex items-center gap-2 text-destructive">
-          <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-          <p>{{ error }}</p>
-        </div>
-      </CardContent>
-    </Card>
 
     <!-- Form -->
     <form @submit.prevent="handleSubmit" class="space-y-6">
