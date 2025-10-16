@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,8 +54,8 @@ const getRoleBadgeVariant = (role: string) => {
 }
 
 const loadUser = async () => {
-  const data = await fetchUserById(userId.value)
-  if (data) {
+  try {
+    const data = await fetchUserById(userId.value)
     user.value = data
     // Copy data to edit form
     Object.assign(editFormData, {
@@ -67,8 +68,11 @@ const loadUser = async () => {
       clinic_id: data.staff?.clinic_id,
       staff_role: data.staff?.role
     })
-  } else {
-    // User not found, redirect back
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to load user')
+    toast.error('Load Failed', {
+      description: errorMessage
+    })
     router.push({ name: 'AdminUsers' })
   }
 }
@@ -110,21 +114,49 @@ const handleCancelEdit = () => {
 }
 
 const handleSave = async () => {
-  const result = await updateUser(userId.value, editFormData)
-  if (result) {
+  try {
+    const result = await updateUser(userId.value, editFormData)
     user.value = result
     isEditing.value = false
-    successMessage.value = 'User updated successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success('User Updated', {
+      description: 'User profile has been updated successfully',
+      action: {
+        label: 'View',
+        onClick: () => {}
+      }
+    })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to update user')
+    toast.error('Update Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSave()
+      }
+    })
   }
 }
 
 const handleDelete = async () => {
-  const success = await deleteUser(userId.value)
-  if (success) {
+  try {
+    await deleteUser(userId.value)
+    toast.success('User Deleted', {
+      description: 'The user account has been permanently deleted',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
     router.push({ name: 'AdminUsers' })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to delete user')
+    toast.error('Delete Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleDelete()
+      }
+    })
   }
 }
 
@@ -195,26 +227,6 @@ onMounted(() => {
           </Button>
         </div>
       </div>
-
-      <!-- Success Message -->
-      <Card v-if="successMessage" class="border-green-500 bg-green-50 dark:bg-green-950">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-green-700 dark:text-green-400">
-            <Icon icon="lucide:check-circle" class="h-5 w-5" />
-            <p class="font-medium">{{ successMessage }}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Error Message -->
-      <Card v-if="error" class="border-destructive">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-destructive">
-            <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-            <p>{{ error }}</p>
-          </div>
-        </CardContent>
-      </Card>
 
       <!-- View Mode -->
       <div v-if="!isEditing" class="space-y-6">

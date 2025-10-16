@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { toast } from 'vue-sonner'
 
 const { doctors, loading: doctorsLoading, error: doctorsError, fetchDoctorsByClinicId, navigateToDoctor, navigateToCreateDoctor } = useDoctors()
 const { clinics, loading: clinicsLoading, error: clinicsError, fetchClinics } = useClinics()
@@ -71,6 +72,15 @@ const handleSelectClinic = async (clinicId: number) => {
   showClinicSelector.value = false
   clinicSearchQuery.value = ''
   await fetchDoctorsByClinicId(clinicId)
+  if (doctorsError.value) {
+    toast.error('Failed to Load Doctors', {
+      description: doctorsError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => fetchDoctorsByClinicId(clinicId)
+      }
+    })
+  }
 }
 
 const handleClearClinic = () => {
@@ -79,8 +89,17 @@ const handleClearClinic = () => {
   searchQuery.value = ''
 }
 
-onMounted(() => {
-  fetchClinics()
+onMounted(async () => {
+  await fetchClinics()
+  if (clinicsError.value) {
+    toast.error('Failed to Load Clinics', {
+      description: clinicsError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => fetchClinics()
+      }
+    })
+  }
 })
 </script>
 
@@ -143,16 +162,6 @@ onMounted(() => {
             <span>{{ clinicsLoading ? 'Loading clinics...' : 'Select a Clinic' }}</span>
           </div>
         </Button>
-      </CardContent>
-    </Card>
-
-    <!-- Error Messages -->
-    <Card v-if="clinicsError || doctorsError" class="border-destructive">
-      <CardContent class="pt-6">
-        <div class="flex items-center gap-2 text-destructive">
-          <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-          <p>{{ clinicsError || doctorsError }}</p>
-        </div>
       </CardContent>
     </Card>
 

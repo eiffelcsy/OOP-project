@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Icon } from '@iconify/vue'
+import { toast } from 'vue-sonner'
 
 const router = useRouter()
 const { createUser, loading, error } = useUsers()
@@ -72,18 +73,52 @@ const validateForm = () => {
     return Object.keys(formErrors.value).length === 0
 }
 
+const isSubmitting = ref(false)
+
 const handleSubmit = async () => {
-    if (!validateForm()) {
+    // Prevent duplicate submissions
+    if (isSubmitting.value) {
         return
     }
 
-    const result = await createUser(formData)
+    if (!validateForm()) {
+        toast.error('Validation Failed', {
+            description: 'Please check all required fields and fix any errors',
+            action: {
+                label: 'Review',
+                onClick: () => {}
+            }
+        })
+        return
+    }
 
-    if (result) {
-        successMessage.value = true
+    isSubmitting.value = true
+
+    try {
+        const result = await createUser(formData)
+
+        toast.success('User Created', {
+            description: `New ${formData.role} account has been successfully created`,
+            action: {
+                label: 'View Profile',
+                onClick: () => router.push({ name: 'AdminUserDetails', params: { id: result.profile_id } })
+            }
+        })
         setTimeout(() => {
             router.push({ name: 'AdminUserDetails', params: { id: result.profile_id } })
         }, 1500)
+    } catch (err) {
+        // Error is already set in the composable, but we need to show the toast here
+        const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to create user')
+        toast.error('Creation Failed', {
+            description: errorMessage,
+            action: {
+                label: 'Retry',
+                onClick: () => handleSubmit()
+            }
+        })
+    } finally {
+        isSubmitting.value = false
     }
 }
 
@@ -109,26 +144,6 @@ const getRoleDisplayName = (role: string) => {
                 Cancel
             </Button>
         </div>
-
-        <!-- Success Message -->
-        <Card v-if="successMessage" class="border-green-500 bg-green-50 dark:bg-green-950">
-            <CardContent class="pt-6">
-                <div class="flex items-center gap-2 text-green-700 dark:text-green-400">
-                    <Icon icon="lucide:check-circle" class="h-5 w-5" />
-                    <p class="font-medium">User created successfully! Redirecting...</p>
-                </div>
-            </CardContent>
-        </Card>
-
-        <!-- Error Message -->
-        <Card v-if="error" class="border-destructive">
-            <CardContent class="pt-6">
-                <div class="flex items-center gap-2 text-destructive">
-                    <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-                    <p>{{ error }}</p>
-                </div>
-            </CardContent>
-        </Card>
 
         <!-- Form -->
         <form @submit.prevent="handleSubmit" class="space-y-6">
@@ -296,13 +311,13 @@ const getRoleDisplayName = (role: string) => {
 
             <!-- Action Buttons -->
             <div class="flex justify-end gap-4">
-                <Button type="button" variant="outline" @click="handleCancel" :disabled="loading">
+                <Button type="button" variant="outline" @click="handleCancel" :disabled="loading || isSubmitting">
                     Cancel
                 </Button>
-                <Button type="submit" :disabled="loading">
-                    <Icon v-if="loading" icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
+                <Button type="submit" :disabled="loading || isSubmitting">
+                    <Icon v-if="loading || isSubmitting" icon="lucide:loader-2" class="mr-2 h-4 w-4 animate-spin" />
                     <Icon v-else icon="lucide:check" class="mr-2 h-4 w-4" />
-                    {{ loading ? 'Creating...' : 'Create User' }}
+                    {{ (loading || isSubmitting) ? 'Creating...' : 'Create User' }}
                 </Button>
             </div>
         </form>

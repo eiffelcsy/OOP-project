@@ -1,5 +1,6 @@
 package com.clinic.management.model;
 
+import com.clinic.management.util.UuidToStringConverter;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -20,6 +21,7 @@ public class Staff {
      * Foreign key to auth.users.id (Supabase Auth)
      * This is a UUID stored as String, not a JPA relationship
      */
+    @Convert(converter = UuidToStringConverter.class)
     @Column(name = "user_id", nullable = false, unique = true)
     private String userId;
     

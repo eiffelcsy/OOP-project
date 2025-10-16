@@ -119,7 +119,8 @@ export function useUsers() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch user'
       console.error('Error fetching user:', err)
-      return null
+      // Re-throw the error so the component can handle it
+      throw err
     } finally {
       loading.value = false
     }
@@ -140,7 +141,8 @@ export function useUsers() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to create user'
       console.error('Error creating user:', err)
-      return null
+      // Re-throw the error so the component can handle it
+      throw err
     } finally {
       loading.value = false
     }
@@ -161,7 +163,8 @@ export function useUsers() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to update user'
       console.error('Error updating user:', err)
-      return null
+      // Re-throw the error so the component can handle it
+      throw err
     } finally {
       loading.value = false
     }
@@ -172,17 +175,16 @@ export function useUsers() {
     loading.value = true
     error.value = null
     try {
-      // TODO: Replace with actual API endpoint when backend is ready
       await apiClient.delete(`/api/admin/users/${id}`)
       
-      // Refresh users list
       await fetchUsers()
       
       return true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete user'
       console.error('Error deleting user:', err)
-      return false
+      // Re-throw the error so the component can handle it
+      throw err
     } finally {
       loading.value = false
     }

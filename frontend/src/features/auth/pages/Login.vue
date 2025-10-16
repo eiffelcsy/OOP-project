@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Icon } from "@iconify/vue"
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { toast } from 'vue-sonner'
 
 type UserRole = 'patient' | 'staff' | 'admin'
 
@@ -41,6 +42,13 @@ const selectRole = (role: UserRole) => {
 const handleLogin = async () => {
   // Validate inputs
   if (!email.value || !password.value) {
+    toast.error('Missing Information', {
+      description: 'Please enter both email and password',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
     return
   }
 
@@ -53,9 +61,24 @@ const handleLogin = async () => {
   if (success && currentUser.value) {
     // Verify the user's role matches the selected role
     if (currentUser.value.userType !== selectedRole.value) {
-      error.value = `Invalid credentials for ${selectedRole.value} role`
+      toast.error('Role Mismatch', {
+        description: `Invalid credentials for ${selectedRole.value} role`,
+        action: {
+          label: 'Try Again',
+          onClick: () => {}
+        }
+      })
       return
     }
+
+    // Show success message
+    toast.success('Login Successful', {
+      description: `Welcome back, ${currentUser.value.profile?.full_name || 'User'}!`,
+      action: {
+        label: 'Continue',
+        onClick: () => {}
+      }
+    })
 
     // Redirect to appropriate dashboard based on user type
     switch (currentUser.value.userType) {
@@ -71,6 +94,16 @@ const handleLogin = async () => {
       default:
         router.push('/')
     }
+  } else {
+    // Show error message
+    const errorMessage = error.value || 'Login failed. Please check your credentials.'
+    toast.error('Login Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => {}
+      }
+    })
   }
 }
 </script>
@@ -109,11 +142,6 @@ const handleLogin = async () => {
 
     <!-- Login Form -->
     <div class="grid gap-4">
-      <!-- Error Message -->
-      <div v-if="error" class="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-        {{ error }}
-      </div>
-
       <div class="grid gap-2">
         <Label for="email">Email</Label>
         <Input

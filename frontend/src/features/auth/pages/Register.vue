@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
+import { toast } from 'vue-sonner'
 
 const email = ref('')
 const password = ref('')
@@ -36,12 +37,24 @@ const handleRegister = async () => {
 
   // Basic validation
   if (!isFormValid.value) {
-    error.value = 'Please fill in all fields correctly'
+    toast.error('Incomplete Form', {
+      description: 'Please fill in all fields correctly',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
     return
   }
 
   if (password.value !== confirmPassword.value) {
-    error.value = 'Passwords do not match'
+    toast.error('Password Mismatch', {
+      description: 'Passwords do not match',
+      action: {
+        label: 'Fix',
+        onClick: () => {}
+      }
+    })
     return
   }
 
@@ -59,26 +72,47 @@ const handleRegister = async () => {
     const success = await register(registrationData)
     
     if (success) {
-      // Registration successful - redirect to login with success message
-      router.push({
-        path: '/login',
-        query: { message: 'Registration successful! Please login with your credentials.' }
+      // Registration successful - show success toast
+      toast.success('Registration Successful!', {
+        description: 'Your account has been created. Please login with your credentials.',
+        action: {
+          label: 'Go to Login',
+          onClick: () => router.push('/login')
+        }
+      })
+      
+      // Redirect to login
+      setTimeout(() => {
+        router.push('/login')
+      }, 1500)
+    } else {
+      // Registration failed - show error message
+      const errorMessage = error.value || 'Registration failed. Please try again.'
+      toast.error('Registration Failed', {
+        description: errorMessage,
+        action: {
+          label: 'Retry',
+          onClick: () => {}
+        }
       })
     }
   } catch (err) {
     // Error is already handled by the useAuth composable
     console.error('Registration failed:', err)
+    const errorMessage = error.value || 'An unexpected error occurred. Please try again.'
+    toast.error('Registration Error', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => {}
+      }
+    })
   }
 }
 </script>
 
 <template>
   <div class="grid gap-6">
-    <!-- Error Message -->
-    <div v-if="error" class="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-      {{ error }}
-    </div>
-
     <!-- Register Form -->
     <form @submit.prevent="handleRegister" class="grid gap-4">
       <!-- Name Fields -->

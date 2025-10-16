@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toast } from 'vue-sonner'
 
 const { clinics, loading, error, fetchClinics, navigateToClinic, navigateToCreateClinic } = useClinics()
 
@@ -70,8 +71,17 @@ const stats = computed(() => ({
 }))
 
 
-onMounted(() => {
-  fetchClinics()
+onMounted(async () => {
+  await fetchClinics()
+  if (error.value) {
+    toast.error('Failed to Load Clinics', {
+      description: error.value,
+      action: {
+        label: 'Retry',
+        onClick: () => fetchClinics()
+      }
+    })
+  }
 })
 </script>
 
@@ -167,16 +177,6 @@ onMounted(() => {
               </Button>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Error Message -->
-    <Card v-if="error" class="border-destructive">
-      <CardContent>
-        <div class="flex items-center gap-2 text-destructive">
-          <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-          <p>{{ error }}</p>
         </div>
       </CardContent>
     </Card>

@@ -51,7 +51,7 @@ export function useClinics() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clinic'
       console.error('Error fetching clinic:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -73,7 +73,7 @@ export function useClinics() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to create clinic'
       console.error('Error creating clinic:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -95,7 +95,7 @@ export function useClinics() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to update clinic'
       console.error('Error updating clinic:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -117,7 +117,7 @@ export function useClinics() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete clinic'
       console.error('Error deleting clinic:', err)
-      return false
+      throw err
     } finally {
       loading.value = false
     }

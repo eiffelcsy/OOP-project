@@ -70,7 +70,7 @@ export function useDoctors() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch doctor'
       console.error('Error fetching doctor:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -92,7 +92,7 @@ export function useDoctors() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to create doctor'
       console.error('Error creating doctor:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -114,7 +114,7 @@ export function useDoctors() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to update doctor'
       console.error('Error updating doctor:', err)
-      return null
+      throw err
     } finally {
       loading.value = false
     }
@@ -136,7 +136,7 @@ export function useDoctors() {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete doctor'
       console.error('Error deleting doctor:', err)
-      return false
+      throw err
     } finally {
       loading.value = false
     }

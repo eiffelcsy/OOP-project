@@ -25,6 +25,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,15 +153,19 @@ const isScheduleValid = (schedule: ScheduleResponse) => {
 }
 
 const loadDoctor = async () => {
-  const data = await fetchDoctorById(doctorId.value)
-  if (data) {
+  try {
+    const data = await fetchDoctorById(doctorId.value)
     doctor.value = data
     Object.assign(editFormData, data)
     // Load clinic data to get operating hours
     await loadClinic(data.clinicId)
     // Load schedules from API
     await loadSchedules()
-  } else {
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to load doctor')
+    toast.error('Load Failed', {
+      description: errorMessage
+    })
     router.push({ name: 'AdminDoctorsByClinic' })
   }
 }
@@ -264,10 +269,21 @@ const handleSaveSchedule = async () => {
   if (result) {
     showScheduleDialog.value = false
     scheduleValidationError.value = null
-    successMessage.value = isEditingSchedule.value ? 'Schedule updated successfully!' : 'Schedule created successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(isEditingSchedule.value ? 'Schedule Updated' : 'Schedule Created', {
+      description: isEditingSchedule.value ? 'Schedule has been updated successfully' : 'New schedule has been created successfully',
+      action: {
+        label: 'View',
+        onClick: () => {}
+      }
+    })
+  } else if (schedulesError.value) {
+    toast.error('Schedule Operation Failed', {
+      description: schedulesError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSaveSchedule()
+      }
+    })
   }
 }
 
@@ -283,10 +299,21 @@ const handleConfirmDeleteSchedule = async () => {
   if (success) {
     showDeleteScheduleDialog.value = false
     scheduleToDelete.value = null
-    successMessage.value = 'Schedule deleted successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success('Schedule Deleted', {
+      description: 'The schedule has been permanently deleted',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
+  } else if (schedulesError.value) {
+    toast.error('Delete Failed', {
+      description: schedulesError.value,
+      action: {
+        label: 'Retry',
+        onClick: () => handleConfirmDeleteSchedule()
+      }
+    })
   }
 }
 
@@ -337,26 +364,54 @@ const handleCustomSpecialtyChange = (value: string) => {
 }
 
 const handleSave = async () => {
-  const result = await updateDoctor(doctorId.value, {
-    name: editFormData.name,
-    specialty: editFormData.specialty,
-    active: editFormData.active,
-    clinicId: editFormData.clinic_id
-  })
-  if (result) {
+  try {
+    const result = await updateDoctor(doctorId.value, {
+      name: editFormData.name,
+      specialty: editFormData.specialty,
+      active: editFormData.active,
+      clinicId: editFormData.clinic_id
+    })
     doctor.value = result
     isEditing.value = false
-    successMessage.value = 'Doctor updated successfully!'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success('Doctor Updated', {
+      description: 'Doctor profile has been updated successfully',
+      action: {
+        label: 'View',
+        onClick: () => {}
+      }
+    })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to update doctor')
+    toast.error('Update Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleSave()
+      }
+    })
   }
 }
 
 const handleDelete = async () => {
-  const success = await deleteDoctor(doctorId.value)
-  if (success) {
+  try {
+    await deleteDoctor(doctorId.value)
+    toast.success('Doctor Deleted', {
+      description: 'The doctor profile has been permanently deleted',
+      action: {
+        label: 'Dismiss',
+        onClick: () => {}
+      }
+    })
     router.push({ name: 'AdminDoctorsByClinic' })
+  } catch (err) {
+    const errorMessage = error.value || (err instanceof Error ? err.message : 'Failed to delete doctor')
+    toast.error('Delete Failed', {
+      description: errorMessage,
+      action: {
+        label: 'Retry',
+        onClick: () => handleDelete()
+      }
+    })
   }
 }
 
@@ -429,26 +484,6 @@ onMounted(() => {
           </Button>
         </div>
       </div>
-
-      <!-- Success Message -->
-      <Card v-if="successMessage" class="border-green-500 bg-green-50 dark:bg-green-950">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-green-700 dark:text-green-400">
-            <Icon icon="lucide:check-circle" class="h-5 w-5" />
-            <p class="font-medium">{{ successMessage }}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <!-- Error Message -->
-      <Card v-if="error" class="border-destructive">
-        <CardContent class="pt-6">
-          <div class="flex items-center gap-2 text-destructive">
-            <Icon icon="lucide:alert-circle" class="h-5 w-5" />
-            <p>{{ error }}</p>
-          </div>
-        </CardContent>
-      </Card>
 
       <!-- View Mode -->
       <div v-if="!isEditing" class="space-y-6">

@@ -13,7 +13,21 @@ export const apiClient = {
     })
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      // Try to get error message from response body
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        }
+      } catch (e) {
+        // If response body is not JSON, use default message
+      }
+      throw new Error(errorMessage)
     }
     
     return response.json()
@@ -31,7 +45,21 @@ export const apiClient = {
     })
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      // Try to get error message from response body
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        }
+      } catch (e) {
+        // If response body is not JSON, use default message
+      }
+      throw new Error(errorMessage)
     }
     
     return response.json()
@@ -49,7 +77,21 @@ export const apiClient = {
     })
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      // Try to get error message from response body
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        }
+      } catch (e) {
+        // If response body is not JSON, use default message
+      }
+      throw new Error(errorMessage)
     }
     
     return response.json()
@@ -66,7 +108,21 @@ export const apiClient = {
     })
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+      // Try to get error message from response body
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData
+        }
+      } catch (e) {
+        // If response body is not JSON, use default message
+      }
+      throw new Error(errorMessage)
     }
     
     // DELETE may return no content
