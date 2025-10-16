@@ -3,7 +3,16 @@
  * Handles all schedule-related API calls to the backend
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+// Normalize Vite-provided base URL. Users may set VITE_API_BASE_URL to include
+// a trailing '/api' or not; handle both cases so callers don't accidentally
+// produce requests like 'http://host:port/api/api/...'. Also strip trailing
+// slashes for a consistent join.
+const _rawApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+const _trimmed = (_rawApiBase as string).replace(/\/+$/, '')
+// If the provided base ends with '/api' assume it already contains the API
+// prefix and do not add another '/api' when building endpoints. Otherwise
+// add '/api' as the canonical API prefix used by the backend.
+const API_BASE_URL = _trimmed.endsWith('/api') ? _trimmed : `${_trimmed}/api`
 
 export interface ScheduleResponse {
   id: number
@@ -43,7 +52,10 @@ class SchedulesApiService {
    * Get all schedules for a specific doctor
    */
   async getSchedulesByDoctorId(doctorId: number): Promise<ScheduleResponse[]> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/doctors/${doctorId}/schedules`, {
+    const url = `${API_BASE_URL.replace(/\/+$/, '')}/admin/doctors/${doctorId}/schedules`
+    console.log('SchedulesApiService.getSchedulesByDoctorId requesting', url)
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -51,7 +63,15 @@ class SchedulesApiService {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch schedules: ${response.statusText}`)
+      // Try to read response body for better diagnostics
+      let body = ''
+      try {
+        body = await response.text()
+      } catch (e) {
+        body = `<unable to read response body: ${String(e)}>`
+      }
+      const msg = `Failed to fetch schedules: HTTP ${response.status} ${response.statusText} - ${body} (url: ${url})`
+      throw new Error(msg)
     }
 
     return response.json()

@@ -15,6 +15,11 @@ public class Appointment {
     private Long doctorId;
     private Long clinicId;
     private Long timeSlotId;          // Maps to time_slot_id in Supabase
+    @Column(name = "start_time")
+    private OffsetDateTime startTime;
+
+    @Column(name = "end_time")
+    private OffsetDateTime endTime;
     private String treatmentSummary;  // Maps to treatment_summary
     private String status;            // e.g., scheduled, cancelled
 
@@ -36,6 +41,12 @@ public class Appointment {
 
     public Long getTimeSlotId() { return timeSlotId; }
     public void setTimeSlotId(Long timeSlotId) { this.timeSlotId = timeSlotId; }
+
+    public OffsetDateTime getStartTime() { return startTime; }
+    public void setStartTime(OffsetDateTime startTime) { this.startTime = startTime; }
+
+    public OffsetDateTime getEndTime() { return endTime; }
+    public void setEndTime(OffsetDateTime endTime) { this.endTime = endTime; }
 
     public String getTreatmentSummary() { return treatmentSummary; }
     public void setTreatmentSummary(String treatmentSummary) { this.treatmentSummary = treatmentSummary; }

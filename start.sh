@@ -23,9 +23,17 @@ show_usage() {
     echo ""
 }
 
-# Load environment variables and export them
+# Load environment variables and export them (support both frontend and backend env files)
+# This ensures docker-compose substitution can read VITE_* values when using this script.
 set -a
-source .env.frontend
+if [ -f .env.frontend ]; then
+    echo "Sourcing .env.frontend"
+    source .env.frontend
+fi
+if [ -f .env.backend ]; then
+    echo "Sourcing .env.backend"
+    source .env.backend
+fi
 set +a
 
 # Default to development mode

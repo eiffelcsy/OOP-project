@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.OffsetDateTime;
 
 /**
  * REST Controller for Staff, Appointment, and Queue management
@@ -70,6 +71,7 @@ public class StaffController {
     // # ScheduleWalkIn
     @PostMapping("/appointments")
     public Appointment addAppointment(@RequestBody Appointment appointment) {
+        // Expect appointment.startTime and appointment.endTime to be provided (ISO timestamptz)
         return appointmentService.addAppointment(appointment);
     }
 
@@ -77,9 +79,19 @@ public class StaffController {
     @PutMapping("/appointments/{id}")
     public Appointment rescheduleAppointment(
             @PathVariable Long id,
-            @RequestParam Long newTimeSlotId
+            @RequestParam(required = false) Long newTimeSlotId,
+            @RequestParam(required = false) String newStartTime,
+            @RequestParam(required = false) String newEndTime
     ) {
-        return appointmentService.rescheduleAppointment(id, newTimeSlotId);
+        if (newStartTime != null && newEndTime != null) {
+            OffsetDateTime s = OffsetDateTime.parse(newStartTime);
+            OffsetDateTime e = OffsetDateTime.parse(newEndTime);
+            return appointmentService.rescheduleAppointment(id, s, e);
+        }
+        if (newTimeSlotId != null) {
+            return appointmentService.rescheduleAppointment(id, newTimeSlotId);
+        }
+        throw new IllegalArgumentException("Provide either newTimeSlotId or newStartTime and newEndTime") ;
     }
 
     // # ManagementAppointments - Cancel

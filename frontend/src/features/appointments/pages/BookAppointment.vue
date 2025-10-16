@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useBookAppointment } from '../composables/useBookAppointment'
+// Removed Supabase debug code
 import { Stepper, StepperItem, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from '@/components/ui/stepper'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,10 @@ const {
     clinicSearchQuery,
     selectedClinicType,
     selectedRegion,
+    // doctor filters & search
+    doctorSearchQuery,
+    selectedDoctorSpecialty,
+    distinctDoctorSpecialties,
     filteredClinics,
     availableDoctors,
     availableSlots,
@@ -32,6 +37,8 @@ const {
     previousStep,
     confirmBooking
 } = useBookAppointment()
+
+// doctor search & debug helpers handled via composable
 
 const isBookingConfirmed = ref(false)
 
@@ -73,6 +80,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
         <div class="mb-8">
             <h1 class="text-3xl font-bold mb-2">Book an Appointment</h1>
             <p class="text-muted-foreground">Follow the steps below to schedule an appointment</p>
+            <!-- (debug controls removed) -->
         </div>
 
         <div class="mb-8">
@@ -180,6 +188,28 @@ const handleDateSelect = (date: DateValue | undefined) => {
                         </CardDescription>
                     </CardHeader>
                 </Card>
+
+                <!-- Doctor Search & Specialty Filter -->
+                <div class="space-y-4">
+                    <div class="w-full max-w-sm">
+                        <Label for="doctor-search">Search doctors</Label>
+                        <div class="relative mt-1">
+                            <Input id="doctor-search" v-model="doctorSearchQuery" placeholder="Search by name or specialty..." />
+                            <Icon icon="lucide:search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <Label>Specialty</Label>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                            <Button v-for="spec in distinctDoctorSpecialties" :key="spec"
+                                :variant="selectedDoctorSpecialty === spec ? 'default' : 'outline'" size="sm"
+                                @click="selectedDoctorSpecialty = spec">
+                                {{ spec === 'All' ? 'All' : spec }}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <Card v-for="doctor in availableDoctors" :key="doctor.id"
