@@ -9,42 +9,43 @@ import type { Tables } from '@/types/supabase'
 // Use Supabase generated types
 export type Clinic = Tables<'clinics'>
 
-// Backend response type (with snake_case from Jackson)
+// Backend response type (with snake_case from Jackson default serialization)
 export interface ClinicResponse {
   id: number
   name: string
-  addressLine: string | null
+  address_line: string | null
   area: string | null
   region: string | null
-  clinicType: string | null
-  openTime: string | null  // LocalTime from backend
-  closeTime: string | null  // LocalTime from backend
+  clinic_type: string | null
+  open_time: string | null  // LocalTime from backend
+  close_time: string | null  // LocalTime from backend
   note: string | null
   remarks: string | null
-  createdAt: string  // LocalDateTime from backend
-  updatedAt: string  // LocalDateTime from backend
+  created_at: string  // LocalDateTime from backend
+  updated_at: string  // LocalDateTime from backend
+  source_ref: string | null  // Internal reference field
 }
 
 export interface CreateClinicRequest {
   name: string
-  addressLine?: string | null
+  address_line?: string | null
   area?: string | null
   region?: string | null
-  clinicType?: string | null
-  openTime?: string | null
-  closeTime?: string | null
+  clinic_type?: string | null
+  open_time?: string | null
+  close_time?: string | null
   note?: string | null
   remarks?: string | null
 }
 
 export interface UpdateClinicRequest {
   name?: string
-  addressLine?: string | null
+  address_line?: string | null
   area?: string | null
   region?: string | null
-  clinicType?: string | null
-  openTime?: string | null
-  closeTime?: string | null
+  clinic_type?: string | null
+  open_time?: string | null
+  close_time?: string | null
   note?: string | null
   remarks?: string | null
 }
