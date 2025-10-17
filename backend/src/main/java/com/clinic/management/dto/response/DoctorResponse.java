@@ -28,6 +28,7 @@ public class DoctorResponse {
      * @return DoctorResponse DTO
      */
     public static DoctorResponse from(Doctor doctor) {
+        if (doctor == null) return null;
         DoctorResponse response = new DoctorResponse();
         response.setId(doctor.getDoctorId());
         response.setClinicId(doctor.getClinicId());

@@ -14,7 +14,8 @@ public class Appointment {
     private Long patientId;
     private Long doctorId;
     private Long clinicId;
-    private Long timeSlotId;          // Maps to time_slot_id in Supabase
+    @Transient
+    private Long timeSlotId;          // Not mapped: Supabase no longer has time_slot_id
     @Column(name = "start_time")
     private OffsetDateTime startTime;
 

@@ -285,8 +285,10 @@ export const useBookAppointment = () => {
     { id: 12, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T16:30:00+08:00', slot_end: '2024-01-01T17:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   ])
 
-  // Computed slots for the selected doctor/date (array of { start, end, display })
-  const scheduleSlots = ref<Array<{ start: string; end: string; display: string }>>([])
+  // Computed slots for the selected doctor/date (array of { start, end, display, booked? })
+  const scheduleSlots = ref<Array<{ start: string; end: string; display: string; booked?: boolean }>>([])
+  // Appointments fetched for the currently-selected doctor (used to mark slots as booked)
+  const fetchedAppointments = ref<any[]>([])
 
   // TODO: Replace dummy data with actual API calls
   // Placeholder API methods for backend communication
@@ -440,7 +442,8 @@ export const useBookAppointment = () => {
         id: `sch-${idx}-${s.start.replace(/[: ]/g, '')}`,
         slot_start: `1970-01-01T${s.start}:00`,
         slot_end: `1970-01-01T${s.end}:00`,
-        display: s.display
+        display: s.display,
+        booked: (s as any).booked === true
       }))
     }
 
@@ -639,8 +642,42 @@ export const useBookAppointment = () => {
       // Optionally dedupe by display and sort by start
       const unique = Array.from(new Map(mergedSlots.map(s => [s.display, s])).values())
       unique.sort((a, b) => a.start.localeCompare(b.start))
-      scheduleSlots.value = unique
-      console.log(`Computed ${scheduleSlots.value.length} available slots for doctor ${doctorId} on day ${dayNum}`)
+
+      // Annotate slots with `booked` flag by comparing to fetched appointments for this doctor
+      const dateStr = bookingData.value.date ? bookingData.value.date.toString() : String(date)
+
+      const overlaps = (slotStartIso: string, slotEndIso: string, appts: any[]) => {
+        if (!appts || appts.length === 0) return false
+        try {
+          const s = new Date(slotStartIso).getTime()
+          const e = new Date(slotEndIso).getTime()
+          for (const a of appts) {
+            const aStartRaw = a.start_time ?? a.startTime ?? a.start
+            const aEndRaw = a.end_time ?? a.endTime ?? a.end
+            const aStart = new Date(aStartRaw).getTime()
+            const aEnd = new Date(aEndRaw).getTime()
+            if (isNaN(aStart) || isNaN(aEnd)) continue
+            if (aStart < e && aEnd > s) return true
+          }
+        } catch (e) {
+          // ignore
+        }
+        return false
+      }
+
+      const annotated = unique.map(s => {
+        try {
+          const slotStartIso = new Date(`${dateStr}T${s.start}`).toISOString()
+          const slotEndIso = new Date(`${dateStr}T${s.end}`).toISOString()
+          const booked = overlaps(slotStartIso, slotEndIso, fetchedAppointments.value)
+          return { ...s, booked }
+        } catch (e) {
+          return { ...s, booked: false }
+        }
+      })
+
+      scheduleSlots.value = annotated
+      console.log(`Computed ${scheduleSlots.value.length} available slots for doctor ${doctorId} on day ${dayNum}`, scheduleSlots.value)
       return scheduleSlots.value
     } catch (err) {
       console.error('loadSlotsForDate error', err)
@@ -672,39 +709,52 @@ export const useBookAppointment = () => {
             console.warn('Failed to fetch schedules for doctor', doctorId, schErr)
           }
 
-          // Fetch appointments rows for this doctor from appointments table
+          // Fetch appointments for this doctor: backend-first, then Supabase fallback
           try {
-            const apptQ = await supabase
-              .from('appointments')
-              .select('*')
-              .eq('doctor_id', doctorId)
+            let appts: any[] = []
 
-            if (apptQ.error) {
-              console.error('Error querying appointments for doctor', doctorId, apptQ.error)
+            try {
+              const env = (import.meta.env as any)
+              const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+              const endpoint = `${apiBase.replace(/\/+$/, '')}/staff/appointments?doctorId=${doctorId}`
+              console.log('Backend-first: querying appointments endpoint', endpoint)
+              const r = await fetch(endpoint, { headers: { Accept: 'application/json' } })
+
+              if (r.ok) {
+                const data = await r.json()
+                appts = (data ?? []) as any[]
+                console.log(`Backend returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
+              } else {
+                const txt = await r.text().catch(() => '')
+                console.warn('Backend returned non-OK for appointments', r.status, txt)
+              }
+            } catch (backendErr) {
+              console.warn('Backend appointments query failed, will fall back to Supabase:', backendErr)
             }
 
-            const appts = (apptQ.data ?? []) as any[]
-            console.log(`Found ${appts.length} appointments for doctor ${doctorId}:`, appts)
-
-            // If Supabase returned no rows, fall back to backend staff endpoint
-            if (appts.length === 0) {
+            // If backend gave nothing, fallback to Supabase client-side query
+            if (!appts || appts.length === 0) {
               try {
-                const env = (import.meta.env as any)
-                const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-                const endpoint = `${apiBase.replace(/\/+$/, '')}/staff/appointments?doctorId=${doctorId}`
-                console.log('Fallback: querying backend appointments endpoint', endpoint)
-                const r = await fetch(endpoint, { headers: { Accept: 'application/json' } })
-                if (!r.ok) {
-                  const txt = await r.text().catch(() => '')
-                  console.warn('Backend fallback returned non-OK for appointments', r.status, txt)
+                const apptQ = await supabase
+                  .from('appointments')
+                  .select('*')
+                  .eq('doctor_id', doctorId)
+
+                if (apptQ.error) {
+                  console.error('Supabase error querying appointments for doctor', doctorId, apptQ.error)
                 } else {
-                  const data = await r.json()
-                  console.log(`Backend fallback appointments for doctor ${doctorId}:`, data)
+                  appts = (apptQ.data ?? []) as any[]
+                  console.log(`Supabase returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
                 }
-              } catch (backendErr) {
-                console.error('Backend fallback appointments query failed', backendErr)
+              } catch (serr) {
+                console.error('Failed to query Supabase appointments for doctor', doctorId, serr)
               }
             }
+
+            // Final log: what we ended up with
+            console.log(`Found ${ (appts ?? []).length } appointments for doctor ${doctorId}:`, appts)
+            // persist for UI reconciliation (marking slots as booked)
+            fetchedAppointments.value = appts ?? []
           } catch (aerr) {
             console.error('Failed to query appointments for doctor', doctorId, aerr)
           }

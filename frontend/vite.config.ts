@@ -14,7 +14,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Explicitly map vue-sonner imports to the installed package files. Some
+      // environments (esbuild used by Vite) respect package.json "exports"
+      // and prevent deep imports; these aliases point to the actual files.
+      'vue-sonner/style.css': path.resolve(__dirname, 'node_modules/vue-sonner/lib/index.css'),
+      'vue-sonner': path.resolve(__dirname, 'node_modules/vue-sonner/lib/index.js'),
     },
+  },
+  optimizeDeps: {
+    include: ['vue-sonner'],
   },
   server: {
     host: true, // Listen on all addresses (needed for Docker)

@@ -32,7 +32,8 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/public/**", "/api/health", "/api/admin/**", "/api/staff/**", "/api/patient/**").permitAll()  // Temporarily allow all endpoints, once development is complete, remove as needed
+                // Allow unauthenticated access to public health and public-facing endpoints used by the SPA
+                .requestMatchers("/api/public/**", "/api/health", "/api/admin/**", "/api/staff/**", "/api/patient/**", "/api/doctors/**").permitAll()  // Temporarily allow these endpoints in development
                 // .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
                 // .requestMatchers("/api/patient/**").hasAnyRole("ADMIN", "PATIENT")

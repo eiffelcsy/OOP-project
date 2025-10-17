@@ -55,12 +55,8 @@ class SchedulesApiService {
     const url = `${API_BASE_URL.replace(/\/+$/, '')}/admin/doctors/${doctorId}/schedules`
     console.log('SchedulesApiService.getSchedulesByDoctorId requesting', url)
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    // Avoid sending a Content-Type header on GET requests to reduce CORS preflight
+    const response = await fetch(url, { method: 'GET' })
 
     if (!response.ok) {
       // Try to read response body for better diagnostics
@@ -81,7 +77,7 @@ class SchedulesApiService {
    * Create a new schedule
    */
   async createSchedule(data: CreateScheduleRequest): Promise<ScheduleResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/schedules`, {
+    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -101,7 +97,7 @@ class SchedulesApiService {
    * Update an existing schedule
    */
   async updateSchedule(id: number, data: UpdateScheduleRequest): Promise<ScheduleResponse> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/schedules/${id}`, {
+    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -121,12 +117,7 @@ class SchedulesApiService {
    * Delete a schedule
    */
   async deleteSchedule(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/api/admin/schedules/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
+    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules/${id}`, { method: 'DELETE' })
 
     if (!response.ok) {
       throw new Error(`Failed to delete schedule: ${response.statusText}`)

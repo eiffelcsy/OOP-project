@@ -267,8 +267,10 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
                                 <Button v-for="slot in availableSlots" :key="slot.id"
                                     :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
+                                    :disabled="slot.booked === true"
                                     @click="selectTimeSlot(slot)">
                                     {{ new Date(slot.slot_start).toLocaleTimeString() }} - {{ new Date(slot.slot_end).toLocaleTimeString() }}
+                                    <span v-if="slot.booked" class="ml-2 text-xs text-muted-foreground">(booked)</span>
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">

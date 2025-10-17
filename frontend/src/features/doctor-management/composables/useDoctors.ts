@@ -7,6 +7,7 @@ import {
   type UpdateDoctorRequest 
 } from '@/services/doctorsApi'
 import type { Tables } from '@/types/supabase'
+import { supabase } from '@/lib/supabase'
 
 /**
  * Doctors Composable
@@ -145,8 +146,26 @@ export function useDoctors() {
   /**
    * Navigate to doctor details page
    */
-  const navigateToDoctor = (id: number) => {
-    router.push({ name: 'AdminDoctorDetails', params: { id } })
+  const navigateToDoctor = async (id: number) => {
+    try {
+      // Query appointments table for rows matching this doctor id
+      const apptQ = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('doctor_id', id)
+
+      if (apptQ.error) {
+        console.error('Error querying appointments for doctor', id, apptQ.error)
+      }
+
+      const appts = (apptQ.data ?? []) as any[]
+      console.log(`Found ${appts.length} appointments for doctor ${id}`)
+    } catch (err) {
+      console.error('Failed to query appointments for doctor', id, err)
+    } finally {
+      // Navigate to details page regardless of query result
+      router.push({ name: 'AdminDoctorDetails', params: { id } })
+    }
   }
 
   /**
