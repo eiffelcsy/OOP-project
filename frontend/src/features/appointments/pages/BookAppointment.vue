@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useBookAppointment } from '../composables/useBookAppointment'
 // Removed Supabase debug code
 import { Stepper, StepperItem, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from '@/components/ui/stepper'
@@ -24,6 +24,8 @@ const {
     filteredClinics,
     availableDoctors,
     availableSlots,
+    availableWeekdays,
+    availableDates,
     distinctClinicTypes,
     distinctRegions,
     canProceedToNextStep,
@@ -66,6 +68,23 @@ const formatLabel = (val: string) => {
 }
 
 const calendarValue = ref<CalendarDate>()
+
+// Helper to convert a value (ref, Set, Array, iterable, plain object) into a safe array
+const toIterableArray = (maybeRef: any) => {
+    // unwrap ref-like values
+    const raw = (maybeRef && (maybeRef as any).value !== undefined) ? (maybeRef as any).value : maybeRef
+    if (!raw) return []
+    if (Array.isArray(raw)) return raw
+    if (raw instanceof Set) return Array.from(raw)
+    if (typeof raw === 'object' && typeof (raw as any)[Symbol.iterator] === 'function') {
+        try { return Array.from(raw) } catch { /* fallthrough */ }
+    }
+    if (typeof raw === 'object') return Object.values(raw)
+    return []
+}
+
+const availableWeekdaysArray = computed(() => toIterableArray(availableWeekdays))
+const availableDatesArray = computed(() => toIterableArray(availableDates))
 
 const handleDateSelect = (date: DateValue | undefined) => {
     if (date && date instanceof CalendarDate) {
@@ -251,7 +270,15 @@ const handleDateSelect = (date: DateValue | undefined) => {
                         </CardHeader>
                         <CardContent>
                             <Calendar v-model="calendarValue" :min-value="today(getLocalTimeZone())"
+                                :available-weekdays="availableWeekdaysArray"
+                                :available-dates="availableDatesArray"
                                 @update:model-value="handleDateSelect" class="rounded-md border p-6" />
+
+                            <!-- Legend explaining the green highlight -->
+                            <p class="text-sm text-muted-foreground mt-3 flex items-center gap-2">
+                                <span class="inline-block w-3 h-3 rounded-full bg-green-100 border border-green-200" aria-hidden="true"></span>
+                                Days highlighted in light green have available time slots — select one to view times.
+                            </p>
                         </CardContent>
                     </Card>
 

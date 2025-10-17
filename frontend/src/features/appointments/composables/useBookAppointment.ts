@@ -289,6 +289,81 @@ export const useBookAppointment = () => {
   const scheduleSlots = ref<Array<{ start: string; end: string; display: string; booked?: boolean }>>([])
   // Appointments fetched for the currently-selected doctor (used to mark slots as booked)
   const fetchedAppointments = ref<any[]>([])
+  // Raw schedules fetched (with computed_slots) so calendar can highlight weekdays with availability
+  const fetchedSchedules = ref<any[]>([])
+
+  // Computed set of weekday numbers (1=Mon .. 7=Sun) that have at least one computed slot
+  const availableWeekdays = computed(() => {
+    const s = new Set<number>()
+    for (const row of fetchedSchedules.value || []) {
+      const day = Number(row.day_of_week) || Number(row.dayOfWeek) || null
+      const slots = Array.isArray(row.computed_slots) ? row.computed_slots : []
+      if (day && slots.length > 0) s.add(Number(day))
+    }
+    return s
+  })
+
+  // Compute specific available dates (YYYY-MM-DD) for the next N days where doctor has >=1 free slot
+  const availableDates = computed(() => {
+    const out = new Set<string>()
+    const doctorId = bookingData.value.doctor?.id
+    if (!doctorId) return out
+
+    const daysAhead = 60
+    const today = new Date()
+    for (let i = 0; i <= daysAhead; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const jsDay = d.getDay()
+      const dayNum = jsDay === 0 ? 7 : jsDay
+      // find schedule rows for this weekday
+      const rows = (fetchedSchedules.value || []).filter((r: any) => Number(r.day_of_week) === Number(dayNum) || Number(r.dayOfWeek) === Number(dayNum))
+      if (!rows || rows.length === 0) continue
+
+      const dateStr = d.toISOString().slice(0, 10) // YYYY-MM-DD
+
+      let dateHasFree = false
+      for (const row of rows) {
+        // get slots for this row
+        const slots = Array.isArray(row.computed_slots) && row.computed_slots.length > 0
+          ? row.computed_slots.map((s: string) => {
+              const parts = s.split('-').map((p: string) => p.trim())
+              return { start: parts[0], end: parts[1], display: s }
+            })
+          : computeSlotsFromScheduleRow(row)
+
+        for (const s of slots) {
+          try {
+            const slotStartIso = new Date(`${dateStr}T${s.start}`).toISOString()
+            const slotEndIso = new Date(`${dateStr}T${s.end}`).toISOString()
+            // check if any fetched appointment overlaps this slot
+            const overlap = (fetchedAppointments.value || []).some(a => {
+              const aStart = new Date(a.start_time ?? a.startTime ?? a.start).getTime()
+              const aEnd = new Date(a.end_time ?? a.endTime ?? a.end).getTime()
+              if (isNaN(aStart) || isNaN(aEnd)) return false
+              const sMs = new Date(slotStartIso).getTime()
+              const eMs = new Date(slotEndIso).getTime()
+              return aStart < eMs && aEnd > sMs
+            })
+            if (!overlap) {
+              dateHasFree = true
+              break
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+        if (dateHasFree) break
+      }
+
+      if (dateHasFree) out.add(dateStr)
+    }
+
+    return out
+  })
+
+  // Array form for templates (easier to iterate / pass as prop)
+  const availableDatesArray = computed(() => Array.from(availableDates.value || []))
 
   // TODO: Replace dummy data with actual API calls
   // Placeholder API methods for backend communication
@@ -448,10 +523,15 @@ export const useBookAppointment = () => {
     }
 
     if (!bookingData.value.doctor || !bookingData.value.date) return []
-    return availableTimeSlots.value.filter((slot: TimeSlot) => 
-      slot.status === 'available' && 
-      slot.doctor_id === bookingData.value.doctor?.id
-    )
+    return availableTimeSlots.value
+      .filter((slot: TimeSlot) => slot.doctor_id === bookingData.value.doctor?.id)
+      .map((slot: TimeSlot) => ({
+        id: slot.id,
+        slot_start: slot.slot_start,
+        slot_end: slot.slot_end,
+        display: `${new Date(slot.slot_start).toLocaleTimeString()} - ${new Date(slot.slot_end).toLocaleTimeString()}`,
+        booked: slot.status === 'booked'
+      }))
   })
 
   const canProceedToNextStep = computed(() => {
@@ -694,8 +774,10 @@ export const useBookAppointment = () => {
       // fetch schedule rows and appointments and log them to console.
       try {
         const wasOnStep = currentStep.value
-        // Advance step immediately so UI state remains consistent
-        currentStep.value++
+  // Advance step immediately so UI state remains consistent
+  currentStep.value++
+  // let Vue flush the DOM updates before doing additional reactive writes
+  await import('vue').then(m => m.nextTick())
 
         if (wasOnStep === 2 && bookingData.value.doctor && bookingData.value.doctor.id != null) {
           const doctorId = bookingData.value.doctor.id
@@ -898,7 +980,7 @@ export const useBookAppointment = () => {
         const apiData = await schedulesApi.getSchedulesByDoctorId(doctorId)
         console.log(`schedulesApi returned ${apiData?.length ?? 0} rows for doctor ${doctorId}:`, apiData)
 
-        if (apiData && apiData.length > 0) {
+  if (apiData && apiData.length > 0) {
           // Map API response shape (camelCase) to DB-style fields expected below
           const rows = apiData.map(r => ({
             ...r,
@@ -945,6 +1027,8 @@ export const useBookAppointment = () => {
           })
 
           console.log('Computed schedules with slots (from API):', scheduleWithSlots)
+          // persist fetched schedules for calendar availability checks
+          fetchedSchedules.value = scheduleWithSlots
           return scheduleWithSlots
         }
       } catch (apiErr) {
@@ -973,7 +1057,7 @@ export const useBookAppointment = () => {
       console.log(`Fetched ${rows2.length} schedule rows for doctor ${doctorId} (string eq):`, rows2)
 
       const rows = rows1.length > 0 ? rows1 : rows2
-      if (rows.length > 0) {
+  if (rows.length > 0) {
         const scheduleWithSlots = rows.map(row => {
           const start = row.start_time
           const end = row.end_time
@@ -1010,6 +1094,8 @@ export const useBookAppointment = () => {
         })
 
         console.log('Computed schedules with slots (from Supabase):', scheduleWithSlots)
+        // persist fetched schedules for calendar availability checks
+        fetchedSchedules.value = scheduleWithSlots
         return scheduleWithSlots
       }
 
@@ -1259,6 +1345,8 @@ export const useBookAppointment = () => {
     availableSlots,
     scheduleSlots,
   distinctDoctorSpecialties,
+    availableWeekdays,
+  availableDates,
     canProceedToNextStep,
     isLastStep,
     isFirstStep,

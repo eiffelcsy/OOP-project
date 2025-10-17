@@ -6,7 +6,7 @@ import { CalendarRoot, useForwardPropsEmits } from "reka-ui"
 import { cn } from "@/lib/utils"
 import { CalendarCell, CalendarCellTrigger, CalendarGrid, CalendarGridBody, CalendarGridHead, CalendarGridRow, CalendarHeadCell, CalendarHeader, CalendarHeading, CalendarNextButton, CalendarPrevButton } from "."
 
-const props = defineProps<CalendarRootProps & { class?: HTMLAttributes["class"] }>()
+const props = defineProps<CalendarRootProps & { class?: HTMLAttributes["class"], availableWeekdays?: number[], availableDates?: string[] }>()
 const emits = defineEmits<CalendarRootEmits>()
 
 const delegatedProps = reactiveOmit(props, "class")
@@ -44,15 +44,17 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
         <CalendarGridBody>
           <CalendarGridRow v-for="(weekDates, index) in month.rows" :key="`weekDate-${index}`" class="mt-2 w-full">
             <CalendarCell
-              v-for="weekDate in weekDates"
-              :key="weekDate.toString()"
-              :date="weekDate"
-            >
-              <CalendarCellTrigger
-                :day="weekDate"
-                :month="month.value"
-              />
-            </CalendarCell>
+                v-for="weekDate in weekDates"
+                :key="weekDate.toString()"
+                :date="weekDate"
+              >
+                <CalendarCellTrigger
+                  :day="weekDate"
+                  :month="month.value"
+                  :available-weekdays="props.availableWeekdays"
+                  :available-dates="props.availableDates"
+                />
+              </CalendarCell>
           </CalendarGridRow>
         </CalendarGridBody>
       </CalendarGrid>
