@@ -109,327 +109,82 @@ export const useStaffAppointments = () => {
   })
 
 
-  // Today's appointments data (simulated for current date)
-  const todaysAppointments = ref<StaffAppointment[]>([
-    {
-      id: 1,
-      patientName: 'John Smith',
-      patientId: 1,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '09:00',
-      duration: 30,
-      type: 'General Checkup',
-      status: 'checked-in',
-      queueNumber: 1,
-      patientPhone: '+65 9123 4567',
-      notes: 'Regular annual checkup',
-      checkInTime: '08:45'
-    },
-    {
-      id: 2,
-      patientName: 'Emily Johnson',
-      patientId: 2,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '09:30',
-      duration: 30,
-      type: 'Follow-up',
-      status: 'scheduled',
-      patientPhone: '+65 8765 4321',
-      specialInstructions: 'Patient has anxiety about blood tests'
-    },
-    {
-      id: 3,
-      patientName: 'Michael Brown',
-      patientId: 3,
-      doctorName: 'Dr. Jennifer Wong',
-      doctorId: 2,
-      time: '10:00',
-      duration: 45,
-      type: 'Consultation',
-      status: 'in-progress',
-      queueNumber: 2,
-      patientPhone: '+65 9876 5432',
-      checkInTime: '09:45'
-    },
-    {
-      id: 4,
-      patientName: 'Sarah Davis',
-      patientId: 4,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '10:30',
-      duration: 30,
-      type: 'Blood Test Review',
-      status: 'scheduled',
-      patientPhone: '+65 8123 4567'
-    },
-    {
-      id: 5,
-      patientName: 'Robert Wilson',
-      patientId: 5,
-      doctorName: 'Dr. Rachel Lee',
-      doctorId: 3,
-      time: '11:00',
-      duration: 30,
-      type: 'Vaccination',
-      status: 'completed',
-      queueNumber: 3,
-      patientPhone: '+65 9234 5678',
-      checkInTime: '10:45',
-      completedTime: '11:25'
-    },
-    {
-      id: 6,
-      patientName: 'Lisa Anderson',
-      patientId: 6,
-      doctorName: 'Dr. Jennifer Wong',
-      doctorId: 2,
-      time: '11:30',
-      duration: 30,
-      type: 'General Checkup',
-      status: 'scheduled',
-      patientPhone: '+65 8345 6789'
-    },
-    {
-      id: 7,
-      patientName: 'Thomas Garcia',
-      patientId: 7,
-      doctorName: 'Dr. Kevin Lau',
-      doctorId: 4,
-      time: '14:00',
-      duration: 60,
-      type: 'Pre-surgical Consultation',
-      status: 'checked-in',
-      queueNumber: 4,
-      patientPhone: '+65 9456 7890',
-      checkInTime: '13:45',
-      specialInstructions: 'Fasting required before surgery'
-    },
-    {
-      id: 8,
-      patientName: 'Maria Rodriguez',
-      patientId: 8,
-      doctorName: 'Dr. Rachel Lee',
-      doctorId: 3,
-      time: '14:30',
-      duration: 30,
-      type: 'Follow-up',
-      status: 'scheduled',
-      patientPhone: '+65 8567 8901'
-    },
-    {
-      id: 9,
-      patientName: 'James Taylor',
-      patientId: 9,
-      doctorName: 'Dr. Michael Tan',
-      doctorId: 5,
-      time: '15:00',
-      duration: 45,
-      type: 'Pediatric Checkup',
-      status: 'no-show',
-      queueNumber: 5,
-      patientPhone: '+65 9678 9012',
-      notes: 'Child patient, parent required'
-    },
-    {
-      id: 10,
-      patientName: 'Amy Chen',
-      patientId: 10,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '15:30',
-      duration: 30,
-      type: 'General Checkup',
-      status: 'scheduled',
-      patientPhone: '+65 8789 0123'
-    },
-    {
-      id: 11,
-      patientName: 'David Kim',
-      patientId: 11,
-      doctorName: 'Dr. Jennifer Wong',
-      doctorId: 2,
-      time: '16:00',
-      duration: 30,
-      type: 'Lab Results Review',
-      status: 'scheduled',
-      patientPhone: '+65 9890 1234'
-    },
-    {
-      id: 12,
-      patientName: 'Sophie Martin',
-      patientId: 12,
-      doctorName: 'Dr. Kevin Lau',
-      doctorId: 4,
-      time: '16:30',
-      duration: 30,
-      type: 'Post-operative Check',
-      status: 'scheduled',
-      patientPhone: '+65 8901 2345'
-    },
-    // Additional appointments to demonstrate multiple appointments in same time slots
-    {
-      id: 13,
-      patientName: 'Peter Wong',
-      patientId: 13,
-      doctorName: 'Dr. Rachel Lee',
-      doctorId: 3,
-      time: '09:00',
-      duration: 30,
-      type: 'Blood Pressure Check',
-      status: 'scheduled',
-      patientPhone: '+65 9012 3456',
-      notes: 'Regular monitoring appointment'
-    },
-    {
-      id: 14,
-      patientName: 'Linda Tan',
-      patientId: 14,
-      doctorName: 'Dr. Michael Tan',
-      doctorId: 5,
-      time: '09:00',
-      duration: 45,
-      type: 'Child Development Assessment',
-      status: 'checked-in',
-      queueNumber: 6,
-      patientPhone: '+65 8123 4567',
-      checkInTime: '08:50',
-      specialInstructions: 'Bring child\'s vaccination record'
-    },
-    {
-      id: 15,
-      patientName: 'Alex Kumar',
-      patientId: 15,
-      doctorName: 'Dr. Jennifer Wong',
-      doctorId: 2,
-      time: '10:30',
-      duration: 30,
-      type: 'Diabetes Follow-up',
-      status: 'scheduled',
-      patientPhone: '+65 9234 5678'
-    },
-    {
-      id: 16,
-      patientName: 'Grace Lim',
-      patientId: 16,
-      doctorName: 'Dr. Michael Tan',
-      doctorId: 5,
-      time: '10:30',
-      duration: 30,
-      type: 'Pediatric Consultation',
-      status: 'in-progress',
-      queueNumber: 7,
-      patientPhone: '+65 8345 6789',
-      checkInTime: '10:15',
-      notes: 'First-time patient'
-    },
-    {
-      id: 17,
-      patientName: 'Daniel Lee',
-      patientId: 17,
-      doctorName: 'Dr. Kevin Lau',
-      doctorId: 4,
-      time: '11:00',
-      duration: 60,
-      type: 'Surgical Consultation',
-      status: 'scheduled',
-      patientPhone: '+65 9456 7890',
-      specialInstructions: 'Bring previous X-ray results'
-    },
-    {
-      id: 18,
-      patientName: 'Michelle Chen',
-      patientId: 18,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '14:00',
-      duration: 30,
-      type: 'Annual Physical',
-      status: 'scheduled',
-      patientPhone: '+65 8567 8901'
-    },
-    {
-      id: 19,
-      patientName: 'Ryan Ng',
-      patientId: 19,
-      doctorName: 'Dr. Rachel Lee',
-      doctorId: 3,
-      time: '14:00',
-      duration: 30,
-      type: 'Allergy Testing',
-      status: 'checked-in',
-      queueNumber: 8,
-      patientPhone: '+65 9678 9012',
-      checkInTime: '13:45'
-    },
-    {
-      id: 20,
-      patientName: 'Catherine Wee',
-      patientId: 20,
-      doctorName: 'Dr. Jennifer Wong',
-      doctorId: 2,
-      time: '15:00',
-      duration: 30,
-      type: 'Hypertension Review',
-      status: 'scheduled',
-      patientPhone: '+65 8789 0123'
-    },
-    {
-      id: 21,
-      patientName: 'Benjamin Tay',
-      patientId: 21,
-      doctorName: 'Dr. Kevin Lau',
-      doctorId: 4,
-      time: '15:00',
-      duration: 45,
-      type: 'Pre-operative Assessment',
-      status: 'scheduled',
-      patientPhone: '+65 9890 1234',
-      specialInstructions: 'NPO (nothing by mouth) after midnight'
-    },
-    {
-      id: 22,
-      patientName: 'Stephanie Goh',
-      patientId: 22,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '16:00',
-      duration: 30,
-      type: 'Medication Review',
-      status: 'scheduled',
-      patientPhone: '+65 8901 2345'
-    },
-    {
-      id: 23,
-      patientName: 'Marcus Loh',
-      patientId: 23,
-      doctorName: 'Dr. Rachel Lee',
-      doctorId: 3,
-      time: '16:00',
-      duration: 30,
-      type: 'Wound Care Follow-up',
-      status: 'completed',
-      queueNumber: 9,
-      patientPhone: '+65 9012 3456',
-      checkInTime: '15:45',
-      completedTime: '16:25'
-    },
-    {
-      id: 24,
-      patientName: 'Vivian Koh',
-      patientId: 24,
-      doctorName: 'Dr. Michael Tan',
-      doctorId: 5,
-      time: '16:30',
-      duration: 30,
-      type: 'Immunization',
-      status: 'scheduled',
-      patientPhone: '+65 8123 4567',
-      notes: 'HPV vaccine series - dose 2'
+  // fetch appointments
+  const todaysAppointments = ref<StaffAppointment[]>([])
+
+  const fetchTodaysAppointments = async (clinicId: number) => {
+    try {
+      console.log('Fetching today\'s appointments for clinic ID:', clinicId)
+
+      const today = new Date().toISOString().split('T')[0] // e.g. '2025-10-16'
+
+      const res = await fetch(`http://localhost:8080/api/staff/appointments`)
+      if (!res.ok) throw new Error('Failed to fetch today\'s appointments')
+
+      // Response should ideally contain joined data (patient + doctor info),
+      // but if not, we can fetch them separately
+      const data = await res.json()
+
+        // // Example start time in UTC
+        // ZonedDateTime startTime = ZonedDateTime.parse(appt.start_time); // how do i assign this to time?
+        // // Convert to your timezone (e.g., Singapore)
+        // ZonedDateTime localTime = startTime.withZoneSameInstant(ZoneId.of("Asia/Singapore"));
+        // // Format to "HH:mm"
+        // DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+        // String formattedTime = localTime.format(timeFormatter);
+
+        // ZonedDateTime endTime = ZonedDateTime.parse(appt.end_time); // could be null
+
+        // String durationStr;
+        // if (endTime != null) {
+        //     Duration duration = Duration.between(startTime, endTime);
+        //     long minutes = duration.toMinutes();
+        //     durationStr = minutes + " min"; // e.g., "15 min"
+        // } else {
+        //     durationStr = "-"; // how do i assign to duration?
+        // }
+
+        // System.out.println(durationStr); // Output: 15 min
+
+      // Map each appointment into your desired display format
+      todaysAppointments.value = data.map((appt: any) => ({
+        id: appt.id,
+        patientId: appt.patient_id,
+        patientPhone: appt.patient?.phone ?? '-', // how do i access the patient table (http://localhost:8080/api/patient/all) and use the patient_id to get the phone
+        // patientName: 'patient name'// how do i access the patient table (http://localhost:8080/api/patient/all) and use the patient_id to get the user_id then use the user_id to get the full_name from the profile table (http://localhost:8080/api/admin/users)
+        doctorId: appt.doctor_id,
+        // doctorName: appt.doctor?.name ?? '-', // how do i access the doctor table (http://localhost:8080/api/doctors) and use the doctor id to get the name
+        // time: appt.start_time ? appt.start_time.slice(0, 5) : '-',
+        // duration: appt.end_time
+        //   ? (new Date(`1970-01-01T${appt.end_time}`) -
+        //     new Date(`1970-01-01T${appt.start_time}`)) / (1000 * 60)
+        //   : '-',
+        //type: appt.clinic?.clinic_type ?? '-', // how do i access the clinic table (http://localhost:8080/api/admin/clinics) and use the clinic_id to get the clinic_type
+        status: appt.status ?? '-',
+      }))
+    } catch (error) {
+      console.error('Error fetching today\'s appointments:', error)
     }
-  ])
+  }
+
+  watch(
+    () => currentUser.value,
+    (user) => {
+      if (user?.staff?.clinic_id) {
+        const staffId = user.staff.id
+        const clinicId = user.staff.clinic_id
+        console.log('Auth loaded. Staff ID:', staffId)
+        console.log('Clinic ID:', clinicId)
+        fetchDoctors(clinicId)
+        fetchTodaysAppointments(clinicId)
+      } else {
+        console.warn('Waiting for staff info to be available...')
+      }
+    },
+    { immediate: true }
+  )
+
+
 
   // Computed properties
   const appointmentsByDoctor = computed(() => {

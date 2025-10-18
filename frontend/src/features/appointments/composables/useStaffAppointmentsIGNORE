@@ -114,21 +114,21 @@ export const useStaffAppointments = () => {
   ])
 
   // Today's appointments data (simulated for current date)
-  const todaysAppointments = ref<StaffAppointment[]>([
+    const todaysAppointments = ref<StaffAppointment[]>([
     {
-      id: 1,
-      patientName: 'John Smith',
-      patientId: 1,
-      doctorName: 'Dr. Sarah Lim',
-      doctorId: 1,
-      time: '09:00',
-      duration: 30,
-      type: 'General Checkup',
-      status: 'checked-in',
-      queueNumber: 1,
-      patientPhone: '+65 9123 4567',
-      notes: 'Regular annual checkup',
-      checkInTime: '08:45'
+      id: 1, // appointment ID, appointment table
+      patientName: 'John Smith', // based on PatientId in appointment table -> retrieve patient name using patient id
+      patientId: 1, // in appointment table
+      doctorName: 'Dr. Sarah Lim', // in appointment table, retrieve doctor name using doctor id
+      doctorId: 1, // in appointment table
+      time: '09:00', // "start_time" in appointment table
+      duration: 30, // "end_time - start_time" in appointment table, if end_time is null, default to "-".
+      type: 'General Checkup', // based on clinic_id in appointment table, use clinic_id to retrieve clinic_type
+      status: 'checked-in', // "status" in appointment table
+      patientPhone: '+65 9123 4567', // use patientId to retrieve patient phone number
+      // queueNumber: 1, // set as default "-", to be updated when patient checks in
+      // specialInstructions: 'Patient has a history of hypertension', // "special_instructions" in appointment table
+      // checkInTime: '08:45'
     },
     {
       id: 2,
@@ -434,7 +434,7 @@ export const useStaffAppointments = () => {
       notes: 'HPV vaccine series - dose 2'
     }
   ])
-
+  
   // Computed properties
   const appointmentsByDoctor = computed(() => {
     const grouped = new Map<number, StaffAppointment[]>()
