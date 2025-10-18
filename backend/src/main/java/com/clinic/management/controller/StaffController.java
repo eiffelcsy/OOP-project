@@ -27,17 +27,17 @@ import java.time.OffsetDateTime;
  * Base path: /api
  * 
  * Appointment Endpoints:
- * - GET    /api/staff/appointments   - View appointments
- * - POST   /api/appointments         - Schedule walk-in
- * - PUT    /api/appointments/{id}    - Reschedule appointment
- * - DELETE /api/appointments/{id}    - Cancel appointment
+ * - GET /api/staff/appointments - View appointments
+ * - POST /api/appointments - Schedule walk-in
+ * - PUT /api/appointments/{id} - Reschedule appointment
+ * - DELETE /api/appointments/{id} - Cancel appointment
  * 
  * Queue Endpoints:
- * - POST   /api/queues              - Create queue
- * - GET    /api/queues/{id}         - Get queue by ID
- * - GET    /api/queues              - List queues (with filters)
- * - PUT    /api/queues/{id}         - Update queue
- * - DELETE /api/queues/{id}         - Delete queue
+ * - POST /api/queues - Create queue
+ * - GET /api/queues/{id} - Get queue by ID
+ * - GET /api/queues - List queues (with filters)
+ * - PUT /api/queues/{id} - Update queue
+ * - DELETE /api/queues/{id} - Delete queue
  */
 @RestController
 @RequestMapping("/api")
@@ -57,21 +57,27 @@ public class StaffController {
     // =========================
     // APPOINTMENT ENDPOINTS
     // =========================
-    
+
     // # ViewAppointments
     @GetMapping("/staff/appointments")
     public List<Appointment> getAppointments(
             @RequestParam(required = false) Long doctorId,
             @RequestParam(required = false) Long clinicId,
-            @RequestParam(required = false) String status
-    ) {
+            @RequestParam(required = false) String status) {
         return appointmentService.getAppointments(doctorId, clinicId, status);
+    }
+
+    // Get appointments for a specific clinic
+    @GetMapping("/staff/appointments/clinic/{clinicId}")
+    public List<Appointment> getAppointmentsByClinic(@PathVariable Long clinicId) {
+        return appointmentService.getAppointments(null, clinicId, null);
     }
 
     // # ScheduleWalkIn
     @PostMapping("/appointments")
     public Appointment addAppointment(@RequestBody Appointment appointment) {
-        // Expect appointment.startTime and appointment.endTime to be provided (ISO timestamptz)
+        // Expect appointment.startTime and appointment.endTime to be provided (ISO
+        // timestamptz)
         return appointmentService.addAppointment(appointment);
     }
 
@@ -81,8 +87,7 @@ public class StaffController {
             @PathVariable Long id,
             @RequestParam(required = false) Long newTimeSlotId,
             @RequestParam(required = false) String newStartTime,
-            @RequestParam(required = false) String newEndTime
-    ) {
+            @RequestParam(required = false) String newEndTime) {
         if (newStartTime != null && newEndTime != null) {
             OffsetDateTime s = OffsetDateTime.parse(newStartTime);
             OffsetDateTime e = OffsetDateTime.parse(newEndTime);
@@ -91,7 +96,7 @@ public class StaffController {
         if (newTimeSlotId != null) {
             return appointmentService.rescheduleAppointment(id, newTimeSlotId);
         }
-        throw new IllegalArgumentException("Provide either newTimeSlotId or newStartTime and newEndTime") ;
+        throw new IllegalArgumentException("Provide either newTimeSlotId or newStartTime and newEndTime");
     }
 
     // # ManagementAppointments - Cancel
@@ -99,11 +104,11 @@ public class StaffController {
     public void cancelAppointment(@PathVariable Long id) {
         appointmentService.cancelAppointment(id);
     }
-    
+
     // =========================
     // QUEUE ENDPOINTS
     // =========================
-    
+
     /**
      * Create a new queue
      * 
@@ -118,7 +123,7 @@ public class StaffController {
         QueueResponse response = QueueResponse.from(queue);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
     /**
      * Get queue by ID
      * 
@@ -130,10 +135,10 @@ public class StaffController {
     @GetMapping("/queues/{id}")
     public ResponseEntity<QueueResponse> getQueueById(@PathVariable Long id) {
         return queueService.getQueueById(id)
-            .map(queue -> ResponseEntity.ok(QueueResponse.from(queue)))
-            .orElse(ResponseEntity.notFound().build());
+                .map(queue -> ResponseEntity.ok(QueueResponse.from(queue)))
+                .orElse(ResponseEntity.notFound().build());
     }
-    
+
     /**
      * List queues with filtering, pagination, and sorting
      * 
@@ -154,39 +159,37 @@ public class StaffController {
     @GetMapping("/queues")
     public ResponseEntity<ListResult<QueueResponse>> listQueues(@Valid @ModelAttribute ListQueuesOptions options) {
         ListResult<Queue> result = queueService.listQueues(options);
-        
+
         // Convert Queue entities to QueueResponse DTOs
         List<QueueResponse> responses = result.getData().stream()
-            .map(QueueResponse::from)
-            .collect(Collectors.toList());
-        
+                .map(QueueResponse::from)
+                .collect(Collectors.toList());
+
         ListResult<QueueResponse> responseResult = new ListResult<>(
-            responses,
-            result.getCount()
-        );
-        
+                responses,
+                result.getCount());
+
         return ResponseEntity.ok(responseResult);
     }
-    
+
     /**
      * Update an existing queue
      * 
      * PUT /api/queues/{id}
      * 
-     * @param id Queue ID
+     * @param id      Queue ID
      * @param request Update request (validated, all fields optional)
      * @return Updated queue response
      */
     @PutMapping("/queues/{id}")
     public ResponseEntity<QueueResponse> updateQueue(
-        @PathVariable Long id,
-        @Valid @RequestBody UpdateQueueRequest request
-    ) {
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateQueueRequest request) {
         Queue queue = queueService.updateQueue(id, request);
         QueueResponse response = QueueResponse.from(queue);
         return ResponseEntity.ok(response);
     }
-    
+
     /**
      * Delete a queue
      * 
