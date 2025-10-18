@@ -260,7 +260,7 @@ const getUrgencyColor = (urgency: string) => {
               <div class="flex items-start justify-between">
                 <div class="space-y-3 flex-1">
                   <div class="flex items-center gap-3">
-                    <div class="text-lg font-medium">{{ formatTime(appointment.time) }}</div>
+                    <div class="text-lg font-medium">{{ appointment.time }}</div>
                     <Badge class="font-medium">
                       {{ appointment.status.replace('-', ' ').toUpperCase() }}
                     </Badge>
@@ -278,7 +278,7 @@ const getUrgencyColor = (urgency: string) => {
                   
                   <div class="space-y-1">
                     <h3 class="font-semibold text-lg">{{ appointment.patientName }}</h3>
-                    <p class="text-sm text-muted-foreground">{{ appointment.type }} • {{ appointment.duration }}min</p>
+                    <p class="text-sm text-muted-foreground">{{ appointment.type }} • {{ appointment.duration }}</p>
                     <p v-if="appointment.patientPhone" class="text-sm text-muted-foreground">
                       <Icon icon="lucide:phone" class="h-3 w-3 inline mr-1" />
                       {{ appointment.patientPhone }}
