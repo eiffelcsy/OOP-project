@@ -112,58 +112,76 @@ export const useStaffAppointments = () => {
   // fetch appointments
   const todaysAppointments = ref<StaffAppointment[]>([])
 
+
   const fetchTodaysAppointments = async (clinicId: number) => {
     try {
-      console.log('Fetching today\'s appointments for clinic ID:', clinicId)
-
-      const today = new Date().toISOString().split('T')[0] // e.g. '2025-10-16'
-
+      // Fetch appointments
       const res = await fetch(`http://localhost:8080/api/staff/appointments`)
-      if (!res.ok) throw new Error('Failed to fetch today\'s appointments')
-
-      // Response should ideally contain joined data (patient + doctor info),
-      // but if not, we can fetch them separately
+      if (!res.ok) throw new Error("Failed to fetch appointments")
       const data = await res.json()
 
-        // // Example start time in UTC
-        // ZonedDateTime startTime = ZonedDateTime.parse(appt.start_time); // how do i assign this to time?
-        // // Convert to your timezone (e.g., Singapore)
-        // ZonedDateTime localTime = startTime.withZoneSameInstant(ZoneId.of("Asia/Singapore"));
-        // // Format to "HH:mm"
-        // DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
-        // String formattedTime = localTime.format(timeFormatter);
+      // Fetch all patients, profiles, doctors, clinics in parallel
+      const [patientsRes, profilesRes, doctorsRes, clinicsRes] = await Promise.all([
+        fetch(`http://localhost:8080/api/patient/all`),
+        fetch(`http://localhost:8080/api/admin/users`),
+        fetch(`http://localhost:8080/api/doctors`),
+        fetch(`http://localhost:8080/api/admin/clinics`)
+      ])
 
-        // ZonedDateTime endTime = ZonedDateTime.parse(appt.end_time); // could be null
+      const patients = await patientsRes.json()
+      const profiles = await profilesRes.json()
+      const doctors = await doctorsRes.json()
+      const clinics = await clinicsRes.json()
 
-        // String durationStr;
-        // if (endTime != null) {
-        //     Duration duration = Duration.between(startTime, endTime);
-        //     long minutes = duration.toMinutes();
-        //     durationStr = minutes + " min"; // e.g., "15 min"
-        // } else {
-        //     durationStr = "-"; // how do i assign to duration?
-        // }
+      // Map appointments to display format
+      todaysAppointments.value = data.map((appt: any) => {
+        // --- Time formatting ---
+        const start = appt.start_time ? new Date(appt.start_time) : null
+        const end = appt.end_time ? new Date(appt.end_time) : null
+        const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
+        const durationStr = start && end ? `${Math.round((end.getTime() - start.getTime()) / 60000)} min` : '-'
 
-        // System.out.println(durationStr); // Output: 15 min
+        // --- Patient info ---
+        let patientName = '-'
+        let patientPhone = '-'
 
-      // Map each appointment into your desired display format
-      todaysAppointments.value = data.map((appt: any) => ({
-        id: appt.id,
-        patientId: appt.patient_id,
-        patientPhone: appt.patient?.phone ?? '-', // how do i access the patient table (http://localhost:8080/api/patient/all) and use the patient_id to get the phone
-        // patientName: 'patient name'// how do i access the patient table (http://localhost:8080/api/patient/all) and use the patient_id to get the user_id then use the user_id to get the full_name from the profile table (http://localhost:8080/api/admin/users)
-        doctorId: appt.doctor_id,
-        // doctorName: appt.doctor?.name ?? '-', // how do i access the doctor table (http://localhost:8080/api/doctors) and use the doctor id to get the name
-        // time: appt.start_time ? appt.start_time.slice(0, 5) : '-',
-        // duration: appt.end_time
-        //   ? (new Date(`1970-01-01T${appt.end_time}`) -
-        //     new Date(`1970-01-01T${appt.start_time}`)) / (1000 * 60)
-        //   : '-',
-        //type: appt.clinic?.clinic_type ?? '-', // how do i access the clinic table (http://localhost:8080/api/admin/clinics) and use the clinic_id to get the clinic_type
-        status: appt.status ?? '-',
-      }))
+        // Step 1: Find patient record
+        const patient = patients.find((p: any) => String(p.id) === String(appt.patient_id))
+        if (patient) {
+          patientPhone = patient.phone ?? '-'
+
+          // Step 2: Find profile by user_id from patient
+          if (patient.user_id) {
+            const profile = profiles.find(
+              (u: any) => String(u.user_id) === String(patient.user_id)
+            )
+            if (profile) patientName = profile.full_name ?? '-'
+          }
+        }
+        
+        // --- Doctor info ---
+        const doctor = doctors.find((d: any) => d.id === appt.doctor_id)
+        const doctorName = doctor?.name ?? '-'
+
+        // --- Clinic info ---
+        const clinic = clinics.find((c: any) => c.id === appt.clinic_id)
+        const clinicType = clinic?.clinic_type ?? '-'
+
+        return {
+          id: appt.id ?? 0,
+          patientId: appt.patient_id ?? 0,
+          patientName: patientName,
+          patientPhone: patientPhone,
+          doctorId: appt.doctor_id ?? 0,
+          doctorName: doctorName,
+          type: clinicType,
+          time: timeStr,
+          duration: durationStr,
+          status: appt.status ?? '-'
+        }
+      })
     } catch (error) {
-      console.error('Error fetching today\'s appointments:', error)
+      console.error("Error fetching today's appointments:", error)
     }
   }
 
