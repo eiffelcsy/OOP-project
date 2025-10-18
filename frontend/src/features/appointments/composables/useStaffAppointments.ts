@@ -116,9 +116,18 @@ export const useStaffAppointments = () => {
   const fetchTodaysAppointments = async (clinicId: number) => {
     try {
       // Fetch appointments
-      const res = await fetch(`http://localhost:8080/api/staff/appointments`)
+      const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
       if (!res.ok) throw new Error("Failed to fetch appointments")
-      const data = await res.json()
+
+      // only today's appointments
+      let data = await res.json()
+
+      const today = new Date().toISOString().split('T')[0] // e.g. "2025-10-18"
+      data = data.filter((appt: any) => {
+        if (!appt.start_time) return false
+        const apptDate = new Date(appt.start_time).toISOString().split('T')[0]
+        return apptDate === today
+      })
 
       // Fetch all patients, profiles, doctors, clinics in parallel
       const [patientsRes, profilesRes, doctorsRes, clinicsRes] = await Promise.all([
@@ -158,7 +167,7 @@ export const useStaffAppointments = () => {
             if (profile) patientName = profile.full_name ?? '-'
           }
         }
-        
+
         // --- Doctor info ---
         const doctor = doctors.find((d: any) => d.id === appt.doctor_id)
         const doctorName = doctor?.name ?? '-'
