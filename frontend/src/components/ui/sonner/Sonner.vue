@@ -9,11 +9,15 @@ const props = defineProps<ToasterProps>()
   <Sonner
     class="toaster group"
     v-bind="props"
+    :position="props.position ?? 'top-right'"
+    :close-on-click="props.closeOnClick ?? true"
     :style="{
       '--normal-bg': 'var(--popover)',
       '--normal-text': 'var(--popover-foreground)',
       '--normal-border': 'var(--border)',
-
+      // tweak radius/shadow for a clean, modern look
+      '--border-radius': '10px',
+      boxShadow: '0 6px 20px rgba(2,6,23,0.08)'
     }"
   />
 </template>
