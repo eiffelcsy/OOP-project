@@ -120,9 +120,9 @@ const handleLogout = async () => {
                     </SidebarMenuSubItem>
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild>
-                        <a href="/staff/appointments/history">
+                        <a href="/staff/appointments/all">
                           <Icon icon="lucide:history" class="size-4" />
-                          <span>Appointment History</span>
+                          <span>All Appointments</span>
                         </a>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>

@@ -51,6 +51,16 @@ const staffRoutes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'appointments/all',
+        name: 'StaffAllAppointments',
+        component: () => import('@/features/appointments/pages/AllAppointments.vue'),
+        meta: {
+          title: 'All Appointments',
+          breadcrumb: 'All Appointments',
+          parentRoute: 'StaffTodaysAppointments'
+        }
+      },
+      {
         path: 'reports',
         name: 'StaffReports',
         component: () => import('@/features/reports/pages/StaffReports.vue'),
