@@ -6,11 +6,14 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class PatientService {
 
     private final PatientRepository repository;
+    private static final Logger log = LoggerFactory.getLogger(PatientService.class);
 
     public PatientService(PatientRepository repository) {
         this.repository = repository;
@@ -27,6 +30,7 @@ public class PatientService {
      * Get patient by numeric ID
      */
     public Optional<Patient> getPatientById(Long id) {
+        log.debug("getPatientById: id={}", id);
         return repository.findById(id);
     }
 
@@ -34,6 +38,7 @@ public class PatientService {
      * Get patient by Supabase user UUID
      */
     public Optional<Patient> getPatientByUserId(String userId) {
+        log.debug("getPatientByUserId: userId={}", userId);
         return repository.findByUserId(userId);
     }
 }

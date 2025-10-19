@@ -11,6 +11,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Service for managing appointments. Adds validation to ensure requested
@@ -22,6 +24,7 @@ public class AppointmentService {
 
     private final AppointmentRepository repository;
     private final ScheduleRepository scheduleRepository;
+    private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
 
     public AppointmentService(AppointmentRepository repository, ScheduleRepository scheduleRepository) {
         this.repository = repository;
@@ -108,5 +111,21 @@ public class AppointmentService {
 
         appointment.setUpdatedAt(ZonedDateTime.now(ZoneId.of("Asia/Singapore")).toOffsetDateTime());
         return repository.save(appointment);
+    }
+
+    // Fetch appointments belonging to a patient
+    public List<Appointment> getAppointmentsByPatientId(Long patientId) {
+        try {
+            if (patientId == null) {
+                log.debug("getAppointmentsByPatientId: received null patientId");
+                return List.of();
+            }
+            List<Appointment> result = repository.findByPatientId(patientId);
+            log.debug("getAppointmentsByPatientId: patientId={} returned {} rows", patientId, result.size());
+            return result;
+        } catch (Exception ex) {
+            log.error("getAppointmentsByPatientId: unexpected error", ex);
+            return List.of();
+        }
     }
 }

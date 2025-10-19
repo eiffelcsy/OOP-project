@@ -1,7 +1,9 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import { CalendarDate, parseDate, getLocalTimeZone } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/features/auth/composables/useAuth'
 
 // Type aliases from database
 type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
@@ -49,50 +51,187 @@ export interface ViewAppointment {
 
 export const useViewAppointments = () => {
   // Dummy appointment data
-  const appointments = ref<Appointment[]>([
-    {
-      id: '1',
-      clinicName: 'Singapore General Hospital',
-      doctorName: 'Dr. Sarah Lim',
-      date: new Date('2025-10-15'),
-      time: '10:30 AM',
-      status: 'scheduled',
-      specialization: 'General Medicine',
-      address: 'Outram Road, Singapore 169608',
-      notes: 'Annual checkup'
-    },
-    {
-      id: '3',
-      clinicName: 'Tan Tock Seng Hospital',
-      doctorName: 'Dr. Jennifer Wong',
-      date: new Date('2025-09-15'),
-      time: '09:30 AM',
-      status: 'completed',
-      specialization: 'Internal Medicine',
-      address: '11 Jalan Tan Tock Seng, Singapore 308433'
-    },
-    {
-      id: '4',
-      clinicName: 'National University Hospital',
-      doctorName: 'Dr. Rachel Lee',
-      date: new Date('2025-09-08'),
-      time: '11:00 AM',
-      status: 'completed',
-      specialization: 'Family Medicine',
-      address: '5 Lower Kent Ridge Road, Singapore 119074'
-    },
-    {
-      id: '5',
-      clinicName: 'Changi General Hospital',
-      doctorName: 'Dr. Kevin Lau',
-      date: new Date('2025-08-22'),
-      time: '03:00 PM',
-      status: 'cancelled',
-      specialization: 'General Surgery',
-      address: '2 Simei Street 3, Singapore 529889',
-      notes: 'Patient cancelled due to scheduling conflict'
-    },
-  ])
+  const appointments = ref<Appointment[]>([])
+  const loading = ref(false)
+
+  // Auth
+  const { currentUser, getAccessToken } = useAuth()
+
+  // Helper: map DB row to ViewAppointment/UI Appointment
+  const mapRowToView = (row: any) => {
+    // row fields: id, patient_id, doctor_id, clinic_id, status, created_at, updated_at, time_slot_id, treatment_summary
+    const date = row.created_at ? new Date(row.start_time ?? row.created_at) : new Date()
+    // best-effort mapping; some fields may be null
+    const clinicName = (row as any).clinic_name || row.clinics?.name || 'Clinic'
+    const doctorName = (row as any).doctor_name || row.doctors?.name || 'Doctor'
+    const specialization = (row as any).specialty || row.doctors?.specialty || ''
+    // time formatting: prefer start_time/end_time if present
+    const time = row.start_time && row.end_time ?
+      `${new Date(row.start_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} - ${new Date(row.end_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}` :
+      ''
+
+    return {
+      id: row.id.toString(),
+      clinicName,
+      doctorName,
+      date: row.start_time ? new Date(row.start_time) : date,
+      time,
+      status: (row.status as Appointment['status']) || 'scheduled',
+      specialization,
+      address: (row as any).clinic_address || '',
+      notes: row.treatment_summary || undefined,
+
+      // raw DB fields for actions
+      patient_id: row.patient_id,
+      doctor_id: row.doctor_id,
+      clinic_id: row.clinic_id,
+      time_slot_id: row.time_slot_id,
+      treatment_summary: row.treatment_summary,
+      created_at: row.created_at ?? '',
+      updated_at: row.updated_at ?? ''
+    } as unknown as Appointment
+  }
+
+  // Fetch appointments for current patient from Supabase
+  const fetchPatientAppointments = async () => {
+    try {
+      loading.value = true
+      appointments.value = []
+      console.log('fetchPatientAppointments: currentUser=', JSON.parse(JSON.stringify(currentUser.value)))
+      // Log Supabase URL so we can confirm which project we're hitting
+      try { console.log('Supabase URL:', (import.meta.env.VITE_SUPABASE_URL ?? 'MISSING')) } catch (e) { /* ignore */ }
+
+      // Resolve patient id: prefer currentUser.patient.id; if not present, try fetching patients row by user_id
+      let pId: number | null = null
+      try {
+        if (currentUser.value?.patient?.id) {
+          pId = currentUser.value.patient.id
+          console.log('Resolved patient id from currentUser.patient.id =', pId)
+        } else if (currentUser.value?.profile?.id) {
+          // profile.id is not necessarily the patient id; we'll still try to find a patient row by auth user id
+          // Attempt to look up patient by auth user id (string)
+          const authUserId = currentUser.value?.id
+          if (authUserId) {
+            console.log('Attempting patient lookup by auth user id:', authUserId)
+            const { data: pRow, error: pErr } = await supabase
+              .from('patients')
+              .select('id, user_id')
+              .eq('user_id', authUserId)
+              .maybeSingle()
+
+            if (pErr) console.warn('Error fetching patient row by user_id fallback:', pErr)
+            console.log('patient lookup result:', pRow)
+            if (pRow && (pRow as any).id) {
+              pId = (pRow as any).id
+              console.log('Resolved patient id from patients table =', pId)
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Error resolving patient id:', err)
+      }
+
+      if (!pId) {
+        console.log('No patient id resolved for currentUser; skipping appointments fetch', currentUser.value)
+        return
+      }
+
+      console.log('Will query appointments for patient_id =', pId)
+
+      // FIRST: call backend endpoint which queries the DB server-side (safer and avoids RLS issues)
+      try {
+        const env = (import.meta.env as any)
+        const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+        const endpoint = `${apiBase.replace(/\/+$/, '')}/patient/appointments`
+        const token = await getAccessToken()
+        console.log('Calling backend endpoint', endpoint, 'with token?', !!token)
+
+        const r = await fetch(endpoint, {
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        })
+
+        if (r.ok) {
+          const backendData = await r.json()
+          console.log('Backend returned', (backendData ?? []).length, 'appointments:', backendData)
+          if (backendData && (backendData ?? []).length > 0) {
+            // Use backend rows directly
+            appointments.value = (backendData as any[]).map(r => {
+              try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
+            }).filter(Boolean) as Appointment[]
+            console.log('Loaded appointments from backend, count=', appointments.value.length)
+            return
+          }
+        } else {
+          const txt = await r.text().catch(() => '')
+          console.warn('Backend /patient/appointments returned non-OK', r.status, txt)
+        }
+      } catch (backendErr) {
+        console.warn('Backend appointments endpoint failed:', backendErr)
+      }
+
+      // FALLBACK: Query Supabase directly if backend yields nothing
+      // Query appointments and join clinic/doctor names (if available)
+      // Use created_at ordering (start_time may not exist in DB schema)
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`*, clinics:clinics(*), doctors:doctors(*)`)
+        .eq('patient_id', pId)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('Error fetching patient appointments from Supabase:', error)
+        return
+      }
+
+      console.log('Supabase returned rows count =', (data ?? []).length, 'raw rows:', data)
+
+      // If no rows, run extra debug queries to help diagnose: list first 5 appointments and try id=11
+      if ((data ?? []).length === 0) {
+        try {
+          const { data: someRows, error: someErr } = await supabase
+            .from('appointments')
+            .select('*')
+            .limit(5)
+
+          console.log('Debug: first 5 appointments (no filter):', someRows, someErr)
+        } catch (err) {
+          console.warn('Debug list query failed:', err)
+        }
+
+        try {
+          const { data: id11, error: idErr } = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('id', 11)
+            .maybeSingle()
+
+          console.log('Debug: appointment id=11 result:', id11, idErr)
+        } catch (err) {
+          console.warn('Debug id=11 query failed:', err)
+        }
+      }
+
+  const rows = data ?? []
+      appointments.value = rows.map(r => {
+        try {
+          const mapped = mapRowToView(r as any)
+          console.log('Mapped row ->', mapped)
+          return mapped
+        } catch (mapErr) {
+          console.warn('Mapping row failed:', mapErr, 'row:', r)
+          return null as any
+        }
+      }).filter(Boolean)
+      console.log(`Loaded ${appointments.value.length} appointments for patient id ${pId}`, appointments.value)
+    } catch (err) {
+      console.error('Unexpected error fetching appointments:', err)
+    } finally {
+      loading.value = false
+    }
+  }
 
   // Available time slots for rescheduling
   const availableTimeSlots = ref<TimeSlot[]>([
@@ -242,6 +381,15 @@ export const useViewAppointments = () => {
     }
   }
 
+  // Load appointments on mount and when auth changes
+  onMounted(() => {
+    fetchPatientAppointments().catch(err => console.warn('fetchPatientAppointments failed:', err))
+  })
+
+  watch(() => currentUser.value, (v) => {
+    fetchPatientAppointments().catch(err => console.warn('fetchPatientAppointments failed on auth change:', err))
+  })
+
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-SG', {
       weekday: 'long',
@@ -274,6 +422,7 @@ export const useViewAppointments = () => {
     scheduledAppointments,
     pastAppointments,
     availableSlots,
+    loading,
     
     // Reschedule dialog
     isRescheduleDialogOpen,
@@ -299,5 +448,8 @@ export const useViewAppointments = () => {
     cancelAppointment,
     formatDate,
     getStatusColor
+    ,
+    // Expose fetch for explicit page-level calls
+    fetchPatientAppointments
   }
 }

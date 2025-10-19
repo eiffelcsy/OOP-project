@@ -12,6 +12,7 @@ const {
   scheduledAppointments,
   pastAppointments,
   availableSlots,
+  loading,
   isRescheduleDialogOpen,
   appointmentToReschedule,
   selectedDate,
@@ -29,6 +30,8 @@ const {
   cancelAppointment,
   formatDate,
   getStatusColor
+  ,
+  fetchPatientAppointments
 } = useViewAppointments()
 
 // Loading states
@@ -64,6 +67,9 @@ const handleCancel = async () => {
 const handleDateSelect = (date: DateValue | undefined) => {
   selectDate(date)
 }
+
+// Explicitly trigger fetch and add page-level log to ensure we see console output when page mounts
+fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatientAppointments() completed')).catch(err => console.error('ViewAppointments: fetch failed', err))
 </script>
 
 <template>

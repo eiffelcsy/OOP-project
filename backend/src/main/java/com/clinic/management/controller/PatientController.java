@@ -14,6 +14,13 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.clinic.management.model.Appointment;
+import com.clinic.management.service.AppointmentService;
+import java.util.Optional;
 
 
 
@@ -22,12 +29,16 @@ import org.springframework.http.ResponseEntity;
 @RequestMapping("/api/patient")
 public class PatientController {
 
+    private static final Logger log = LoggerFactory.getLogger(PatientController.class);
+
     private final ClinicService clinicService;
     private final PatientService patientService;
+    private final AppointmentService appointmentService;
 
-    public PatientController(ClinicService clinicService, PatientService patientService) {
+    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService) {
         this.clinicService = clinicService;
         this.patientService = patientService;
+        this.appointmentService = appointmentService;
     }
 
     /**
@@ -60,6 +71,39 @@ public class PatientController {
         return patientService.getPatientById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * GET /api/patient/appointments - returns appointments for the logged-in patient
+     */
+    @GetMapping("/appointments")
+    public ResponseEntity<List<Appointment>> getMyAppointments() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getPrincipal() == null) {
+                log.warn("getMyAppointments: no authentication principal found");
+                return ResponseEntity.status(401).build();
+            }
+
+            String userId = auth.getPrincipal().toString();
+            log.info("getMyAppointments: authenticated userId={}", userId);
+
+            Optional<com.clinic.management.model.Patient> p = patientService.getPatientByUserId(userId);
+            if (p.isEmpty()) {
+                log.info("getMyAppointments: no patient row found for userId={}", userId);
+                return ResponseEntity.ok(List.of());
+            }
+
+            Long patientId = p.get().getId();
+            log.info("getMyAppointments: resolved patientId={} for userId={}", patientId, userId);
+
+            List<Appointment> rows = appointmentService.getAppointmentsByPatientId(patientId);
+            log.info("getMyAppointments: returning {} appointments for patientId={}", rows.size(), patientId);
+            return ResponseEntity.ok(rows);
+        } catch (Exception ex) {
+            log.error("getMyAppointments: unexpected error", ex);
+            return ResponseEntity.status(500).build();
+        }
     }
 
     /**
