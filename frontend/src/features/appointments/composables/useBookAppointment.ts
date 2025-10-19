@@ -3,6 +3,8 @@ import type { DateValue } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 import { schedulesApi } from '@/services/schedulesApi'
+import { useAuth } from '@/features/auth/composables/useAuth'
+import { toast } from 'vue-sonner'
 
 // Type aliases from database
 type Clinic = Tables<'clinics'>
@@ -365,78 +367,7 @@ export const useBookAppointment = () => {
   // Array form for templates (easier to iterate / pass as prop)
   const availableDatesArray = computed(() => Array.from(availableDates.value || []))
 
-  // TODO: Replace dummy data with actual API calls
-  // Placeholder API methods for backend communication
-  /*
-  const fetchAllClinics = async (): Promise<Clinic[]> => {
-    try {
-      // TODO: Implement actual API call to fetch ALL clinics (no filters)
-      // Client-side filtering is better for user experience
-      // const response = await apiService.get('/api/clinics')
-      // return response.data
-      return allClinics.value // Temporary fallback to dummy data
-    } catch (error) {
-      console.error('Failed to fetch clinics:', error)
-      throw new Error('Failed to load clinics')
-    }
-  }
 
-  const fetchDoctorsByClinic = async (clinicId: string): Promise<Doctor[]> => {
-    try {
-      // TODO: Implement actual API call to fetch doctors by clinic ID
-      // const response = await apiService.get(`/api/clinics/${clinicId}/doctors`)
-      // return response.data
-      return allDoctors.value.filter(doctor => doctor.clinicId === clinicId) // Temporary fallback
-    } catch (error) {
-      console.error('Failed to fetch doctors:', error)
-      throw new Error('Failed to load doctors')
-    }
-  }
-
-  const fetchAvailableTimeSlots = async (doctorId: string, date: string): Promise<TimeSlot[]> => {
-    try {
-      // TODO: Implement actual API call to fetch available time slots
-      // const response = await apiService.get(`/api/doctors/${doctorId}/available-slots`, {
-      //   params: { date }
-      // })
-      // return response.data
-      return availableTimeSlots.value.filter(slot => slot.available) // Temporary fallback
-    } catch (error) {
-      console.error('Failed to fetch time slots:', error)
-      throw new Error('Failed to load available time slots')
-    }
-  }
-
-  const bookAppointmentAPI = async (appointmentData: {
-    clinicId: string
-    doctorId: string
-    date: string
-    timeSlotId: string
-    patientId?: string
-  }): Promise<{ success: boolean; appointmentId?: string; message?: string }> => {
-    try {
-      // TODO: Implement actual API call to book appointment
-      // const response = await apiService.post('/api/appointments', appointmentData)
-      // return response.data
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Temporary success response
-      return {
-        success: true,
-        appointmentId: `apt_${Date.now()}`,
-        message: 'Appointment booked successfully'
-      }
-    } catch (error) {
-      console.error('Failed to book appointment:', error)
-      return {
-        success: false,
-        message: 'Failed to book appointment. Please try again.'
-      }
-    }
-  }
-  */
 
   // Computed properties
   const filteredClinics = computed(() => {
@@ -512,14 +443,19 @@ export const useBookAppointment = () => {
     // This should trigger fetchAvailableTimeSlots(doctorId, date) when both doctor and date are selected
     // If we've computed scheduleSlots for the selected doctor/date, show those first
     if (scheduleSlots.value && scheduleSlots.value.length > 0) {
+      // derive date string from bookingData if available so slot timestamps include the selected date
+      const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
       // map to a shape similar to TimeSlot expected by UI (slot_start, slot_end, id)
-      return scheduleSlots.value.map((s, idx) => ({
-        id: `sch-${idx}-${s.start.replace(/[: ]/g, '')}`,
-        slot_start: `1970-01-01T${s.start}:00`,
-        slot_end: `1970-01-01T${s.end}:00`,
-        display: s.display,
-        booked: (s as any).booked === true
-      }))
+      return scheduleSlots.value.map((s, idx) => {
+        const dayPrefix = dateStr ? `${dateStr}T` : ''
+        return {
+          id: `sch-${dateStr ?? 'nodate'}-${idx}-${s.start.replace(/[: ]/g, '')}`,
+          slot_start: `${dayPrefix}${s.start}${dateStr ? ':00' : ''}`,
+          slot_end: `${dayPrefix}${s.end}${dateStr ? ':00' : ''}`,
+          display: s.display,
+          booked: (s as any).booked === true
+        }
+      })
     }
 
     if (!bookingData.value.doctor || !bookingData.value.date) return []
@@ -902,42 +838,6 @@ export const useBookAppointment = () => {
     selectedRegion.value = 'All'
   }
 
-  // TODO: Uncomment and implement these methods when backend is ready
-  /*
-  const loadAllClinics = async () => {
-    try {
-      // Fetch ALL clinics once - no server-side filtering
-      // Client-side filtering provides better UX
-      const clinics = await fetchAllClinics()
-      allClinics.value = clinics
-    } catch (error) {
-      console.error('Failed to load clinics:', error)
-      // Handle error (show toast, etc.)
-    }
-  }
-
-  const loadDoctorsForClinic = async (clinicId: string) => {
-    try {
-      const doctors = await fetchDoctorsByClinic(clinicId)
-      // Update the doctors list for the specific clinic
-      allDoctors.value = allDoctors.value.filter(d => d.clinicId !== clinicId).concat(doctors)
-    } catch (error) {
-      console.error('Failed to load doctors:', error)
-      // Handle error (show toast, etc.)
-    }
-  }
-
-  const loadAvailableSlots = async (doctorId: string, date: string) => {
-    try {
-      const slots = await fetchAvailableTimeSlots(doctorId, date)
-      availableTimeSlots.value = slots
-    } catch (error) {
-      console.error('Failed to load time slots:', error)
-      // Handle error (show toast, etc.)
-    }
-  }
-  */
-
   // Fetch doctors via backend API (preferred).
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
@@ -1260,38 +1160,90 @@ export const useBookAppointment = () => {
         throw new Error('Missing required booking information')
       }
 
+      const { currentUser, getAccessToken } = useAuth()
+
       // Derive start/end from bookingData.timeSlot if available, otherwise from scheduleSlots selection
+      // Ensure timestamps are timezone-aware for Singapore (Supabase uses Asia/Singapore timestamps)
       let startIso: string | null = null
       let endIso: string | null = null
+      const SGT_OFFSET = '+08:00'
 
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      // Helper: if a datetime string already has timezone info, return it unchanged
+      const hasTz = (s: string) => /[zZ]|[+-]\d{2}:?\d{2}$/.test(s)
 
       if (bookingData.value.timeSlot) {
         const ts = bookingData.value.timeSlot as any
         // support different shapes
         if (ts.slot_start && ts.slot_end) {
-          startIso = new Date(ts.slot_start).toISOString()
-          endIso = new Date(ts.slot_end).toISOString()
+          // slot_start may already include timezone like '+08:00' — reuse if present
+          startIso = hasTz(ts.slot_start) ? ts.slot_start : `${ts.slot_start}${SGT_OFFSET}`
+          endIso = hasTz(ts.slot_end) ? ts.slot_end : `${ts.slot_end}${SGT_OFFSET}`
         } else if (ts.start && ts.end) {
-          // times like '09:00' - combine with date
+          // times like '09:00' - combine with date and append Singapore offset
           const dateStr = bookingData.value.date.toString()
-          startIso = new Date(`${dateStr}T${ts.start}`).toISOString()
-          endIso = new Date(`${dateStr}T${ts.end}`).toISOString()
+          startIso = `${dateStr}T${ts.start}:00${SGT_OFFSET}`
+          endIso = `${dateStr}T${ts.end}:00${SGT_OFFSET}`
         } else if (ts.display) {
           const parts = (ts.display as string).split('-').map(s => s.trim())
           const dateStr = bookingData.value.date.toString()
-          startIso = new Date(`${dateStr}T${parts[0]}`).toISOString()
-          endIso = new Date(`${dateStr}T${parts[1]}`).toISOString()
+          startIso = `${dateStr}T${parts[0]}:00${SGT_OFFSET}`
+          endIso = `${dateStr}T${parts[1]}:00${SGT_OFFSET}`
         }
       } else if (scheduleSlots.value && scheduleSlots.value.length > 0) {
         // if scheduleSlots present, take the first one or selected index - we expect bookingData.timeSlot was set
         const first = scheduleSlots.value[0]
         const dateStr = bookingData.value.date.toString()
-        startIso = new Date(`${dateStr}T${first.start}`).toISOString()
-        endIso = new Date(`${dateStr}T${first.end}`).toISOString()
+        startIso = `${dateStr}T${first.start}:00${SGT_OFFSET}`
+        endIso = `${dateStr}T${first.end}:00${SGT_OFFSET}`
       }
 
       if (!startIso || !endIso) throw new Error('Unable to determine start/end time for booking')
+
+      // Preflight validation: ensure the selected slot exists in availableSlots (prevents sending off-schedule times)
+        try {
+          const sel = bookingData.value.timeSlot as any
+          if (sel) {
+            const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
+
+            // Build normalized available starts for easier debugging
+            const normalizedAvailableStarts = (availableSlots.value || []).map((s: any) => {
+              const sStart = hasTz(s?.slot_start || '') ? (s?.slot_start || '') : `${s?.slot_start || ''}${SGT_OFFSET}`
+              return { id: s?.id, slot_start: s?.slot_start, normalized: sStart }
+            })
+
+            // Compute normalized selected start for comparison
+            let selStart = ''
+            if (hasTz(sel?.slot_start || '')) {
+              selStart = sel.slot_start || ''
+            } else if (sel?.start && dateStr) {
+              selStart = `${dateStr}T${sel.start}:00${SGT_OFFSET}`
+            } else if (sel?.slot_start && dateStr) {
+              // fallback: sometimes sel.slot_start contains a date-time without tz
+              selStart = hasTz(sel.slot_start) ? sel.slot_start : `${sel.slot_start}${SGT_OFFSET}`
+            }
+
+            // Try to find by id first, then by normalized start string
+            const foundById = sel?.id ? (availableSlots.value || []).some((s: any) => s && s.id === sel.id) : false
+            const foundByStart = selStart ? normalizedAvailableStarts.some((a: any) => a.normalized === selStart) : false
+
+            if (!foundById && !foundByStart) {
+              console.warn('Preflight validation: selected slot not found in availableSlots', {
+                dateStr,
+                selectedRaw: sel,
+                selectedNormalizedStart: selStart,
+                sampleAvailable: normalizedAvailableStarts.slice(0, 8)
+              })
+
+              toast.error('Requested time is outside doctor schedule', {
+                description: 'The selected time slot is not available for this doctor. Please choose another time.'
+              })
+              return { success: false, status: 422 }
+            }
+          }
+        } catch (e) {
+          // ignore validation failure and proceed; backend will also validate
+          console.error('Preflight validation error', e)
+        }
 
       // Resolve API base
       const env = (import.meta.env as any)
@@ -1301,31 +1253,110 @@ export const useBookAppointment = () => {
       const payload = {
         clinicId: bookingData.value.clinic.id,
         doctorId: bookingData.value.doctor.id,
-        patientId: null, // TODO: fill from auth context
+        patientId: undefined as number | undefined, // replaced below from auth
         startTime: startIso,
         endTime: endIso,
         treatmentSummary: null
       }
 
-      console.log('Posting appointment to backend:', endpoint, payload)
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        console.error('Backend returned error creating appointment', res.status, txt)
-        return false
+      // Resolve patient id from auth state if available
+      try {
+        // Prefer explicit patient relation id when available; otherwise fall back to profile.id (if that maps to patient id in your schema)
+        const p = currentUser.value?.patient?.id ?? currentUser.value?.profile?.id ?? null
+        if (p) payload.patientId = p
+      } catch (e) {
+        payload.patientId = undefined
       }
 
-      const created = await res.json()
-      console.log('Appointment created:', created)
-      return true
+      // If still no patient id, attempt to get from access token / session as last resort
+      if (!payload.patientId) {
+        // Not logged in as patient — show friendly toast and abort
+        toast.error('Unable to identify patient', {
+          description: 'Please login as a patient before booking an appointment.',
+        })
+        return { success: false, status: 401 }
+      }
+
+      // Generate an idempotency key for this booking attempt and keep it per-composable instance
+      // So repeated clicks during the same flow reuse the same key
+      const idempotencyKeyRef = (bookingData as any)._idempotencyKey ||= ref<string | null>(null)
+      if (!idempotencyKeyRef.value) {
+        // Prefer crypto.randomUUID when available
+        try {
+          idempotencyKeyRef.value = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+        } catch (_) {
+          idempotencyKeyRef.value = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+        }
+      }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+      // include idempotency key as header; backend should honor it
+      if (idempotencyKeyRef.value) headers['Idempotency-Key'] = idempotencyKeyRef.value
+      // if backend expects auth bearer token, attach it
+      try {
+        const token = await getAccessToken()
+        if (token) headers['Authorization'] = `Bearer ${token}`
+      } catch (e) {
+        // ignore
+      }
+
+      console.log('Posting appointment to backend:', endpoint, payload)
+      // Some backends (Postgres controllers, server frameworks) expect snake_case column names.
+      // Include both camelCase and snake_case keys to be compatible while the backend is confirmed.
+      const requestBody = {
+        ...payload,
+        idempotencyKey: idempotencyKeyRef.value,
+        // snake_case aliases
+        clinic_id: payload.clinicId,
+        doctor_id: payload.doctorId,
+        patient_id: payload.patientId,
+        start_time: payload.startTime,
+        end_time: payload.endTime,
+      }
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      })
+
+      const status = res.status
+      let bodyText = ''
+      try { bodyText = await res.text() } catch {}
+
+      // Try parse JSON if available
+      let json: any = null
+      try { json = bodyText ? JSON.parse(bodyText) : null } catch { json = null }
+
+      if (status === 201 || (res.ok && (json || {}).id)) {
+        toast.success('Your appointment has been successfully booked', {
+          description: 'A confirmation has been created and will appear in your appointments list.',
+        })
+        console.log('Appointment created:', json)
+        return { success: true, status, created: json }
+      }
+
+      if (status === 409) {
+        // Conflict — appointment already exists for that doctor/start_time
+        const conflictMsg = (json && (json.message || json.error)) ? (json.message || json.error) : 'The selected time slot is already booked.'
+        toast.error('Time slot unavailable', {
+          description: conflictMsg
+        })
+        // return the existing resource if backend includes it
+        return { success: false, status, existing: json }
+      }
+
+      // other non-success responses
+      const serverMsg = (json && (json.message || json.error)) ? (json.message || json.error) : bodyText || `HTTP ${status}`
+      console.error('Backend returned error creating appointment', status, serverMsg)
+      toast.error('Failed to book appointment', {
+        description: String(serverMsg).slice(0, 200)
+      })
+      return { success: false, status }
     } catch (error) {
       console.error('Booking failed:', error)
-      return false
+      toast.error('Failed to book appointment', { description: (error as any)?.message ?? String(error) })
+      return { success: false, status: 0 }
     }
   }
 

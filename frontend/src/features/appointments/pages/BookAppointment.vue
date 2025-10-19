@@ -45,9 +45,21 @@ const {
 const isBookingConfirmed = ref(false)
 
 const handleConfirmBooking = async () => {
-    const success = await confirmBooking()
-    if (success) {
-        isBookingConfirmed.value = true
+    try {
+        console.log('handleConfirmBooking: calling confirmBooking')
+        const result: any = await confirmBooking()
+        console.log('handleConfirmBooking: confirmBooking returned', result)
+
+        // support both boolean return and { success: boolean } shape
+        const ok = typeof result === 'boolean' ? result : (result && result.success === true)
+        if (ok) {
+            isBookingConfirmed.value = true
+        } else {
+            // not successful — make sure user sees feedback in console
+            console.warn('Appointment confirmation failed or returned false', result)
+        }
+    } catch (err) {
+        console.error('handleConfirmBooking: unexpected error', err)
     }
 }
 

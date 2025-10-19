@@ -42,11 +42,14 @@ public class AppointmentService {
         if (!appointment.getStartTime().isBefore(appointment.getEndTime())) throw new IllegalArgumentException("startTime must be before endTime");
 
         // Check schedule - convert startTime to doctor's local time-of-day check
-        OffsetDateTime start = appointment.getStartTime();
-        ZonedDateTime zstart = start.atZoneSameInstant(ZoneId.systemDefault());
-        int weekday = zstart.getDayOfWeek().getValue(); // 1 (Mon) - 7 (Sun)
-        LocalTime timeOfDayStart = zstart.toLocalTime();
-        LocalTime timeOfDayEnd = appointment.getEndTime().atZoneSameInstant(ZoneId.systemDefault()).toLocalTime();
+    OffsetDateTime start = appointment.getStartTime();
+    // Convert times to the doctor's (Singapore) local zone before extracting weekday and local time
+    // Using a fixed zone avoids surprises when the server JVM runs in a different timezone
+    final ZoneId clinicZone = ZoneId.of("Asia/Singapore");
+    ZonedDateTime zstart = start.atZoneSameInstant(clinicZone);
+    int weekday = zstart.getDayOfWeek().getValue(); // 1 (Mon) - 7 (Sun)
+    LocalTime timeOfDayStart = zstart.toLocalTime();
+    LocalTime timeOfDayEnd = appointment.getEndTime().atZoneSameInstant(clinicZone).toLocalTime();
 
         List<Schedule> schedules = scheduleRepository.findByDoctorIdAndDayOfWeek(appointment.getDoctorId(), weekday);
         boolean fitsSchedule = false;
@@ -65,7 +68,13 @@ public class AppointmentService {
         long conflicts = repository.countOverlapping(appointment.getDoctorId(), appointment.getStartTime(), appointment.getEndTime());
         if (conflicts > 0) throw new IllegalStateException("Requested time overlaps an existing appointment");
 
-        appointment.setStatus("scheduled");
+        // Set status and timestamps at creation time (use clinic timezone)
+        OffsetDateTime now = ZonedDateTime.now(clinicZone).toOffsetDateTime();
+        appointment.setStatus("booked");
+        // If createdAt/updatedAt are not provided, set them to current time
+        appointment.setCreatedAt(appointment.getCreatedAt() == null ? now : appointment.getCreatedAt());
+        appointment.setUpdatedAt(now);
+
         return repository.save(appointment);
     }
 
@@ -73,6 +82,7 @@ public class AppointmentService {
         Appointment appointment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
         appointment.setStatus("cancelled");
+        appointment.setUpdatedAt(ZonedDateTime.now(ZoneId.of("Asia/Singapore")).toOffsetDateTime());
         repository.save(appointment);
     }
 
@@ -96,6 +106,7 @@ public class AppointmentService {
         long conflicts = repository.countOverlapping(appointment.getDoctorId(), newStart, newEnd);
         if (conflicts > 0) throw new IllegalStateException("Requested time overlaps an existing appointment");
 
+        appointment.setUpdatedAt(ZonedDateTime.now(ZoneId.of("Asia/Singapore")).toOffsetDateTime());
         return repository.save(appointment);
     }
 }
