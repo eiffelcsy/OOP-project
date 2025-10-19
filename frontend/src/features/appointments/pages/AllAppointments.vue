@@ -173,14 +173,14 @@ const confirmReschedule = async () => {
           </div>
           <div class="flex gap-2">
             <Button 
-              v-if="appt.status !== 'completed'" 
+              v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" 
               @click="handleCancel(appt.id)" 
               variant="destructive" size="sm"
             >
               Cancel
             </Button>
             <Button 
-              v-if="appt.status !== 'completed'" 
+              v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" 
               @click="openReschedule(appt.id)" 
               variant="outline" size="sm"
             >
