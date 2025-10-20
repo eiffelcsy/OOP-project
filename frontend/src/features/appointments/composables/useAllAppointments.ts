@@ -10,6 +10,8 @@ export function useAllAppointments() {
       clinicId: 201,
       clinicName: 'City Clinic',
       type: 'General Consultation',
+      doctorSpecialty: 'General Practitioner',
+      clinicType: 'GENERAL',
       date: '2025-10-20',
       time: '10:00',
       status: 'scheduled'
@@ -22,6 +24,8 @@ export function useAllAppointments() {
       clinicId: 202,
       clinicName: 'Dental Care Centre',
       type: 'Dental Cleaning',
+      doctorSpecialty: 'Dentist',
+      clinicType: 'DENTAL',
       date: '2025-10-22',
       time: '09:30',
       status: 'scheduled'
@@ -34,6 +38,8 @@ export function useAllAppointments() {
       clinicId: 203,
       clinicName: 'Vision Hub',
       type: 'Eye Check-up',
+      doctorSpecialty: 'Ophthalmologist',
+      clinicType: 'EYE',
       date: '2025-10-18',
       time: '14:00',
       status: 'completed'
@@ -47,9 +53,9 @@ export function useAllAppointments() {
   ])
 
   const clinics = ref([
-    { id: 201, name: 'City Clinic' },
-    { id: 202, name: 'Dental Care Centre' },
-    { id: 203, name: 'Vision Hub' }
+    { id: 201, name: 'City Clinic', clinicType: 'GENERAL' },
+    { id: 202, name: 'Dental Care Centre', clinicType: 'DENTAL' },
+    { id: 203, name: 'Vision Hub', clinicType: 'EYE' }
   ])
 
   const fetchAllAppointments = async () => {

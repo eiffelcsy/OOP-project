@@ -24,6 +24,8 @@ interface Appointment {
   time: string
   status: AppointmentStatus
   specialization: string
+  doctorSpecialty?: string
+  clinicType?: string
   address: string
   notes?: string
 }
@@ -37,6 +39,8 @@ export interface ViewAppointment {
   time: string
   status: AppointmentStatus
   specialization: string
+  doctorSpecialty?: string
+  clinicType?: string
   address: string
   notes?: string
   // Database fields
@@ -62,9 +66,11 @@ export const useViewAppointments = () => {
     // row fields: id, patient_id, doctor_id, clinic_id, status, created_at, updated_at, time_slot_id, treatment_summary
     const date = row.created_at ? new Date(row.start_time ?? row.created_at) : new Date()
     // best-effort mapping; some fields may be null
-    const clinicName = (row as any).clinic_name || row.clinics?.name || 'Clinic'
-    const doctorName = (row as any).doctor_name || row.doctors?.name || 'Doctor'
-    const specialization = (row as any).specialty || row.doctors?.specialty || ''
+  const clinicName = (row as any).clinic_name || row.clinics?.name || 'Clinic'
+  const clinicType = (row as any).clinic_type || row.clinics?.clinic_type || row.clinics?.clinicType || ''
+  const doctorName = (row as any).doctor_name || row.doctors?.name || 'Doctor'
+  const specialization = (row as any).specialty || row.doctors?.specialty || ''
+  const doctorSpecialty = (row as any).doctor_specialty || row.doctors?.specialty || ''
     // time formatting: prefer start_time/end_time if present
     const time = row.start_time && row.end_time ?
       `${new Date(row.start_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} - ${new Date(row.end_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}` :
@@ -78,6 +84,8 @@ export const useViewAppointments = () => {
       time,
       status: (row.status as Appointment['status']) || 'scheduled',
       specialization,
+      doctorSpecialty,
+      clinicType,
       address: (row as any).clinic_address || '',
       notes: row.treatment_summary || undefined,
 

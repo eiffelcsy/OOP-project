@@ -129,7 +129,7 @@ const confirmReschedule = async () => {
         <select v-model="selectedClinic" class="h-10 border rounded-md px-2">
           <option value="all">All Clinics</option>
           <option v-for="c in clinics" :key="c.id" :value="c.id">
-            {{ c.name }}
+            {{ c.name }} <span v-if="c.clinicType">({{ c.clinicType }})</span>
           </option>
         </select>
       </div>
@@ -158,7 +158,7 @@ const confirmReschedule = async () => {
           <div>
             <CardTitle>{{ appt.patientName }} - {{ appt.type }}</CardTitle>
             <p class="text-sm text-muted-foreground">
-              {{ appt.date }} at {{ appt.time }} • Dr. {{ appt.doctorName }} • {{ appt.clinicName }}
+              {{ appt.date }} at {{ appt.time }} • Dr. {{ appt.doctorName }} ({{ appt.doctorSpecialty || '' }}) • {{ appt.clinicName }} <span v-if="appt.clinicType">({{ appt.clinicType }})</span>
             </p>
             <Badge :class="{
               'bg-gray-100 text-gray-800': appt.status==='scheduled',

@@ -99,9 +99,9 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
           <CardHeader>
             <div class="flex justify-between items-start">
               <div>
-                <CardTitle class="text-lg">{{ appointment.clinicName }}</CardTitle>
+                <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
                 <CardDescription>
-                  {{ appointment.doctorName }} • {{ appointment.specialization }}
+                  {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
                 </CardDescription>
               </div>
               <div class="flex items-center gap-2">
@@ -129,7 +129,10 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
               <div class="space-y-2">
                 <div class="flex items-start gap-2 text-sm">
                   <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
-                  <span>{{ appointment.address }}</span>
+                  <div>
+                    <div>{{ appointment.address }}</div>
+                    <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -186,9 +189,9 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
           <CardHeader>
             <div class="flex justify-between items-start">
               <div>
-                <CardTitle class="text-lg">{{ appointment.clinicName }}</CardTitle>
+                <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
                 <CardDescription>
-                  {{ appointment.doctorName }} • {{ appointment.specialization }}
+                  {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
                 </CardDescription>
               </div>
               <div class="flex items-center gap-2">
@@ -216,7 +219,10 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
               <div class="space-y-2">
                 <div class="flex items-start gap-2 text-sm">
                   <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
-                  <span>{{ appointment.address }}</span>
+                  <div>
+                    <div>{{ appointment.address }}</div>
+                    <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -322,8 +328,8 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
         <div v-if="appointmentToCancel" class="space-y-4">
           <div class="p-4 bg-muted rounded-lg">
             <div class="space-y-2 text-sm">
-              <div><strong>Doctor:</strong> {{ appointmentToCancel.doctorName }}</div>
-              <div><strong>Clinic:</strong> {{ appointmentToCancel.clinicName }}</div>
+              <div><strong>Doctor:</strong> {{ appointmentToCancel.doctorName }} <span class="text-muted-foreground">{{ appointmentToCancel.doctorSpecialty || '' }}</span></div>
+              <div><strong>Clinic:</strong> {{ appointmentToCancel.clinicName }} <span class="text-muted-foreground">{{ appointmentToCancel.clinicType || '' }}</span></div>
               <div><strong>Date:</strong> {{ formatDate(appointmentToCancel.date) }}</div>
               <div><strong>Time:</strong> {{ appointmentToCancel.time }}</div>
             </div>

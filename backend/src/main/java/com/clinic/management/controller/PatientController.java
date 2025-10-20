@@ -20,6 +20,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.service.AppointmentService;
+import com.clinic.management.service.DoctorService;
+import com.clinic.management.dto.response.AppointmentResponse;
+import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Clinic;
 import java.util.Optional;
 
 
@@ -34,11 +38,13 @@ public class PatientController {
     private final ClinicService clinicService;
     private final PatientService patientService;
     private final AppointmentService appointmentService;
+    private final DoctorService doctorService;
 
-    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService) {
+    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService, DoctorService doctorService) {
         this.clinicService = clinicService;
         this.patientService = patientService;
         this.appointmentService = appointmentService;
+        this.doctorService = doctorService;
     }
 
     /**
@@ -77,7 +83,7 @@ public class PatientController {
      * GET /api/patient/appointments - returns appointments for the logged-in patient
      */
     @GetMapping("/appointments")
-    public ResponseEntity<List<Appointment>> getMyAppointments() {
+    public ResponseEntity<List<AppointmentResponse>> getMyAppointments() {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || auth.getPrincipal() == null) {
@@ -98,8 +104,54 @@ public class PatientController {
             log.info("getMyAppointments: resolved patientId={} for userId={}", patientId, userId);
 
             List<Appointment> rows = appointmentService.getAppointmentsByPatientId(patientId);
-            log.info("getMyAppointments: returning {} appointments for patientId={}", rows.size(), patientId);
-            return ResponseEntity.ok(rows);
+            log.info("getMyAppointments: found {} appointments for patientId={}", rows.size(), patientId);
+
+            // Map to DTO with clinic and doctor details
+            List<AppointmentResponse> resp = rows.stream().map(a -> {
+                AppointmentResponse ar = new AppointmentResponse();
+                ar.id = a.getId();
+                ar.patient_id = a.getPatientId();
+                ar.doctor_id = a.getDoctorId();
+                ar.clinic_id = a.getClinicId();
+                ar.start_time = a.getStartTime();
+                ar.end_time = a.getEndTime();
+                ar.treatment_summary = a.getTreatmentSummary();
+                ar.status = a.getStatus();
+                ar.created_at = a.getCreatedAt();
+                ar.updated_at = a.getUpdatedAt();
+
+                // clinic
+                try {
+                    if (a.getClinicId() != null) {
+                        Clinic c = clinicService.getClinicById(a.getClinicId()).orElse(null);
+                        if (c != null) {
+                            ar.clinic_name = c.getName();
+                            ar.clinic_address = c.getAddressLine();
+                            ar.clinic_type = c.getClinicType();
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("getMyAppointments: failed to load clinic for id {}: {}", a.getClinicId(), e.getMessage());
+                }
+
+                // doctor
+                try {
+                    if (a.getDoctorId() != null) {
+                        Doctor d = doctorService.getDoctorById(a.getDoctorId());
+                        if (d != null) {
+                            ar.doctor_name = d.getName();
+                            ar.doctor_specialty = d.getSpecialty();
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("getMyAppointments: failed to load doctor for id {}: {}", a.getDoctorId(), e.getMessage());
+                }
+
+                return ar;
+            }).toList();
+
+            log.info("getMyAppointments: returning {} enriched appointment responses", resp.size());
+            return ResponseEntity.ok(resp);
         } catch (Exception ex) {
             log.error("getMyAppointments: unexpected error", ex);
             return ResponseEntity.status(500).build();
