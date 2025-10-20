@@ -7,6 +7,7 @@ import com.clinic.management.dto.request.CreateUserRequest;
 import com.clinic.management.dto.request.UpdateDoctorRequest;
 import com.clinic.management.dto.request.UpdateScheduleRequest;
 import com.clinic.management.dto.request.UpdateUserRequest;
+import com.clinic.management.dto.response.AdminStatisticsResponse;
 import com.clinic.management.dto.response.DoctorResponse;
 import com.clinic.management.dto.response.ScheduleResponse;
 import com.clinic.management.dto.response.UserResponse;
@@ -15,10 +16,13 @@ import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.model.Clinic;
 import com.clinic.management.model.Doctor;
 import com.clinic.management.model.Schedule;
+import com.clinic.management.service.AdminStatisticsService;
 import com.clinic.management.service.ClinicService;
 import com.clinic.management.service.DoctorService;
 import com.clinic.management.service.ScheduleService;
 import com.clinic.management.service.UserService;
+
+import java.util.Map;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -43,13 +47,44 @@ public class AdminController {
     private final UserService userService;
     private final DoctorService doctorService;
     private final ScheduleService scheduleService;
+    private final AdminStatisticsService statisticsService;
     
     @Autowired
-    public AdminController(ClinicService clinicService, UserService userService, DoctorService doctorService, ScheduleService scheduleService) {
+    public AdminController(ClinicService clinicService, UserService userService, DoctorService doctorService, ScheduleService scheduleService, AdminStatisticsService statisticsService) {
         this.clinicService = clinicService;
         this.userService = userService;
         this.doctorService = doctorService;
         this.scheduleService = scheduleService;
+        this.statisticsService = statisticsService;
+    }
+    
+    // ================================ STATISTICS ENDPOINTS ================================
+    
+    /**
+     * GET /api/admin/statistics
+     * Fetch system-wide statistics for admin dashboard
+     * @return System statistics including metrics, status, and usage
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<Map<String, Object>> getSystemStatistics() {
+        Map<String, Object> statistics = statisticsService.getSystemStatistics();
+        return ResponseEntity.ok(statistics);
+    }
+    
+    /**
+     * GET /api/admin/statistics/registrations
+     * Fetch new registrations count
+     * @param hours Number of hours to look back (default 24)
+     * @return Count of new registrations
+     */
+    @GetMapping("/statistics/registrations")
+    public ResponseEntity<Map<String, Object>> getNewRegistrations(@RequestParam(defaultValue = "24") int hours) {
+        long count = statisticsService.getNewRegistrations(hours);
+        Map<String, Object> response = Map.of(
+            "count", count,
+            "hours", hours
+        );
+        return ResponseEntity.ok(response);
     }
     
     // ================================ CLINIC MANAGEMENT ENDPOINTS ================================

@@ -6,7 +6,11 @@ import { Toaster } from '@/components/ui/sonner'
 
 <template>
   <RouterView />
-  <Toaster />
+  <Toaster 
+    :duration="4000"
+    :close-button="true"
+    rich-colors
+  />
 </template>
 
 <style scoped></style>

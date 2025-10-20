@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useClinics, type Clinic } from '../composables/useClinics'
+import { useClinics, type ClinicResponse, type UpdateClinicRequest } from '../composables/useClinics'
 import { useDoctors } from '@/features/doctor-management/composables/useDoctors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -38,14 +38,14 @@ const {
   navigateToCreateDoctor
 } = useDoctors()
 
-const clinic = ref<Clinic | null>(null)
+const clinic = ref<ClinicResponse | null>(null)
 const isEditing = ref(false)
 const showDeleteDialog = ref(false)
 const successMessage = ref('')
 const showAdditionalInfo = ref(false)
 const showMetadata = ref(false)
 
-const editFormData = reactive<Partial<Clinic>>({})
+const editFormData = reactive<Partial<UpdateClinicRequest>>({})
 
 const regions = ['Central', 'West', 'East', 'North-East', 'North']
 const clinicTypes = ['General', 'Specialist', 'Polyclinic', 'Emergency']
@@ -88,7 +88,7 @@ const handleEdit = () => {
     })
     Object.assign(editFormData, { ...clinic.value })
     console.log('Edit form data:', editFormData)
-    console.log('Clinic type:', editFormData.clinic_type)
+    console.log('Clinic type:', editFormData.clinicType)
     console.log('Region:', editFormData.region)
   }
   isEditing.value = true
@@ -189,7 +189,7 @@ onMounted(() => {
           <div class="flex flex-col gap-1">
             <div class="flex items-center gap-3">
               <h1 class="text-3xl font-bold tracking-tight">{{ clinic.name }}</h1>
-              <Badge variant="secondary">{{ clinic.clinic_type }}</Badge>
+              <Badge variant="secondary">{{ clinic.clinicType }}</Badge>
             </div>
           </div>
         </div>
@@ -229,7 +229,7 @@ onMounted(() => {
               </div>
               <div>
                 <Label class="text-muted-foreground">Clinic Type</Label>
-                <p class="text-base font-medium">{{ clinic.clinic_type || 'Not specified' }}</p>
+                <p class="text-base font-medium">{{ clinic.clinicType || 'Not specified' }}</p>
               </div>
               <div>
                 <Label class="text-muted-foreground">Region</Label>
@@ -249,7 +249,7 @@ onMounted(() => {
               <h3 class="text-sm font-semibold mb-4">Location Details</h3>
               <div>
                 <Label class="text-muted-foreground">Address</Label>
-                <p class="text-base font-medium">{{ clinic.address_line || 'Not specified' }}</p>
+                <p class="text-base font-medium">{{ clinic.addressLine || 'Not specified' }}</p>
               </div>
             </div>
 
@@ -259,11 +259,11 @@ onMounted(() => {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label class="text-muted-foreground">Opening Time</Label>
-                  <p class="text-base font-medium">{{ clinic.open_time || 'Not set' }}</p>
+                  <p class="text-base font-medium">{{ clinic.openTime || 'Not set' }}</p>
                 </div>
                 <div>
                   <Label class="text-muted-foreground">Closing Time</Label>
-                  <p class="text-base font-medium">{{ clinic.close_time || 'Not set' }}</p>
+                  <p class="text-base font-medium">{{ clinic.closeTime || 'Not set' }}</p>
                 </div>
               </div>
             </div>
@@ -314,13 +314,13 @@ onMounted(() => {
                   <div>
                     <Label class="text-muted-foreground">Created At</Label>
                     <p class="text-base font-medium">
-                      {{ clinic.created_at ? new Date(clinic.created_at).toLocaleString() : 'Unknown' }}
+                      {{ clinic.createdAt ? new Date(clinic.createdAt).toLocaleString() : 'Unknown' }}
                     </p>
                   </div>
                   <div>
                     <Label class="text-muted-foreground">Last Updated</Label>
                     <p class="text-base font-medium">
-                      {{ clinic.updated_at ? new Date(clinic.updated_at).toLocaleString() : 'Unknown' }}
+                      {{ clinic.updatedAt ? new Date(clinic.updatedAt).toLocaleString() : 'Unknown' }}
                     </p>
                   </div>
                 </div>
@@ -445,9 +445,9 @@ onMounted(() => {
                     v-for="type in clinicTypes" 
                     :key="type"
                     type="button"
-                    :variant="editFormData.clinic_type === type ? 'default' : 'outline'" 
+                    :variant="editFormData.clinicType === type ? 'default' : 'outline'" 
                     size="sm"
-                    @click="editFormData.clinic_type = type"
+                    @click="editFormData.clinicType = type"
                   >
                     {{ type }}
                   </Button>
@@ -492,8 +492,8 @@ onMounted(() => {
                 <Label for="edit-address">Address</Label>
                 <Input 
                   id="edit-address" 
-                  :model-value="editFormData.address_line ?? ''"
-                  @update:model-value="editFormData.address_line = ($event as string) || null"
+                  :model-value="editFormData.addressLine ?? ''"
+                  @update:model-value="editFormData.addressLine = ($event as string) || null"
                 />
               </div>
             </div>
@@ -512,8 +512,8 @@ onMounted(() => {
                 <Input 
                   id="edit-open-time" 
                   type="time"
-                  :model-value="editFormData.open_time ?? ''"
-                  @update:model-value="editFormData.open_time = ($event as string) || null"
+                  :model-value="editFormData.openTime ?? ''"
+                  @update:model-value="editFormData.openTime = ($event as string) || null"
                 />
               </div>
               <div class="space-y-2">
@@ -521,8 +521,8 @@ onMounted(() => {
                 <Input 
                   id="edit-close-time" 
                   type="time"
-                  :model-value="editFormData.close_time ?? ''"
-                  @update:model-value="editFormData.close_time = ($event as string) || null"
+                  :model-value="editFormData.closeTime ?? ''"
+                  @update:model-value="editFormData.closeTime = ($event as string) || null"
                 />
               </div>
             </div>

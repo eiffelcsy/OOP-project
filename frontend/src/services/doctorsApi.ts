@@ -9,19 +9,19 @@ import type { Tables } from '@/types/supabase'
 // Use Supabase generated types
 export type Doctor = Tables<'doctors'>
 
-// Backend response type (with snake_case from Jackson default serialization)
+// Backend response type (with camelCase from Jackson default serialization)
 export interface DoctorResponse {
   id: number
-  clinic_id: number
+  clinicId: number
   name: string
   specialty: string | null
   active: boolean | null
-  created_at: string  // OffsetDateTime from backend
-  updated_at: string  // OffsetDateTime from backend
+  createdAt: string  // OffsetDateTime from backend
+  updatedAt: string  // OffsetDateTime from backend
 }
 
 export interface CreateDoctorRequest {
-  clinic_id: number
+  clinicId: number
   name: string
   specialty?: string | null
   active?: boolean
@@ -31,7 +31,7 @@ export interface UpdateDoctorRequest {
   name?: string
   specialty?: string | null
   active?: boolean
-  clinic_id?: number
+  clinicId?: number
 }
 
 /**

@@ -1,103 +1,60 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Icon } from '@iconify/vue'
+import { statisticsApi } from '@/services/statisticsApi'
+import type { SystemMetrics, SystemStatus, SystemUsage } from '@/services/statisticsApi'
+import { toast } from 'vue-sonner'
 
 // Key Metrics Data
-const metrics = ref({
-  totalUsers: 1247,
-  activeClinics: 23,
-  systemHealth: 'Healthy',
-  healthStatus: 'good' // 'good', 'warning', 'critical'
+const metrics = ref<SystemMetrics>({
+  totalUsers: 0,
+  activeClinics: 0,
+  systemHealth: 'Loading...',
+  healthStatus: 'good'
 })
 
 // System Status Data
-const systemStatus = ref({
-  serverUptime: '99.9%',
-  uptimeDays: 127,
-  databaseConnectivity: 'Connected',
-  dbStatus: 'good', // 'good', 'warning', 'critical'
-  lastBackup: '2 hours ago',
-  activeConnections: 342
+const systemStatus = ref<SystemStatus>({
+  serverUptime: '0%',
+  uptimeDays: 0,
+  databaseConnectivity: 'Connecting...',
+  dbStatus: 'good',
+  lastBackup: 'Checking...',
+  activeConnections: 0
 })
 
 // System Usage Data
-const systemUsage = ref({
-  appointmentsToday: 156,
-  appointmentsThisWeek: 892,
-  appointmentsTrend: '+12%', // vs last week
-  cancellationsToday: 8,
-  cancellationRate: '5.1%',
+const systemUsage = ref<SystemUsage>({
+  appointmentsToday: 0,
+  appointmentsThisWeek: 0,
+  appointmentsTrend: '0%',
+  cancellationsToday: 0,
+  cancellationRate: '0%',
   queueStats: {
-    currentWaiting: 23,
-    averageWaitTime: '15 min',
-    longestWait: '45 min',
-    queueStatus: 'normal' // 'normal', 'busy', 'critical'
+    currentWaiting: 0,
+    averageWaitTime: '0 min',
+    longestWait: '0 min',
+    queueStatus: 'normal'
   },
   systemLoad: {
-    cpu: 23,
-    memory: 67,
-    diskUsage: 45,
+    cpu: 0,
+    memory: 0,
+    diskUsage: 0,
     networkTraffic: 'Normal'
   }
 })
 
-// Recent Activity Data
-const recentActivity = ref([
-  {
-    id: 1,
-    type: 'user_registration',
-    message: 'New user registration: Dr. Sarah Johnson',
-    timestamp: '10 minutes ago',
-    icon: 'lucide:user-plus'
-  },
-  {
-    id: 2,
-    type: 'clinic_config',
-    message: 'Clinic "City Medical Center" updated configuration',
-    timestamp: '25 minutes ago',
-    icon: 'lucide:building'
-  },
-  {
-    id: 3,
-    type: 'system_alert',
-    message: 'Database backup completed successfully',
-    timestamp: '2 hours ago',
-    icon: 'lucide:check-circle'
-  },
-  {
-    id: 4,
-    type: 'user_registration',
-    message: 'New patient registration: John Smith',
-    timestamp: '3 hours ago',
-    icon: 'lucide:user-plus'
-  },
-  {
-    id: 5,
-    type: 'clinic_config',
-    message: 'New clinic "Regional Health Center" added',
-    timestamp: '5 hours ago',
-    icon: 'lucide:building-2'
-  },
-  {
-    id: 6,
-    type: 'system_alert',
-    message: 'Server maintenance completed',
-    timestamp: '8 hours ago',
-    icon: 'lucide:settings'
-  }
-])
+// New registrations count
+const newRegistrations = ref(0)
 
-const getActivityIcon = (type: string) => {
-  switch (type) {
-    case 'user_registration': return 'lucide:user-plus'
-    case 'clinic_config': return 'lucide:building'
-    case 'system_alert': return 'lucide:alert-circle'
-    default: return 'lucide:activity'
-  }
-}
+// Loading state
+const isLoading = ref(true)
+
+// Interval ID for periodic updates
+let updateInterval: number | null = null
 
 // Quick Actions
 const quickActions = [
@@ -152,24 +109,68 @@ const handleUserSearch = () => {
   alert('User Search feature - Coming Soon!')
 }
 
-onMounted(() => {
-  // Simulate data fetching
-  console.log('Admin dashboard loaded with dummy data')
+/**
+ * Fetch system statistics from the backend
+ */
+const fetchStatistics = async () => {
+  try {
+    // Fetch main statistics
+    const stats = await statisticsApi.getSystemStatistics()
+    
+    // Update reactive refs with fetched data
+    metrics.value = stats.metrics
+    systemStatus.value = stats.systemStatus
+    systemUsage.value = stats.systemUsage
+    
+    // Fetch new registrations (last 24 hours)
+    const registrations = await statisticsApi.getNewRegistrations(24)
+    newRegistrations.value = registrations.count
+    
+    isLoading.value = false
+  } catch (error) {
+    console.error('Failed to fetch statistics:', error)
+    toast.error('Failed to load system statistics', {
+      description: error instanceof Error ? error.message : 'Unknown error occurred'
+    })
+    isLoading.value = false
+  }
+}
+
+/**
+ * Refresh statistics periodically
+ */
+const startPeriodicUpdate = () => {
+  // Update every 30 seconds
+  updateInterval = window.setInterval(() => {
+    fetchStatistics()
+  }, 30000)
+}
+
+/**
+ * Stop periodic updates
+ */
+const stopPeriodicUpdate = () => {
+  if (updateInterval !== null) {
+    clearInterval(updateInterval)
+    updateInterval = null
+  }
+}
+
+onMounted(async () => {
+  console.log('Admin dashboard loading...')
   
-  // Simulate real-time updates
-  setInterval(() => {
-    // Update active connections randomly
-    systemStatus.value.activeConnections = Math.floor(Math.random() * 100) + 300
-    
-    // Update queue statistics
-    systemUsage.value.queueStats.currentWaiting = Math.floor(Math.random() * 50) + 10
-    const waitTimes = ['10 min', '15 min', '20 min', '25 min', '30 min']
-    systemUsage.value.queueStats.averageWaitTime = waitTimes[Math.floor(Math.random() * waitTimes.length)]
-    
-    // Update system load
-    systemUsage.value.systemLoad.cpu = Math.floor(Math.random() * 30) + 20
-    systemUsage.value.systemLoad.memory = Math.floor(Math.random() * 40) + 50
-  }, 30000) // Update every 30 seconds
+  // Initial fetch
+  await fetchStatistics()
+  
+  // Start periodic updates
+  startPeriodicUpdate()
+  
+  console.log('Admin dashboard loaded successfully')
+})
+
+onUnmounted(() => {
+  // Clean up interval on component unmount
+  stopPeriodicUpdate()
 })
 </script>
 
@@ -217,72 +218,12 @@ onMounted(() => {
       </Card>
     </div>
 
-    <!-- Quick Actions Panel -->
-    <Card>
-      <CardHeader class="border-b">
-        <CardTitle class="flex items-center gap-2">
-          <Icon icon="lucide:zap" class="size-4" />
-          Quick Actions
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Button
-            v-for="action in quickActions"
-            :key="action.title"
-            variant="outline"
-            class="h-auto p-4 flex flex-col items-start gap-2 hover:bg-accent hover:text-accent-foreground"
-            @click="action.action"
-          >
-            <Icon :icon="action.icon" class="h-5 w-5 text-muted-foreground" />
-            <div class="text-left">
-              <div class="font-medium">{{ action.title }}</div>
-              <div class="text-xs text-muted-foreground">{{ action.description }}</div>
-            </div>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-
-    <!-- Dashboard Content Grid -->
-    <div class="grid gap-6 lg:grid-cols-2">
-      <!-- Recent Activity Feed -->
-      <Card>
+    <!-- System Status & Usage Widget -->
+    <div class="grid lg:grid-cols-4 grid-cols-1 gap-6">
+      <Card class="lg:col-span-3 col-span-1">
         <CardHeader class="border-b">
           <CardTitle class="flex items-center gap-2">
-            <Icon icon="lucide:activity" class="h-5 w-5" />
-            Recent Activity
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div class="space-y-4">
-            <div
-              v-for="activity in recentActivity.slice(0, 6)"
-              :key="activity.id"
-              class="flex items-start gap-3 pb-3 last:pb-0"
-            >
-              <Icon
-                :icon="getActivityIcon(activity.type)"
-                class="h-4 w-4 mt-0.5 text-muted-foreground"
-              />
-              <div class="flex-1 space-y-1">
-                <p class="text-sm font-medium leading-none">{{ activity.message }}</p>
-                <p class="text-xs text-muted-foreground">{{ activity.timestamp }}</p>
-              </div>
-            </div>
-          </div>
-          <Separator class="my-4 w-full" />
-          <Button variant="ghost" class="w-full justify-center text-sm">
-            View All Activity
-          </Button>
-        </CardContent>
-      </Card>
-
-      <!-- System Status & Usage Widget -->
-      <Card>
-        <CardHeader class="border-b">
-          <CardTitle class="text-xl flex items-center gap-2">
-            <Icon icon="lucide:server" class="h-5 w-5" />
+            <Icon icon="lucide:server" class="h-4 w-4" />
             System Status & Usage
           </CardTitle>
         </CardHeader>
@@ -393,6 +334,28 @@ onMounted(() => {
           </div>
         </CardContent>
       </Card>
+      <!-- Quick Actions Panel -->
+      <Card class="lg:col-span-1 col-span-1 order-first lg:order-last">
+        <CardHeader class="border-b">
+          <CardTitle class="flex items-center gap-2">
+            <Icon icon="lucide:zap" class="size-4" />
+            Quick Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div class="flex flex-col gap-4">
+            <Button v-for="action in quickActions" :key="action.title" variant="outline"
+              class="h-auto p-4 flex flex-col items-start gap-2 hover:bg-accent hover:text-accent-foreground"
+              @click="action.action">
+              <Icon :icon="action.icon" class="h-5 w-5 text-muted-foreground" />
+              <div class="text-left">
+                <div class="font-medium">{{ action.title }}</div>
+                <div class="text-xs text-muted-foreground">{{ action.description }}</div>
+              </div>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
 
     <!-- Additional Stats Row -->
@@ -403,19 +366,19 @@ onMounted(() => {
           <Icon icon="lucide:user-check" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">47</div>
+          <div class="text-2xl font-bold">{{ newRegistrations }}</div>
           <p class="text-xs text-muted-foreground">Last 24 hours</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">Queue Waiting</CardTitle>
+          <CardTitle class="text-sm font-medium">Queue Time</CardTitle>
           <Icon icon="lucide:clock-3" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ systemUsage.queueStats.currentWaiting }}</div>
-          <p class="text-xs text-muted-foreground">Patients in queue</p>
+          <div class="text-2xl font-bold">{{ systemUsage.queueStats.averageWaitTime }}</div>
+          <p class="text-xs text-muted-foreground">Average wait time</p>
         </CardContent>
       </Card>
 

@@ -38,22 +38,14 @@ const handleRegister = async () => {
   // Basic validation
   if (!isFormValid.value) {
     toast.error('Incomplete Form', {
-      description: 'Please fill in all fields correctly',
-      action: {
-        label: 'Dismiss',
-        onClick: () => {}
-      }
+      description: 'Please fill in all fields correctly'
     })
     return
   }
 
   if (password.value !== confirmPassword.value) {
     toast.error('Password Mismatch', {
-      description: 'Passwords do not match',
-      action: {
-        label: 'Fix',
-        onClick: () => {}
-      }
+      description: 'Passwords do not match'
     })
     return
   }
@@ -74,26 +66,18 @@ const handleRegister = async () => {
     if (success) {
       // Registration successful - show success toast
       toast.success('Registration Successful!', {
-        description: 'Your account has been created. Please login with your credentials.',
-        action: {
-          label: 'Go to Login',
-          onClick: () => router.push('/login')
-        }
+        description: 'Your account has been created. Please login with your credentials.'
       })
       
       // Redirect to login
       setTimeout(() => {
         router.push('/login')
-      }, 1500)
+      }, 2000)
     } else {
       // Registration failed - show error message
       const errorMessage = error.value || 'Registration failed. Please try again.'
       toast.error('Registration Failed', {
-        description: errorMessage,
-        action: {
-          label: 'Retry',
-          onClick: () => {}
-        }
+        description: errorMessage
       })
     }
   } catch (err) {
@@ -101,11 +85,7 @@ const handleRegister = async () => {
     console.error('Registration failed:', err)
     const errorMessage = error.value || 'An unexpected error occurred. Please try again.'
     toast.error('Registration Error', {
-      description: errorMessage,
-      action: {
-        label: 'Retry',
-        onClick: () => {}
-      }
+      description: errorMessage
     })
   }
 }
@@ -114,6 +94,11 @@ const handleRegister = async () => {
 <template>
   <div class="grid gap-6">
     <!-- Register Form -->
+    <div class="grid gap-2">
+        <p class="text-sm text-muted-foreground">
+          Enter your details below to create a patient account.
+        </p>
+    </div>
     <form @submit.prevent="handleRegister" class="grid gap-4">
       <!-- Name Fields -->
       <div class="grid grid-cols-2 gap-4">

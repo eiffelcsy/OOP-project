@@ -4,7 +4,7 @@ import router from './router'
 import './index.css'
 // Use a local copy of vue-sonner CSS to avoid resolution issues in the
 // development container/build that prevent deep imports from the package.
-import './styles/vue-sonner.css'
+// import './styles/vue-sonner.css'
 import { useAuth } from '@/features/auth/composables/useAuth'
 
 const app = createApp(App)

@@ -82,15 +82,6 @@ const handleLogout = async () => {
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      <!-- Management Section -->
-      <SidebarGroup>
-        <SidebarGroupLabel>Management</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
             <Collapsible key="UserManagement" title="User Management" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>
@@ -189,47 +180,6 @@ const handleLogout = async () => {
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
-          </SidebarMenu>
-        </SidebarGroupContent>
-      </SidebarGroup>
-
-      <!-- System Section -->
-      <SidebarGroup>
-        <SidebarGroupLabel>System</SidebarGroupLabel>
-        <SidebarGroupContent>
-          <SidebarMenu>
-            <SidebarMenuItem key="SystemAlerts">
-              <SidebarMenuButton as-child>
-                <a href="/admin/alerts">
-                  <Icon icon="lucide:alert-triangle" class="size-4" />
-                  <span>System Alerts</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem key="SystemHealth">
-              <SidebarMenuButton as-child>
-                <a href="/admin/system-health">
-                  <Icon icon="lucide:activity" class="size-4" />
-                  <span>System Health</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem key="Reports">
-              <SidebarMenuButton as-child>
-                <a href="/admin/reports">
-                  <Icon icon="lucide:file-bar-chart" class="size-4" />
-                  <span>Reports</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem key="Settings">
-              <SidebarMenuButton as-child>
-                <a href="/admin/settings">
-                  <Icon icon="lucide:cog" class="size-4" />
-                  <span>Settings</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

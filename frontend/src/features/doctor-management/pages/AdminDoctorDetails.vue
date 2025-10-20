@@ -369,7 +369,7 @@ const handleSave = async () => {
       name: editFormData.name,
       specialty: editFormData.specialty,
       active: editFormData.active,
-      clinicId: editFormData.clinic_id
+      clinicId: editFormData.clinicId
     })
     doctor.value = result
     isEditing.value = false
@@ -512,7 +512,7 @@ onMounted(() => {
               </div>
               <div>
                 <Label class="text-muted-foreground">Clinic ID</Label>
-                <p class="text-base font-medium">{{ doctor.clinic_id }}</p>
+                <p class="text-base font-medium">{{ doctor.clinicId }}</p>
               </div>
             </div>
 

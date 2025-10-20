@@ -347,7 +347,7 @@ const updatePatient = () => {
                                 <div>
                                     <Label class="text-sm font-medium">Clinic</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ staffClinic.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ staffClinic.address_line }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ staffClinic.addressLine }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Doctor</Label>

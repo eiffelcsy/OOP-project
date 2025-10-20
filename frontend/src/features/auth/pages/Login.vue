@@ -43,11 +43,7 @@ const handleLogin = async () => {
   // Validate inputs
   if (!email.value || !password.value) {
     toast.error('Missing Information', {
-      description: 'Please enter both email and password',
-      action: {
-        label: 'Dismiss',
-        onClick: () => {}
-      }
+      description: 'Please enter both email and password'
     })
     return
   }
@@ -58,30 +54,39 @@ const handleLogin = async () => {
     password: password.value
   })
 
-  if (success && currentUser.value) {
-    // Verify the user's role matches the selected role
-    if (currentUser.value.userType !== selectedRole.value) {
-      toast.error('Role Mismatch', {
-        description: `Invalid credentials for ${selectedRole.value} role`,
-        action: {
-          label: 'Try Again',
-          onClick: () => {}
-        }
-      })
-      return
-    }
-
-    // Show success message
-    toast.success('Login Successful', {
-      description: `Welcome back, ${currentUser.value.profile?.full_name || 'User'}!`,
-      action: {
-        label: 'Continue',
-        onClick: () => {}
-      }
+  if (!success) {
+    // Show error message
+    const errorMessage = error.value || 'Login failed. Please check your credentials.'
+    toast.error('Login Failed', {
+      description: errorMessage
     })
+    return
+  }
 
+  if (!currentUser.value) {
+    toast.error('Login Error', {
+      description: 'Unable to retrieve user information'
+    })
+    return
+  }
+
+  // Verify the user's role matches the selected role
+  if (currentUser.value.userType !== selectedRole.value) {
+    toast.error('Role Mismatch', {
+      description: `Invalid credentials for ${selectedRole.value} role`
+    })
+    return
+  }
+
+  // Show success message
+  toast.success('Login Successful', {
+    description: `Welcome back, ${currentUser.value.profile?.full_name || 'User'}!`
+  })
+
+  // Small delay before redirecting to let user see the success message
+  setTimeout(() => {
     // Redirect to appropriate dashboard based on user type
-    switch (currentUser.value.userType) {
+    switch (currentUser.value?.userType) {
       case 'patient':
         router.push('/patient/dashboard')
         break
@@ -94,22 +99,17 @@ const handleLogin = async () => {
       default:
         router.push('/')
     }
-  } else {
-    // Show error message
-    const errorMessage = error.value || 'Login failed. Please check your credentials.'
-    toast.error('Login Failed', {
-      description: errorMessage,
-      action: {
-        label: 'Retry',
-        onClick: () => {}
-      }
-    })
-  }
+  }, 800)
 }
 </script>
 
 <template>
   <div class="grid gap-6">
+    <div class="grid gap-2">
+      <p class="text-sm text-muted-foreground">
+        Select your role below and enter your email and password to login.
+      </p>
+    </div>
     <!-- Role Selection -->
     <div class="grid gap-3">
       <Label>Please select your role</Label>
@@ -119,9 +119,9 @@ const handleLogin = async () => {
           :key="role.id"
           @click="selectRole(role.id)"
           :class="[
-            'relative cursor-pointer rounded-lg border-2 p-4 text-center transition-all duration-200 hover:bg-accent/50 hover:shadow-sm',
+            'relative cursor-pointer rounded-lg border-2 p-4 text-center transition-all duration-200 hover:bg-accent/40 hover:shadow-sm',
             selectedRole === role.id 
-              ? 'border-primary bg-primary/5 shadow-sm' 
+              ? 'border-primary bg-accent/40 shadow-sm' 
               : 'border-border hover:border-primary/50'
           ]"
         >

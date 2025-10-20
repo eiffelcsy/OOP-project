@@ -337,7 +337,7 @@ onMounted(async () => {
                     {{ clinic.region }} • {{ clinic.area }}
                   </p>
                 </div>
-                <Badge variant="secondary">{{ clinic.clinic_type }}</Badge>
+                <Badge variant="secondary">{{ clinic.clinicType }}</Badge>
               </div>
             </div>
             <div v-if="!clinicsLoading && filteredClinics.length === 0" class="text-center py-8">

@@ -5,6 +5,7 @@ Responsible for:
 - Logging in and registering new users
 - Maintaining session data
 - Handling user roles and permissions
+- Password reset and recovery
 
 Composable is used to store the authentication state and provide methods for login, register, and logout.
 
@@ -17,6 +18,8 @@ Composable:
 - login - Logs in a user with email and password
 - register - Registers a new user with email and password
 - logout - Logs out the user
+- resetPassword - Sends password reset email to user
+- updatePassword - Updates the user's password (used after reset)
 - refreshUser - Refreshes the user session (when user information is updated)
 - initializeAuth - Initializes the auth state
 - getAccessToken - Gets the access token for the user
@@ -203,6 +206,46 @@ const createAuth = () => {
     }
   }
 
+  const resetPassword = async (email: string): Promise<boolean> => {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+
+      if (resetError) throw resetError
+
+      return true
+    } catch (err: any) {
+      error.value = err.message || 'Password reset failed'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const updatePassword = async (newPassword: string): Promise<boolean> => {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+
+      if (updateError) throw updateError
+
+      return true
+    } catch (err: any) {
+      error.value = err.message || 'Password update failed'
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   const refreshUser = async (): Promise<void> => {
     try {
       isLoading.value = true
@@ -253,6 +296,8 @@ const createAuth = () => {
     login,
     register,
     logout,
+    resetPassword,
+    updatePassword,
     refreshUser,
     initializeAuth,
     getAccessToken
