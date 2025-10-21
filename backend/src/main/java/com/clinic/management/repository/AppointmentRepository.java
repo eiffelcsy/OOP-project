@@ -16,6 +16,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findByStatus(String status);
     List<Appointment> findByPatientId(Long patientId);
 
+    // Find appointments with given status and start_time between two timestamps
+    List<Appointment> findByStatusAndStartTimeBetween(String status, OffsetDateTime start, OffsetDateTime end);
+
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctorId = :doctorId AND a.status = 'scheduled' AND NOT (a.endTime <= :startTime OR a.startTime >= :endTime)")
     long countOverlapping(@Param("doctorId") Long doctorId, @Param("startTime") OffsetDateTime startTime, @Param("endTime") OffsetDateTime endTime);
 }

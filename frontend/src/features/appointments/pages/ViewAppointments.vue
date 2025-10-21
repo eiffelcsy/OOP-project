@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useViewAppointments } from '../composables/useViewAppointments'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CalendarDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
@@ -33,6 +34,47 @@ const {
   ,
   fetchPatientAppointments
 } = useViewAppointments()
+
+// Local UI filters for sections
+const upcomingStatusFilter = ref<string>('all')
+const pastStatusFilter = ref<string>('all')
+
+// Helpers to compute distinct statuses present in each section
+const upcomingStatuses = computed(() => {
+  const s = new Set<string>()
+  scheduledAppointments.value.forEach(a => s.add(a.status || 'scheduled'))
+  return Array.from(s)
+})
+
+const pastStatuses = computed(() => {
+  const s = new Set<string>()
+  pastAppointments.value.forEach(a => s.add(a.status || 'completed'))
+  return Array.from(s)
+})
+
+const prettyStatus = (status: string) => {
+  if (!status) return ''
+  switch (status) {
+    case 'no-show': return 'Missed'
+    case 'checked-in': return 'Checked-in'
+    case 'in-progress': return 'In-progress'
+    case 'cancelled': return 'Cancelled'
+    case 'completed': return 'Completed'
+    case 'scheduled': return 'Scheduled'
+    case 'confirmed': return 'Confirmed'
+    default: return status.charAt(0).toUpperCase() + status.slice(1)
+  }
+}
+
+const filteredScheduledAppointments = computed(() => {
+  if (upcomingStatusFilter.value === 'all') return scheduledAppointments.value
+  return scheduledAppointments.value.filter(a => a.status === upcomingStatusFilter.value)
+})
+
+const filteredPastAppointments = computed(() => {
+  if (pastStatusFilter.value === 'all') return pastAppointments.value
+  return pastAppointments.value.filter(a => a.status === pastStatusFilter.value)
+})
 
 // Loading states
 const isRescheduling = ref(false)
@@ -92,80 +134,92 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
       </div>
 
       <div v-else class="space-y-4">
-        <Card 
-          v-for="appointment in scheduledAppointments" 
-          :key="appointment.id"
-        >
-          <CardHeader>
-            <div class="flex justify-between items-start">
-              <div>
-                <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
-                <CardDescription>
-                  {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
-                </CardDescription>
-              </div>
-              <div class="flex items-center gap-2">
-                <span 
-                  class="px-3 py-1 rounded-full text-xs font-medium border"
-                  :class="getStatusColor(appointment.status)"
-                >
-                  {{ appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) }}
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div class="space-y-2">
-                <div class="flex items-center gap-2 text-sm">
-                  <Icon icon="lucide:calendar" class="w-4 h-4 text-muted-foreground" />
-                  <span>{{ formatDate(appointment.date) }}</span>
+        <!-- Filters for upcoming section -->
+        <div class="mb-4 flex items-center gap-4">
+          <div class="text-sm text-muted-foreground">Filter by status:</div>
+          <div class="flex gap-2 items-center">
+            <Badge variant="outline" class="cursor-pointer" :class="upcomingStatusFilter === 'all' ? 'bg-gray-100' : ''" @click="upcomingStatusFilter = 'all'">All</Badge>
+            <Badge v-for="status in upcomingStatuses" :key="status" variant="outline" class="cursor-pointer" :class="upcomingStatusFilter === status ? 'bg-gray-100' : ''" @click="upcomingStatusFilter = status">{{ prettyStatus(status) }}</Badge>
+            <Button variant="ghost" size="sm" class="ml-2" @click="upcomingStatusFilter = 'all'">Clear</Button>
+          </div>
+        </div>
+
+        <!-- Explanatory line -->
+        <p class="text-sm text-muted-foreground mb-2">Upcoming appointments include statuses: <strong>Scheduled</strong> and <strong>Confirmed</strong>.</p>
+
+        <div v-for="appointment in filteredScheduledAppointments" :key="appointment.id">
+          <Card>
+            <CardHeader>
+              <div class="flex justify-between items-start">
+                <div>
+                  <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
+                  <CardDescription>
+                    {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
+                  </CardDescription>
                 </div>
-                <div class="flex items-center gap-2 text-sm">
-                  <Icon icon="lucide:clock" class="w-4 h-4 text-muted-foreground" />
-                  <span>{{ appointment.time }}</span>
+                <div class="flex items-center gap-2">
+                  <span 
+                    class="px-3 py-1 rounded-full text-xs font-medium border"
+                    :class="getStatusColor(appointment.status)"
+                  >
+                    {{ appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1) }}
+                  </span>
                 </div>
               </div>
-              <div class="space-y-2">
-                <div class="flex items-start gap-2 text-sm">
-                  <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
-                  <div>
-                    <div>{{ appointment.address }}</div>
-                    <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
+            </CardHeader>
+            <CardContent>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-2 text-sm">
+                    <Icon icon="lucide:calendar" class="w-4 h-4 text-muted-foreground" />
+                    <span>{{ formatDate(appointment.date) }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-sm">
+                    <Icon icon="lucide:clock" class="w-4 h-4 text-muted-foreground" />
+                    <span>{{ appointment.time }}</span>
+                  </div>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex items-start gap-2 text-sm">
+                    <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <div>{{ appointment.address }}</div>
+                      <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div v-if="appointment.notes" class="mb-4 p-3 bg-muted rounded-md">
-              <p class="text-sm text-muted-foreground">
-                <Icon icon="lucide:sticky-note" class="w-4 h-4 inline mr-1" />
-                {{ appointment.notes }}
-              </p>
-            </div>
+              
+              <div v-if="appointment.notes" class="mb-4 p-3 bg-muted rounded-md">
+                <p class="text-sm text-muted-foreground">
+                  <Icon icon="lucide:sticky-note" class="w-4 h-4 inline mr-1" />
+                  {{ appointment.notes }}
+                </p>
+              </div>
 
-            <div class="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                @click="openRescheduleDialog(appointment)"
-                class="flex items-center gap-2"
-              >
-                <Icon icon="lucide:calendar-clock" class="w-4 h-4" />
-                Reschedule
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                @click="openCancelDialog(appointment)"
-                class="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-              >
-                <Icon icon="lucide:x" class="w-4 h-4" />
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div class="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  @click="openRescheduleDialog(appointment)"
+                  class="flex items-center gap-2"
+                >
+                  <Icon icon="lucide:calendar-clock" class="w-4 h-4" />
+                  Reschedule
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  @click="openCancelDialog(appointment)"
+                  class="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <Icon icon="lucide:x" class="w-4 h-4" />
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
 
@@ -182,8 +236,21 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
       </div>
 
       <div v-else class="space-y-4">
+        <!-- Filters for past section -->
+        <div class="mb-4 flex items-center gap-4">
+          <div class="text-sm text-muted-foreground">Filter by status:</div>
+          <div class="flex gap-2 items-center">
+            <Badge variant="outline" class="cursor-pointer" :class="pastStatusFilter === 'all' ? 'bg-gray-100' : ''" @click="pastStatusFilter = 'all'">All</Badge>
+            <Badge v-for="status in pastStatuses" :key="status" variant="outline" class="cursor-pointer" :class="pastStatusFilter === status ? 'bg-gray-100' : ''" @click="pastStatusFilter = status">{{ prettyStatus(status) }}</Badge>
+            <Button variant="ghost" size="sm" class="ml-2" @click="pastStatusFilter = 'all'">Clear</Button>
+          </div>
+        </div>
+
+        <!-- Explanatory line -->
+        <p class="text-sm text-muted-foreground mb-2">Past appointments include statuses: <strong>Completed</strong>, <strong>Cancelled</strong> and <strong>Missed</strong>.</p>
+
         <Card 
-          v-for="appointment in pastAppointments" 
+          v-for="appointment in filteredPastAppointments" 
           :key="appointment.id"
         >
           <CardHeader>

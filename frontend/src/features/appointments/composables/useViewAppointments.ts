@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
 
 // Type aliases from database
-type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+// Add 'confirmed' so backend/client-confirmed appointments are recognized
+// and include 'missed' as a synonym for 'no-show' used in some places
+type AppointmentStatus = 'scheduled' | 'confirmed' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show' | 'missed'
 
 // TimeSlot interface for UI
 interface TimeSlot {
@@ -76,13 +78,40 @@ export const useViewAppointments = () => {
       `${new Date(row.start_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} - ${new Date(row.end_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}` :
       ''
 
+    // Normalize status values from different sources (supabase/backend variations)
+    const rawStatus = (row.status ?? '')?.toString?.() || ''
+    const normalized = rawStatus.trim().toLowerCase()
+    const normalizeStatus = (s: string) => {
+      if (!s) return 'scheduled'
+      // common variants
+      if (s === 'canceled' || s === 'cancel') return 'cancelled'
+      if (s === 'no_show' || s === 'no show' || s === 'noshow') return 'no-show'
+      // accept 'missed' as-is
+      // ensure known statuses return their canonical form
+      switch (s) {
+        case 'scheduled': return 'scheduled'
+        case 'confirmed': return 'confirmed'
+        case 'checked-in': return 'checked-in'
+        case 'checked_in': return 'checked-in'
+        case 'in-progress': return 'in-progress'
+        case 'in_progress': return 'in-progress'
+        case 'completed': return 'completed'
+        case 'cancelled': return 'cancelled'
+        case 'no-show': return 'no-show'
+        case 'missed': return 'missed'
+        default: return s
+      }
+    }
+
+    const statusCanon = normalizeStatus(normalized) as Appointment['status']
+
     return {
       id: row.id.toString(),
       clinicName,
       doctorName,
       date: row.start_time ? new Date(row.start_time) : date,
       time,
-      status: (row.status as Appointment['status']) || 'scheduled',
+      status: statusCanon || 'scheduled',
       specialization,
       doctorSpecialty,
       clinicType,
@@ -170,6 +199,17 @@ export const useViewAppointments = () => {
               try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
             }).filter(Boolean) as Appointment[]
             console.log('Loaded appointments from backend, count=', appointments.value.length)
+            // Debug: log status counts to help troubleshoot missing statuses
+            try {
+              const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
+                const s = a.status || 'unknown'
+                m[s] = (m[s] || 0) + 1
+                return m
+              }, {})
+              console.log('Appointment status counts (backend):', counts)
+            } catch (e) {
+              console.warn('Failed to compute appointment status counts:', e)
+            }
             return
           }
         } else {
@@ -234,6 +274,17 @@ export const useViewAppointments = () => {
         }
       }).filter(Boolean)
       console.log(`Loaded ${appointments.value.length} appointments for patient id ${pId}`, appointments.value)
+      // Debug: log status counts for supabase fallback
+      try {
+        const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
+          const s = a.status || 'unknown'
+          m[s] = (m[s] || 0) + 1
+          return m
+        }, {})
+        console.log('Appointment status counts (supabase):', counts)
+      } catch (e) {
+        console.warn('Failed to compute appointment status counts (supabase):', e)
+      }
     } catch (err) {
       console.error('Unexpected error fetching appointments:', err)
     } finally {
@@ -260,18 +311,17 @@ export const useViewAppointments = () => {
   // Computed properties to separate appointments
   const scheduledAppointments = computed(() => {
     const now = new Date()
+    // Upcoming: include both scheduled and confirmed appointments with start >= now
     return appointments.value
-      .filter(appointment => appointment.status === 'scheduled' && appointment.date >= now)
+      .filter(appointment => (appointment.status === 'scheduled' || appointment.status === 'confirmed') && appointment.date >= now)
       .sort((a, b) => a.date.getTime() - b.date.getTime())
   })
 
   const pastAppointments = computed(() => {
     const now = new Date()
+    // Past: include completed, cancelled and missed (no-show/missed)
     return appointments.value
-      .filter(appointment => 
-        (appointment.status === 'completed' || appointment.status === 'cancelled') || 
-        (appointment.status === 'scheduled' && appointment.date < now)
-      )
+      .filter(appointment => ['completed', 'cancelled', 'no-show', 'missed'].includes(appointment.status))
       .sort((a, b) => b.date.getTime() - a.date.getTime())
   })
 
@@ -408,13 +458,25 @@ export const useViewAppointments = () => {
   }
 
   const getStatusColor = (status: Appointment['status']) => {
+    // Colors mapped as requested by product: confirmed=green, scheduled=blue,
+    // cancelled=light-gray, no-show (missed)=red, completed=emerald green
     switch (status) {
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'completed':
+      case 'confirmed':
+        // green (success)
         return 'bg-green-100 text-green-800 border-green-200'
+      case 'scheduled':
+        // blue (info)
+        return 'bg-blue-100 text-blue-800 border-blue-200'
       case 'cancelled':
+        // light gray (neutral)
+        return 'bg-gray-50 text-gray-600 border-gray-100'
+      case 'no-show':
+      case 'missed':
+        // missed appointments shown as red (danger)
         return 'bg-red-100 text-red-800 border-red-200'
+      case 'completed':
+        // completed — use emerald for completed(success/completed)
+        return 'bg-emerald-100 text-emerald-800 border-emerald-200'
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200'
     }

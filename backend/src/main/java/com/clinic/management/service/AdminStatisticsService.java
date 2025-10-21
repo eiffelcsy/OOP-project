@@ -9,8 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import com.clinic.management.config.TimezoneConfig;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,7 +33,8 @@ public class AdminStatisticsService {
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
     
-    private static final ZoneId CLINIC_ZONE = ZoneId.of("Asia/Singapore");
+    // Use central timezone config
+    private static final java.time.ZoneId CLINIC_ZONE = TimezoneConfig.CLINIC_ZONE;
     
     @Autowired
     public AdminStatisticsService(

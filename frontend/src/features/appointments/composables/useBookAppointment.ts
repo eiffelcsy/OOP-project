@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { schedulesApi } from '@/services/schedulesApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
+import { ensureSgtOffset, SGT_OFFSET, hasTz } from '@/lib/utils'
 
 // Type aliases from database
 type Clinic = Tables<'clinics'>
@@ -1166,35 +1167,30 @@ export const useBookAppointment = () => {
       // Ensure timestamps are timezone-aware for Singapore (Supabase uses Asia/Singapore timestamps)
       let startIso: string | null = null
       let endIso: string | null = null
-      const SGT_OFFSET = '+08:00'
-
-      // Helper: if a datetime string already has timezone info, return it unchanged
-      const hasTz = (s: string) => /[zZ]|[+-]\d{2}:?\d{2}$/.test(s)
-
       if (bookingData.value.timeSlot) {
         const ts = bookingData.value.timeSlot as any
         // support different shapes
         if (ts.slot_start && ts.slot_end) {
           // slot_start may already include timezone like '+08:00' — reuse if present
-          startIso = hasTz(ts.slot_start) ? ts.slot_start : `${ts.slot_start}${SGT_OFFSET}`
-          endIso = hasTz(ts.slot_end) ? ts.slot_end : `${ts.slot_end}${SGT_OFFSET}`
+          startIso = ensureSgtOffset(ts.slot_start)
+          endIso = ensureSgtOffset(ts.slot_end)
         } else if (ts.start && ts.end) {
           // times like '09:00' - combine with date and append Singapore offset
           const dateStr = bookingData.value.date.toString()
-          startIso = `${dateStr}T${ts.start}:00${SGT_OFFSET}`
-          endIso = `${dateStr}T${ts.end}:00${SGT_OFFSET}`
+          startIso = ensureSgtOffset(`${dateStr}T${ts.start}:00`)
+          endIso = ensureSgtOffset(`${dateStr}T${ts.end}:00`)
         } else if (ts.display) {
           const parts = (ts.display as string).split('-').map(s => s.trim())
           const dateStr = bookingData.value.date.toString()
-          startIso = `${dateStr}T${parts[0]}:00${SGT_OFFSET}`
-          endIso = `${dateStr}T${parts[1]}:00${SGT_OFFSET}`
+          startIso = ensureSgtOffset(`${dateStr}T${parts[0]}:00`)
+          endIso = ensureSgtOffset(`${dateStr}T${parts[1]}:00`)
         }
       } else if (scheduleSlots.value && scheduleSlots.value.length > 0) {
         // if scheduleSlots present, take the first one or selected index - we expect bookingData.timeSlot was set
         const first = scheduleSlots.value[0]
         const dateStr = bookingData.value.date.toString()
-        startIso = `${dateStr}T${first.start}:00${SGT_OFFSET}`
-        endIso = `${dateStr}T${first.end}:00${SGT_OFFSET}`
+        startIso = ensureSgtOffset(`${dateStr}T${first.start}:00`)
+        endIso = ensureSgtOffset(`${dateStr}T${first.end}:00`)
       }
 
       if (!startIso || !endIso) throw new Error('Unable to determine start/end time for booking')
