@@ -76,7 +76,7 @@ public class AppointmentService {
 
         // Set status and timestamps at creation time (use clinic timezone)
         OffsetDateTime now = ZonedDateTime.now(clinicZone).toOffsetDateTime();
-        appointment.setStatus("booked");
+    appointment.setStatus("scheduled");
         // If createdAt/updatedAt are not provided, set them to current time
         appointment.setCreatedAt(appointment.getCreatedAt() == null ? now : appointment.getCreatedAt());
         appointment.setUpdatedAt(now);

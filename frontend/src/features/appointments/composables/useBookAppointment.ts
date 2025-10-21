@@ -275,14 +275,14 @@ export const useBookAppointment = () => {
   const availableTimeSlots = ref<TimeSlot[]>([
     { id: 1, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T09:00:00+08:00', slot_end: '2024-01-01T09:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 2, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T09:30:00+08:00', slot_end: '2024-01-01T10:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 3, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T10:00:00+08:00', slot_end: '2024-01-01T10:30:00+08:00', status: 'booked', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 3, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T10:00:00+08:00', slot_end: '2024-01-01T10:30:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 4, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T10:30:00+08:00', slot_end: '2024-01-01T11:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 5, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T11:00:00+08:00', slot_end: '2024-01-01T11:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 6, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T11:30:00+08:00', slot_end: '2024-01-01T12:00:00+08:00', status: 'booked', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 6, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T11:30:00+08:00', slot_end: '2024-01-01T12:00:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 7, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T14:00:00+08:00', slot_end: '2024-01-01T14:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 8, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T14:30:00+08:00', slot_end: '2024-01-01T15:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 9, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T15:00:00+08:00', slot_end: '2024-01-01T15:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 10, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T15:30:00+08:00', slot_end: '2024-01-01T16:00:00+08:00', status: 'booked', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 10, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T15:30:00+08:00', slot_end: '2024-01-01T16:00:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 11, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T16:00:00+08:00', slot_end: '2024-01-01T16:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
     { id: 12, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T16:30:00+08:00', slot_end: '2024-01-01T17:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   ])
@@ -466,7 +466,7 @@ export const useBookAppointment = () => {
         slot_start: slot.slot_start,
         slot_end: slot.slot_end,
         display: `${new Date(slot.slot_start).toLocaleTimeString()} - ${new Date(slot.slot_end).toLocaleTimeString()}`,
-        booked: slot.status === 'booked'
+  booked: slot.status === 'scheduled'
       }))
   })
 
@@ -783,13 +783,13 @@ export const useBookAppointment = () => {
               .from('time_slots')
               .select('*')
               .eq('doctor_id', doctorId)
-              .eq('status', 'booked')
+              .eq('status', 'scheduled')
 
             if (tsQ.error) {
-              console.error('Error querying booked time_slots for doctor', doctorId, tsQ.error)
+              console.error('Error querying scheduled time_slots for doctor', doctorId, tsQ.error)
             } else {
               const bookedSlots = (tsQ.data ?? []) as any[]
-              console.log(`Found ${bookedSlots.length} booked time_slots for doctor ${doctorId}:`, bookedSlots)
+              console.log(`Found ${bookedSlots.length} scheduled time_slots for doctor ${doctorId}:`, bookedSlots)
             }
           } catch (tserr) {
             console.error('Failed to query time_slots for doctor', doctorId, tserr)
@@ -1148,7 +1148,7 @@ export const useBookAppointment = () => {
       const result = await bookAppointmentAPI(appointmentData)
       
       if (result.success) {
-        console.log('Appointment booked successfully:', result.appointmentId)
+  console.log('Appointment scheduled successfully:', result.appointmentId)
         return true
       } else {
         console.error('Booking failed:', result.message)
@@ -1329,16 +1329,16 @@ export const useBookAppointment = () => {
       try { json = bodyText ? JSON.parse(bodyText) : null } catch { json = null }
 
       if (status === 201 || (res.ok && (json || {}).id)) {
-        toast.success('Your appointment has been successfully booked', {
-          description: 'A confirmation has been created and will appear in your appointments list.',
-        })
+  toast.success('Your appointment has been successfully scheduled', {
+  description: 'A confirmation has been created and will appear in your appointments list.',
+  })
         console.log('Appointment created:', json)
         return { success: true, status, created: json }
       }
 
       if (status === 409) {
         // Conflict — appointment already exists for that doctor/start_time
-        const conflictMsg = (json && (json.message || json.error)) ? (json.message || json.error) : 'The selected time slot is already booked.'
+  const conflictMsg = (json && (json.message || json.error)) ? (json.message || json.error) : 'The selected time slot is already scheduled.'
         toast.error('Time slot unavailable', {
           description: conflictMsg
         })

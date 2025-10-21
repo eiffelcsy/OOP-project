@@ -309,7 +309,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                     :disabled="slot.booked === true"
                                     @click="selectTimeSlot(slot)">
                                     {{ new Date(slot.slot_start).toLocaleTimeString() }} - {{ new Date(slot.slot_end).toLocaleTimeString() }}
-                                    <span v-if="slot.booked" class="ml-2 text-xs text-muted-foreground">(booked)</span>
+                                    <span v-if="slot.booked" class="ml-2 text-xs text-muted-foreground">(scheduled)</span>
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
@@ -372,8 +372,8 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 </svg>
                             </div>
                             <h3 class="text-lg font-semibold mb-2">Appointment Confirmed!</h3>
-                            <p class="text-muted-foreground">
-                                Your appointment has been successfully booked. You will receive a confirmation email
+                                <p class="text-muted-foreground">
+                                Your appointment has been successfully scheduled. You will receive a confirmation email
                                 shortly.
                             </p>
                         </div>
