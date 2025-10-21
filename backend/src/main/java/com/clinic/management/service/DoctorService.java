@@ -24,6 +24,7 @@ public class DoctorService {
      * Get all doctors
      * @return List of all doctors
      */
+    @Transactional(readOnly = true)
     public List<Doctor> getAllDoctors() {
         return repository.findAll();
     }
@@ -33,6 +34,7 @@ public class DoctorService {
      * @param clinicId Clinic ID
      * @return List of doctors for the specified clinic
      */
+    @Transactional(readOnly = true)
     public List<Doctor> getDoctorsByClinicId(Long clinicId) {
         return repository.findByClinicId(clinicId);
     }
@@ -43,6 +45,7 @@ public class DoctorService {
      * @return Doctor entity
      * @throws NotFoundException if doctor not found
      */
+    @Transactional(readOnly = true)
     public Doctor getDoctorById(Long id) {
         return repository.findById(id)
             .orElseThrow(() -> new NotFoundException("Doctor not found with id: " + id));

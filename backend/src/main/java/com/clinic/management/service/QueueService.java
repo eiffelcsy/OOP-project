@@ -37,10 +37,9 @@ import java.util.Optional;
  * - Delete queue
  * 
  * All database operations use Spring Data JPA
- * Transactions managed by Spring @Transactional
+ * Transactions managed by Spring @Transactional at method level
  */
 @Service
-@Transactional
 public class QueueService {
     
     private final QueueRepository queueRepository;
@@ -60,6 +59,7 @@ public class QueueService {
      * @throws ValidationException if validation fails
      * @throws RepositoryException if database operation fails
      */
+    @Transactional
     public Queue createQueue(CreateQueueRequest request) {
         try {
             // Validate clinic exists
@@ -139,6 +139,7 @@ public class QueueService {
      * @throws OptimisticLockException if optimistic locking fails
      * @throws RepositoryException if database operation fails
      */
+    @Transactional
     public Queue updateQueue(Long id, UpdateQueueRequest request) {
         try {
             // Validate at least one field is being updated
@@ -192,6 +193,7 @@ public class QueueService {
      * @param id Queue ID
      * @throws RepositoryException if database operation fails
      */
+    @Transactional
     public void deleteQueue(Long id) {
         try {
             if (!queueRepository.existsById(id)) {

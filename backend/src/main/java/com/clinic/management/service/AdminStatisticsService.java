@@ -4,6 +4,7 @@ import com.clinic.management.model.enums.QueueStatus;
 import com.clinic.management.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -54,6 +55,7 @@ public class AdminStatisticsService {
     /**
      * Get comprehensive system statistics
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> getSystemStatistics() {
         Map<String, Object> stats = new HashMap<>();
         
@@ -72,6 +74,7 @@ public class AdminStatisticsService {
     /**
      * Get key metrics (total users, active clinics, system health)
      */
+    @Transactional(readOnly = true)
     private Map<String, Object> getKeyMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         
@@ -93,6 +96,7 @@ public class AdminStatisticsService {
     /**
      * Get system status (uptime, database, backups)
      */
+    @Transactional(readOnly = true)
     private Map<String, Object> getSystemStatus() {
         Map<String, Object> status = new HashMap<>();
         
@@ -115,6 +119,7 @@ public class AdminStatisticsService {
     /**
      * Get system usage statistics (appointments, queue, etc.)
      */
+    @Transactional(readOnly = true)
     private Map<String, Object> getSystemUsage() {
         Map<String, Object> usage = new HashMap<>();
         
@@ -194,6 +199,7 @@ public class AdminStatisticsService {
     /**
      * Get queue-specific statistics
      */
+    @Transactional(readOnly = true)
     private Map<String, Object> getQueueStatistics() {
         Map<String, Object> queueStats = new HashMap<>();
         
@@ -227,6 +233,7 @@ public class AdminStatisticsService {
     /**
      * Get new registrations count for a time period
      */
+    @Transactional(readOnly = true)
     public long getNewRegistrations(int hours) {
         LocalDateTime cutoff = LocalDateTime.now(CLINIC_ZONE).minusHours(hours);
         

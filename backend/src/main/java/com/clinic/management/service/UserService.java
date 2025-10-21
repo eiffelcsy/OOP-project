@@ -66,6 +66,7 @@ public class UserService {
     /**
      * Get all users (combines all profiles with their role data)
      */
+    @Transactional(readOnly = true)
     public List<UserResponse> getAllUsers() {
         List<Profile> profiles = profileRepository.findAll();
         
@@ -77,6 +78,7 @@ public class UserService {
     /**
      * Get user by profile ID
      */
+    @Transactional(readOnly = true)
     public Optional<UserResponse> getUserById(Long profileId) {
         return profileRepository.findById(profileId)
                 .map(this::buildUserResponse);

@@ -5,6 +5,7 @@ import com.clinic.management.model.Schedule;
 import com.clinic.management.repository.AppointmentRepository;
 import com.clinic.management.repository.ScheduleRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -31,6 +32,7 @@ public class AppointmentService {
         this.scheduleRepository = scheduleRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<Appointment> getAppointments(Long doctorId, Long clinicId, String status) {
         if (doctorId != null) return repository.findByDoctorId(doctorId);
         if (clinicId != null) return repository.findByClinicId(clinicId);
@@ -38,6 +40,7 @@ public class AppointmentService {
         return repository.findAll();
     }
 
+    @Transactional
     public Appointment addAppointment(Appointment appointment) {
         // Basic validation
         if (appointment.getDoctorId() == null) throw new IllegalArgumentException("doctorId is required");
@@ -81,6 +84,7 @@ public class AppointmentService {
         return repository.save(appointment);
     }
 
+    @Transactional
     public void cancelAppointment(Long id) {
         Appointment appointment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -89,6 +93,7 @@ public class AppointmentService {
         repository.save(appointment);
     }
 
+    @Transactional
     public Appointment rescheduleAppointment(Long id, Long newTimeSlotId) {
         Appointment appointment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -98,6 +103,7 @@ public class AppointmentService {
     }
 
     // New reschedule by start/end timestamps
+    @Transactional
     public Appointment rescheduleAppointment(Long id, OffsetDateTime newStart, OffsetDateTime newEnd) {
         Appointment appointment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -114,6 +120,7 @@ public class AppointmentService {
     }
 
     // Fetch appointments belonging to a patient
+    @Transactional(readOnly = true)
     public List<Appointment> getAppointmentsByPatientId(Long patientId) {
         try {
             if (patientId == null) {

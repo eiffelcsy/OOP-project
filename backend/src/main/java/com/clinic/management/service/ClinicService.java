@@ -16,7 +16,6 @@ import java.util.Optional;
  * Handles business logic for clinic operations
  */
 @Service
-@Transactional
 public class ClinicService {
     
     private final ClinicRepository clinicRepository;
@@ -30,6 +29,7 @@ public class ClinicService {
      * Get all clinics
      * @return List of all clinics
      */
+    @Transactional(readOnly = true)
     public List<Clinic> getAllClinics() {
         return clinicRepository.findAll();
     }
@@ -39,6 +39,7 @@ public class ClinicService {
      * @param id Clinic ID
      * @return Optional containing the clinic if found
      */
+    @Transactional(readOnly = true)
     public Optional<Clinic> getClinicById(Long id) {
         return clinicRepository.findById(id);
     }
@@ -49,6 +50,7 @@ public class ClinicService {
      * @return Created clinic
      * @throws IllegalArgumentException if clinic with same name already exists
      */
+    @Transactional
     public Clinic createClinic(CreateClinicRequest request) {
         // Check if clinic with same name already exists
         if (clinicRepository.existsByName(request.getName())) {
@@ -77,6 +79,7 @@ public class ClinicService {
      * @return Updated clinic
      * @throws IllegalArgumentException if clinic not found or name conflict
      */
+    @Transactional
     public Clinic updateClinic(Long id, UpdateClinicRequest request) {
         Clinic existingClinic = clinicRepository.findById(id)
             .orElseThrow(() -> new IllegalArgumentException("Clinic not found with id: " + id));
@@ -125,6 +128,7 @@ public class ClinicService {
      * @param id Clinic ID
      * @throws IllegalArgumentException if clinic not found
      */
+    @Transactional
     public void deleteClinic(Long id) {
         if (!clinicRepository.existsById(id)) {
             throw new IllegalArgumentException("Clinic not found with id: " + id);
@@ -137,6 +141,7 @@ public class ClinicService {
      * @param name Partial clinic name
      * @return List of matching clinics
      */
+    @Transactional(readOnly = true)
     public List<Clinic> searchClinicsByName(String name) {
         return clinicRepository.searchByName(name);
     }
@@ -146,6 +151,7 @@ public class ClinicService {
      * @param region Region name
      * @return List of clinics in the region
      */
+    @Transactional(readOnly = true)
     public List<Clinic> getClinicsByRegion(String region) {
         return clinicRepository.findByRegionOrderByNameAsc(region);
     }
@@ -155,6 +161,7 @@ public class ClinicService {
      * @param area Area name
      * @return List of clinics in the area
      */
+    @Transactional(readOnly = true)
     public List<Clinic> getClinicsByArea(String area) {
         return clinicRepository.findByArea(area);
     }
@@ -164,6 +171,7 @@ public class ClinicService {
      * @param clinicType Clinic type
      * @return List of clinics of that type
      */
+    @Transactional(readOnly = true)
     public List<Clinic> getClinicsByType(String clinicType) {
         return clinicRepository.findByClinicType(clinicType);
     }
