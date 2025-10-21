@@ -41,7 +41,7 @@ export interface QueuePatient {
 
 export function useQueueManagement() {
   // Get auth state for accessing current user's clinic
-  const { currentUser } = useAuth()
+  const { currentUser, initializeAuth } = useAuth()
 
   // Queue state
   const queueState = reactive<QueueState>({
@@ -179,6 +179,8 @@ export function useQueueManagement() {
    */
   const initializeQueueState = async () => {
     try {
+      // Ensure auth/user is loaded before accessing clinic
+      await initializeAuth()
       console.log('Initializing queue state...')
       const clinicId = getClinicId()
       console.log('Clinic ID:', clinicId)
@@ -197,15 +199,15 @@ export function useQueueManagement() {
       if (result.data && result.data.length > 0) {
         const existingQueue = result.data[0]
         
-        console.log('DEBUG: queue_status value:', existingQueue.queue_status)
-        console.log('DEBUG: queue_status type:', typeof existingQueue.queue_status)
-        console.log('DEBUG: Comparison result:', existingQueue.queue_status === 'PAUSED')
+  console.log('DEBUG: queue_status value:', existingQueue.queue_status)
+  console.log('DEBUG: queue_status type:', typeof existingQueue.queue_status)
+  console.log('DEBUG: Comparison result:', existingQueue.queue_status === 'PAUSED')
         
         // Update local state to reflect existing queue
         queueState.isActive = true
-        queueState.isPaused = existingQueue.queue_status === 'PAUSED'
+  queueState.isPaused = existingQueue.queue_status === 'PAUSED'
         queueState.queueId = existingQueue.id
-        queueState.startedAt = new Date(existingQueue.created_at * 1000) // Convert Unix timestamp to Date
+  queueState.startedAt = new Date(existingQueue.created_at * 1000) // Convert Unix timestamp to Date
         queueState.endedAt = null
 
         console.log('Loaded existing queue:', existingQueue)
@@ -239,10 +241,10 @@ export function useQueueManagement() {
       // Get the authenticated user's clinic_id
       const clinicId = getClinicId()
       
-      // Backend expects snake_case property names
+      // Backend CreateQueueRequest explicitly expects camelCase fields via @JsonProperty
       const requestData: CreateQueueRequest = {
-        clinic_id: clinicId,
-        queue_status: 'ACTIVE' as const
+        clinicId: clinicId,
+        queueStatus: 'ACTIVE'
       }
       
       console.log('Creating queue with request:', JSON.stringify(requestData))
@@ -254,7 +256,8 @@ export function useQueueManagement() {
       queueState.isActive = true
       queueState.isPaused = false
       queueState.queueId = queueResponse.id
-      queueState.startedAt = new Date(queueResponse.created_at * 1000)
+  // Backend returns snake_case fields in JSON
+  queueState.startedAt = new Date(queueResponse.created_at * 1000)
       queueState.endedAt = null
 
       console.log('Queue started successfully:', queueResponse)
@@ -287,7 +290,7 @@ export function useQueueManagement() {
       // Update queue status to PAUSED in backend
       // Backend expects snake_case property names
       const updateRequest = {
-        queue_status: 'PAUSED' as const
+        queueStatus: 'PAUSED' as const
       }
       console.log('Sending update request:', updateRequest)
       
@@ -315,7 +318,7 @@ export function useQueueManagement() {
       // Update queue status to ACTIVE in backend
       // Backend expects snake_case property names
       const updateRequest = {
-        queue_status: 'ACTIVE' as const
+        queueStatus: 'ACTIVE' as const
       }
       console.log('Sending update request:', updateRequest)
       
@@ -339,7 +342,7 @@ export function useQueueManagement() {
       // Backend expects snake_case property names
       if (queueState.queueId) {
         await queueApi.updateQueue(queueState.queueId, {
-          queue_status: 'CLOSED'
+          queueStatus: 'CLOSED'
         })
       }
 

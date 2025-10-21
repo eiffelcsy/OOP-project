@@ -17,19 +17,21 @@ export interface UpdateQueueRequest {
   expectedUpdatedAt?: number // Unix timestamp for optimistic locking
 }
 
+// Note: Backend uses Jackson SNAKE_CASE for JSON; responses are snake_case.
 export interface QueueResponse {
   id: number
-  clinicId: number
-  clinicName: string | null
-  queueStatus: 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  createdAt: number // Unix timestamp from backend
-  updatedAt: number // Unix timestamp from backend
+  clinic_id: number
+  clinic_name: string | null
+  queue_status: 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  created_at: number // Unix timestamp from backend
+  updated_at: number // Unix timestamp from backend
 }
 
 export interface ListQueuesOptions {
   page?: number
   size?: number
-  sortBy?: 'createdAt' | 'updatedAt' | 'id'
+  // Backend expects snake_case sort fields in query params
+  sortBy?: 'created_at' | 'updated_at' | 'id'
   sortDir?: 'ASC' | 'DESC'
   clinicId?: number
   statuses?: ('ACTIVE' | 'PAUSED' | 'CLOSED')[]
@@ -91,7 +93,12 @@ export const queueApi = {
    * PUT /api/queues/{id}
    */
   async updateQueue(id: number, request: UpdateQueueRequest): Promise<QueueResponse> {
-    return apiClient.put(`/api/queues/${id}`, request)
+    // Convert camelCase request fields to snake_case for backend
+    const payload: any = {}
+    if (request.clinicId !== undefined) payload.clinic_id = request.clinicId
+    if (request.queueStatus !== undefined) payload.queue_status = request.queueStatus
+    if (request.expectedUpdatedAt !== undefined) payload.expected_updated_at = request.expectedUpdatedAt
+    return apiClient.put(`/api/queues/${id}`, payload)
   },
 
   /**
@@ -111,7 +118,7 @@ export const queueApi = {
       clinicId,
       statuses: ['ACTIVE'],
       size: 1,
-      sortBy: 'createdAt',
+      sortBy: 'created_at',
       sortDir: 'DESC'
     })
     
