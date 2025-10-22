@@ -198,24 +198,26 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
               </div>
 
               <div class="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  @click="openRescheduleDialog(appointment)"
-                  class="flex items-center gap-2"
-                >
-                  <Icon icon="lucide:calendar-clock" class="w-4 h-4" />
-                  Reschedule
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  @click="openCancelDialog(appointment)"
-                  class="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                >
-                  <Icon icon="lucide:x" class="w-4 h-4" />
-                  Cancel
-                </Button>
+                <template v-if="appointment.status === 'scheduled'">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    @click="openRescheduleDialog(appointment)"
+                    class="flex items-center gap-2"
+                  >
+                    <Icon icon="lucide:calendar-clock" class="w-4 h-4" />
+                    Reschedule
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    @click="openCancelDialog(appointment)"
+                    class="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    <Icon icon="lucide:x" class="w-4 h-4" />
+                    Cancel
+                  </Button>
+                </template>
               </div>
             </CardContent>
           </Card>
