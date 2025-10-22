@@ -8,7 +8,7 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 // Type aliases from database
 // Add 'confirmed' so backend/client-confirmed appointments are recognized
 // and include 'missed' as a synonym for 'no-show' used in some places
-type AppointmentStatus = 'scheduled' | 'confirmed' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show' | 'missed'
+type AppointmentStatus = 'scheduled' | 'confirmed' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
 
 // TimeSlot interface for UI
 interface TimeSlot {
@@ -88,7 +88,7 @@ export const useViewAppointments = () => {
       // common variants
       if (s === 'canceled' || s === 'cancel') return 'cancelled'
       if (s === 'no_show' || s === 'no show' || s === 'noshow') return 'no-show'
-      // accept 'missed' as-is
+  // accept 'missed' as legacy input but normalize to 'no-show'
       // ensure known statuses return their canonical form
       switch (s) {
         case 'scheduled': return 'scheduled'
@@ -99,8 +99,8 @@ export const useViewAppointments = () => {
         case 'in_progress': return 'in-progress'
         case 'completed': return 'completed'
         case 'cancelled': return 'cancelled'
-        case 'no-show': return 'no-show'
-        case 'missed': return 'missed'
+  case 'no-show': return 'no-show'
+  case 'missed': return 'no-show'
         default: return s
       }
     }
@@ -327,9 +327,9 @@ export const useViewAppointments = () => {
 
   const scheduledAppointments = computed(() => {
     const now = new Date()
-    // Upcoming: include both scheduled and confirmed appointments with start >= now
+    // Upcoming: include scheduled, confirmed and checked-in appointments with start >= now
     const list = appointments.value
-      .filter(appointment => (appointment.status === 'scheduled' || appointment.status === 'confirmed') && appointment.date >= now)
+      .filter(appointment => (appointment.status === 'scheduled' || appointment.status === 'confirmed' || appointment.status === 'checked-in') && appointment.date >= now)
 
     return list.sort((a, b) => {
       return upcomingSortOrder.value === 'asc'
@@ -340,9 +340,9 @@ export const useViewAppointments = () => {
 
   const pastAppointments = computed(() => {
     const now = new Date()
-    // Past: include completed, cancelled and missed (no-show/missed)
+    // Past: include completed, cancelled and no-show (formerly called "missed")
     const list = appointments.value
-      .filter(appointment => ['completed', 'cancelled', 'no-show', 'missed'].includes(appointment.status))
+      .filter(appointment => ['completed', 'cancelled', 'no-show'].includes(appointment.status))
 
     return list.sort((a, b) => {
       return pastSortOrder.value === 'asc'
@@ -526,7 +526,7 @@ export const useViewAppointments = () => {
 
   const getStatusColor = (status: Appointment['status']) => {
     // Colors mapped as requested by product: confirmed=green, scheduled=blue,
-    // cancelled=light-gray, no-show (missed)=red, completed=emerald green
+  // cancelled=light-gray, no-show=red, completed=emerald green
     switch (status) {
       case 'confirmed':
         // green (success)
@@ -538,8 +538,7 @@ export const useViewAppointments = () => {
         // light gray (neutral)
         return 'bg-gray-50 text-gray-600 border-gray-100'
       case 'no-show':
-      case 'missed':
-        // missed appointments shown as red (danger)
+        // no-show appointments shown as red (danger)
         return 'bg-red-100 text-red-800 border-red-200'
       case 'completed':
         // completed — use emerald for completed(success/completed)

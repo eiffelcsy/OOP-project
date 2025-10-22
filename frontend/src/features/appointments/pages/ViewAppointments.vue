@@ -59,7 +59,7 @@ const pastStatuses = computed(() => {
 const prettyStatus = (status: string) => {
   if (!status) return ''
   switch (status) {
-    case 'no-show': return 'Missed'
+    case 'no-show': return 'No-show'
     case 'checked-in': return 'Checked-in'
     case 'in-progress': return 'In-progress'
     case 'cancelled': return 'Cancelled'
@@ -156,8 +156,8 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
           </div>
         </div>
 
-        <!-- Explanatory line -->
-        <p class="text-sm text-muted-foreground mb-2">Upcoming appointments include statuses: <strong>Scheduled</strong> and <strong>Confirmed</strong>.</p>
+  <!-- Explanatory line -->
+  <p class="text-sm text-muted-foreground mb-2">Upcoming appointments include statuses: <strong>Scheduled</strong>, <strong>Confirmed</strong> and <strong>Checked-in</strong>.</p>
 
         <div v-for="appointment in filteredScheduledAppointments" :key="appointment.id">
           <Card>
@@ -267,8 +267,8 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
           </div>
         </div>
 
-        <!-- Explanatory line -->
-        <p class="text-sm text-muted-foreground mb-2">Past appointments include statuses: <strong>Completed</strong>, <strong>Cancelled</strong> and <strong>Missed</strong>.</p>
+  <!-- Explanatory line -->
+  <p class="text-sm text-muted-foreground mb-2">Past appointments include statuses: <strong>Completed</strong>, <strong>Cancelled</strong> and <strong>No-show</strong>.</p>
 
         <Card 
           v-for="appointment in filteredPastAppointments" 
