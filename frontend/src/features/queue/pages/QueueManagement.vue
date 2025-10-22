@@ -13,6 +13,7 @@ const {
   currentPatient,
   completedToday,
   noShowToday,
+  hasCalledTicket,
   initializeQueueState,
   startQueue,
   pauseQueue,
@@ -39,30 +40,18 @@ const openQueueDisplay = () => {
 }
 
 const getPriorityIcon = (priority: string) => {
-  switch (priority) {
-    case 'emergency': return 'lucide:alert-triangle'
-    case 'elderly': return 'lucide:user-check'
-    case 'fast-track': return 'lucide:zap'
-    default: return 'lucide:user'
-  }
+  return priority === 'fast-track' ? 'lucide:zap' : 'lucide:user'
 }
 
 const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case 'emergency': return 'text-red-600'
-    case 'elderly': return 'text-blue-600'
-    case 'fast-track': return 'text-yellow-600'
-    default: return 'text-gray-600'
-  }
+  return priority === 'fast-track' ? 'text-yellow-600' : 'text-gray-600'
 }
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'checked-in': return 'bg-green-100 text-green-800'
-    case 'called': return 'bg-blue-100 text-blue-800'
-    case 'in-progress': return 'bg-yellow-100 text-yellow-800'
-    case 'completed': return 'bg-green-100 text-green-800'
-    case 'no-show': return 'bg-red-100 text-red-800'
+    case 'Called': return 'bg-blue-100 text-blue-800'
+    case 'Completed': return 'bg-green-100 text-green-800'
+    case 'No Show': return 'bg-red-100 text-red-800'
     default: return 'bg-gray-100 text-gray-800'
   }
 }
@@ -180,7 +169,7 @@ const getStatusColor = (status: string) => {
 
           <Button 
             @click="callNext"
-            :disabled="!queueState.isActive || queueState.isPaused || waitingPatients.length === 0"
+            :disabled="!queueState.isActive || queueState.isPaused || waitingPatients.length === 0 || hasCalledTicket"
             class="flex items-center gap-2"
           >
             <Icon icon="lucide:bell" class="h-4 w-4" />
@@ -207,10 +196,10 @@ const getStatusColor = (status: string) => {
               <p class="text-sm text-muted-foreground">Called at {{ currentPatient.calledTime }}</p>
             </div>
             <div class="flex gap-2">
-              <Button @click="updatePatientStatus(currentPatient.id, 'completed')" size="sm">
+              <Button @click="updatePatientStatus(currentPatient.id, 'Completed', { setCompletedAtNow: true })" size="sm" :disabled="queueState.isPaused">
                 Complete
               </Button>
-              <Button @click="updatePatientStatus(currentPatient.id, 'no-show')" variant="outline" size="sm">
+              <Button @click="updatePatientStatus(currentPatient.id, 'No Show', { setNoShowAtNow: true })" variant="outline" size="sm" :disabled="queueState.isPaused">
                 No Show
               </Button>
             </div>
@@ -243,35 +232,38 @@ const getStatusColor = (status: string) => {
                   </div>
                   <div>
                     <p class="font-medium">{{ patient.name }}</p>
-                    <p class="text-sm text-muted-foreground">{{ patient.appointmentTime }} - {{ patient.priority }}</p>
+                    <p class="text-sm text-muted-foreground">{{ patient.appointmentTime }}</p>
                     <p v-if="patient.checkInTime" class="text-xs text-green-600">Checked in at {{ patient.checkInTime }}</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
-                    {{ patient.status.replace('-', ' ').toUpperCase() }}
+                  <span v-if="patient.status !== 'Checked In'" :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
+                    {{ patient.status.toUpperCase() }}
                   </span>
                   <div class="flex gap-1">
                     <Button 
-                      v-if="patient.status === 'checked-in'"
-                      @click="updatePatientStatus(patient.id, 'checked-in')"
+                      v-if="patient.status === 'Checked In' && !hasCalledTicket"
+                      @click="updatePatientStatus(patient.id, 'Called', { setCalledAtNow: true })"
                       size="sm"
                       variant="outline"
+                      :disabled="queueState.isPaused"
                     >
-                      Check In
+                      Call Patient
                     </Button>
                     <Button 
                       v-if="patient.priority === 'fast-track'"
                       @click="removeFromFastTrack(patient.id)"
                       size="sm"
                       variant="outline"
+                      :disabled="queueState.isPaused"
                     >
                       <Icon icon="lucide:x" class="h-3 w-3" />
                     </Button>
                     <Button 
-                      @click="updatePatientStatus(patient.id, 'no-show')"
+                      @click="updatePatientStatus(patient.id, 'No Show', { setNoShowAtNow: true })"
                       size="sm"
                       variant="destructive"
+                      :disabled="queueState.isPaused"
                     >
                       No Show
                     </Button>
@@ -286,7 +278,7 @@ const getStatusColor = (status: string) => {
             <h4 class="font-medium mb-2">Regular Patients</h4>
             <div class="space-y-2">
               <div 
-                v-for="patient in patients.filter(p => (p.status === 'checked-in' || p.status === 'in-progress') && p.priority === 'normal')" 
+                v-for="patient in patients.filter(p => p.status === 'Checked In' && p.priority === 'normal')" 
                 :key="patient.id"
                 class="flex items-center justify-between p-4 border rounded-lg"
               >
@@ -302,30 +294,34 @@ const getStatusColor = (status: string) => {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
-                    {{ patient.status.replace('-', ' ').toUpperCase() }}
+                  <span v-if="patient.status !== 'Checked In'" :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
+                    {{ patient.status.toUpperCase() }}
                   </span>
                   <div class="flex gap-1">
                     <Button 
-                      v-if="patient.status === 'checked-in'"
-                      @click="updatePatientStatus(patient.id, 'checked-in')"
+                      v-if="patient.status === 'Checked In' && !hasCalledTicket"
+                      @click="updatePatientStatus(patient.id, 'Called', { setCalledAtNow: true })"
                       size="sm"
                       variant="outline"
+                      title="Call Patient"
+                      :disabled="queueState.isPaused"
                     >
-                      Check In
+                      Call Patient
                     </Button>
                     <Button 
                       @click="moveToFastTrack(patient.id)"
                       size="sm"
                       variant="outline"
                       title="Fast Track"
+                      :disabled="queueState.isPaused"
                     >
                       <Icon icon="lucide:zap" class="h-3 w-3" />
                     </Button>
                     <Button 
-                      @click="updatePatientStatus(patient.id, 'no-show')"
+                      @click="updatePatientStatus(patient.id, 'No Show', { setNoShowAtNow: true })"
                       size="sm"
                       variant="destructive"
+                      :disabled="queueState.isPaused"
                     >
                       No Show
                     </Button>
@@ -336,11 +332,11 @@ const getStatusColor = (status: string) => {
           </div>
 
           <!-- Completed/No Show Patients -->
-          <div v-if="patients.filter(p => p.status === 'completed' || p.status === 'no-show').length > 0">
-            <h4 class="font-medium mb-2">Processed Today</h4>
+          <div v-if="patients.filter(p => p.status === 'Completed' || p.status === 'No Show').length > 0">
+            <h4 class="font-medium mb-2">Completed Today</h4>
             <div class="space-y-2">
               <div 
-                v-for="patient in patients.filter(p => p.status === 'completed' || p.status === 'no-show')" 
+                v-for="patient in patients.filter(p => p.status === 'Completed' || p.status === 'No Show')" 
                 :key="patient.id"
                 class="flex items-center justify-between p-4 border rounded-lg bg-gray-50"
               >
@@ -351,8 +347,8 @@ const getStatusColor = (status: string) => {
                     <p class="text-sm text-muted-foreground">{{ patient.appointmentTime }}</p>
                   </div>
                 </div>
-                <span :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
-                  {{ patient.status.replace('-', ' ').toUpperCase() }}
+                <span v-if="patient.status !== 'Checked In'" :class="getStatusColor(patient.status)" class="px-2 py-1 rounded-full text-xs font-medium">
+                  {{ patient.status.toUpperCase() }}
                 </span>
               </div>
             </div>

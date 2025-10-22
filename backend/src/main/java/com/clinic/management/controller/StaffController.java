@@ -2,13 +2,17 @@ package com.clinic.management.controller;
 
 import com.clinic.management.dto.request.CreateQueueRequest;
 import com.clinic.management.dto.request.ListQueuesOptions;
+import com.clinic.management.dto.request.CreateQueueTicketRequest;
+import com.clinic.management.dto.request.UpdateQueueTicketRequest;
 import com.clinic.management.dto.request.UpdateQueueRequest;
 import com.clinic.management.dto.response.ListResult;
 import com.clinic.management.dto.response.QueueResponse;
+import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Queue;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
+import com.clinic.management.service.QueueTicketService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,11 +51,13 @@ public class StaffController {
 
     private final AppointmentService appointmentService;
     private final QueueService queueService;
+    private final QueueTicketService queueTicketService;
 
     @Autowired
-    public StaffController(AppointmentService appointmentService, QueueService queueService) {
+    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
+        this.queueTicketService = queueTicketService;
     }
 
     // =========================
@@ -201,6 +207,60 @@ public class StaffController {
     @DeleteMapping("/queues/{id}")
     public ResponseEntity<Void> deleteQueue(@PathVariable Long id) {
         queueService.deleteQueue(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // =========================
+    // QUEUE TICKET ENDPOINTS
+    // =========================
+
+    /**
+     * Create a new queue ticket
+     * POST /api/queue-tickets
+     */
+    @PostMapping("/queue-tickets")
+    public ResponseEntity<QueueTicketResponse> createQueueTicket(@Valid @RequestBody CreateQueueTicketRequest request) {
+        var ticket = queueTicketService.create(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(QueueTicketResponse.from(ticket));
+    }
+
+    /**
+     * Get queue ticket by ID
+     * GET /api/queue-tickets/{id}
+     */
+    @GetMapping("/queue-tickets/{id}")
+    public ResponseEntity<QueueTicketResponse> getQueueTicketById(@PathVariable Long id) {
+        var ticket = queueTicketService.getById(id);
+        return ResponseEntity.ok(QueueTicketResponse.from(ticket));
+    }
+
+    /**
+     * List queue tickets by queue ID
+     * GET /api/queues/{queueId}/tickets
+     */
+    @GetMapping("/queues/{queueId}/tickets")
+    public ResponseEntity<List<QueueTicketResponse>> listQueueTicketsByQueue(@PathVariable Long queueId) {
+        var list = queueTicketService.listByQueueId(queueId).stream().map(QueueTicketResponse::from).toList();
+        return ResponseEntity.ok(list);
+    }
+
+    /**
+     * Update queue ticket
+     * PUT /api/queue-tickets/{id}
+     */
+    @PutMapping("/queue-tickets/{id}")
+    public ResponseEntity<QueueTicketResponse> updateQueueTicket(@PathVariable Long id, @Valid @RequestBody UpdateQueueTicketRequest request) {
+        var updated = queueTicketService.update(id, request);
+        return ResponseEntity.ok(QueueTicketResponse.from(updated));
+    }
+
+    /**
+     * Delete queue ticket
+     * DELETE /api/queue-tickets/{id}
+     */
+    @DeleteMapping("/queue-tickets/{id}")
+    public ResponseEntity<Void> deleteQueueTicket(@PathVariable Long id) {
+        queueTicketService.delete(id);
         return ResponseEntity.noContent().build();
     }
 }

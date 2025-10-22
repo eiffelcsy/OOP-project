@@ -1,13 +1,16 @@
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import type { Tables } from '@/types/supabase'
 import { queueApi, type QueueResponse, type CreateQueueRequest } from '@/services/queueApi'
+import { queueTicketsApi, type QueueTicketResponse } from '@/services/queueTicketsApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { supabase } from '@/lib/supabase'
 
 // Type aliases from database
 type QueueTicket = Tables<'queue_tickets'>
 type Patient = Tables<'patients'>
-type QueuePriority = 'normal' | 'elderly' | 'emergency' | 'fast-track'
-type QueueTicketStatus = 'checked-in' | 'called' | 'in-progress' | 'completed' | 'no-show'
+type QueuePriority = 'normal' | 'fast-track'
+// Canonical display statuses per requirement
+type QueueTicketStatus = 'Checked In' | 'Called' | 'Completed' | 'No Show'
 
 // Queue state interface
 interface QueueState {
@@ -41,7 +44,7 @@ export interface QueuePatient {
 
 export function useQueueManagement() {
   // Get auth state for accessing current user's clinic
-  const { currentUser, initializeAuth } = useAuth()
+  const { currentUser, initializeAuth, refreshUser } = useAuth()
 
   // Queue state
   const queueState = reactive<QueueState>({
@@ -55,96 +58,81 @@ export function useQueueManagement() {
     endedAt: null
   })
 
-  // Dummy patient data (using database-aligned structure)
-  const patients = ref<QueuePatient[]>([
-    {
-      id: 1,
-      ticket_id: 1,
-      queue_id: 1,
-      patient_id: 1,
-      appointment_id: 1,
-      queueNumber: 1,
-      name: 'John Smith',
-      appointmentTime: '09:00',
-      status: 'checked-in', // Using QueueTicketStatus
-      priority: 'normal',
-      estimatedTime: '09:15',
-      checkInTime: '08:45'
-    },
-    {
-      id: 2,
-      ticket_id: 2,
-      queue_id: 1,
-      patient_id: 2,
-      appointment_id: 2,
-      queueNumber: 2,
-      name: 'Emily Johnson',
-      appointmentTime: '09:30',
-      status: 'checked-in',
-      priority: 'elderly',
-      estimatedTime: '09:45'
-    },
-    {
-      id: 3,
-      ticket_id: 3,
-      queue_id: 1,
-      patient_id: 3,
-      appointment_id: 3,
-      queueNumber: 3,
-      name: 'Michael Brown',
-      appointmentTime: '10:00',
-      status: 'checked-in',
-      priority: 'emergency',
-      estimatedTime: '10:15'
-    },
-    {
-      id: 4,
-      ticket_id: 4,
-      queue_id: 1,
-      patient_id: 4,
-      appointment_id: 4,
-      queueNumber: 4,
-      name: 'Sarah Davis',
-      appointmentTime: '10:30',
-      status: 'checked-in',
-      priority: 'normal',
-      estimatedTime: '10:45'
-    },
-    {
-      id: 5,
-      ticket_id: 5,
-      queue_id: 1,
-      patient_id: 5,
-      appointment_id: 5,
-      queueNumber: 5,
-      name: 'Robert Wilson',
-      appointmentTime: '11:00',
-      status: 'checked-in',
-      priority: 'normal',
-      estimatedTime: '11:15'
-    },
-    {
-      id: 6,
-      ticket_id: 6,
-      queue_id: 1,
-      patient_id: 6,
-      appointment_id: 6,
-      queueNumber: 6,
-      name: 'Lisa Anderson',
-      appointmentTime: '11:30',
-      status: 'checked-in',
-      priority: 'elderly',
-      estimatedTime: '11:45'
+  const patients = ref<QueuePatient[]>([])
+
+  // Map DB priority (0/1) to UI categories
+  const mapPriority = (p?: number | null): QueuePriority => (p === 1 ? 'fast-track' : 'normal')
+
+  // Map DB ticket_status to UI status used in this page
+  const mapStatus = (s?: string | null): QueueTicketStatus => {
+    const raw = (s || 'Checked In').toLowerCase().replace(/[_-]/g, ' ')
+    if (raw === 'waiting' || raw === 'checked in') return 'Checked In'
+    if (raw === 'called') return 'Called'
+    if (raw === 'completed') return 'Completed'
+    if (raw === 'no show') return 'No Show'
+    return 'Checked In'
+  }
+
+  // Load queue tickets and hydrate basic patient info
+  const loadQueueTickets = async (queueId: number) => {
+    const tickets: QueueTicketResponse[] = await queueTicketsApi.listByQueueId(queueId)
+
+    const patientIds = Array.from(new Set(tickets.map(t => t.patient_id).filter((v): v is number => !!v)))
+    const patientMap = new Map<number, { user_id: string | null; phone: string | null }>()
+    const nameByUserId = new Map<string, string>()
+
+    if (patientIds.length > 0) {
+      const { data: patientsRows } = await supabase
+        .from('patients')
+        .select('id, user_id, phone')
+        .in('id', patientIds)
+      if (patientsRows) {
+        patientsRows.forEach(r => patientMap.set(r.id, { user_id: r.user_id, phone: r.phone }))
+        const userIds = Array.from(new Set(patientsRows.map(r => r.user_id).filter((u): u is string => !!u)))
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id, full_name')
+            .in('user_id', userIds)
+          if (profiles) profiles.forEach(p => nameByUserId.set(p.user_id, p.full_name || ''))
+        }
+      }
     }
-  ])
+
+    const transformed: QueuePatient[] = tickets.map(t => {
+      const patInfo = t.patient_id ? patientMap.get(t.patient_id) : undefined
+      const fullName = patInfo?.user_id ? (nameByUserId.get(patInfo.user_id) || undefined) : undefined
+      const status = mapStatus(t.ticket_status)
+      const calledTimeStr = t.called_at ? new Date(t.called_at).toLocaleTimeString() : undefined
+      const updatedTimeStr = t.updated_at ? new Date(t.updated_at).toLocaleTimeString() : undefined
+      return {
+        id: t.id,
+        ticket_id: t.id,
+        queue_id: t.queue_id,
+        patient_id: t.patient_id ?? undefined,
+        appointment_id: t.appointment_id ?? undefined,
+        queueNumber: t.ticket_number,
+        name: fullName || (t.patient_id ? `Patient #${t.patient_id}` : 'Walk-in'),
+        // Display time: if Called -> called_at; if Checked In -> updated_at; otherwise '-'
+        appointmentTime: status === 'Called' ? (calledTimeStr || '-') : (updatedTimeStr || '-'),
+        status,
+        priority: mapPriority(t.priority || 0),
+        estimatedTime: undefined,
+        checkInTime: t.created_at ? new Date(t.created_at).toLocaleTimeString() : undefined,
+        calledTime: calledTimeStr,
+      }
+    })
+
+    patients.value = transformed
+  }
 
   // Computed properties
   const waitingPatients = computed(() => 
-    patients.value.filter(p => p.status === 'checked-in')
+    patients.value.filter(p => p.status === 'Checked In')
   )
 
   const priorityPatients = computed(() => 
-    waitingPatients.value.filter(p => p.priority === 'emergency' || p.priority === 'elderly' || p.priority === 'fast-track')
+    waitingPatients.value.filter(p => p.priority === 'fast-track')
   )
 
   const normalPatients = computed(() => 
@@ -152,15 +140,17 @@ export function useQueueManagement() {
   )
 
   const currentPatient = computed(() => 
-    patients.value.find(p => p.status === 'checked-in' || p.status === 'in-progress')
+    patients.value.find(p => p.status === 'Called') || null
   )
 
+  const hasCalledTicket = computed(() => patients.value.some(p => p.status === 'Called'))
+
   const completedToday = computed(() => 
-    patients.value.filter(p => p.status === 'completed').length
+    patients.value.filter(p => p.status === 'Completed').length
   )
 
   const noShowToday = computed(() => 
-    patients.value.filter(p => p.status === 'no-show').length
+    patients.value.filter(p => p.status === 'No Show').length
   )
 
   // Helper function to get current user's clinic ID
@@ -216,6 +206,9 @@ export function useQueueManagement() {
           isPaused: queueState.isPaused,
           queueId: queueState.queueId
         })
+  // Load tickets for this queue and subscribe to realtime updates
+  await loadQueueTickets(existingQueue.id)
+  subscribeToQueueTickets(existingQueue.id)
       } else {
         // No active queue found
         console.log('No active or paused queue found')
@@ -231,6 +224,27 @@ export function useQueueManagement() {
       // Don't show alert on initialization failure, just log
     }
   }
+
+  // Handle tab visibility changes: when returning to the tab, refresh auth and queue state
+  const handleVisibilityChange = async () => {
+    if (document.visibilityState === 'visible') {
+      try {
+        await refreshUser()
+        await initializeQueueState()
+      } catch (e) {
+        console.warn('Failed to refresh after visibility change', e)
+      }
+    }
+  }
+
+  onMounted(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  })
+
+  onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    unsubscribeQueueTickets()
+  })
 
   /**
    * Start a new queue
@@ -260,7 +274,11 @@ export function useQueueManagement() {
   queueState.startedAt = new Date(queueResponse.created_at * 1000)
       queueState.endedAt = null
 
-      console.log('Queue started successfully:', queueResponse)
+  console.log('Queue started successfully:', queueResponse)
+
+  // Load tickets for the newly started queue and subscribe to realtime updates
+  await loadQueueTickets(queueResponse.id)
+  subscribeToQueueTickets(queueResponse.id)
     } catch (error) {
       console.error('Failed to start queue:', error)
       
@@ -338,19 +356,43 @@ export function useQueueManagement() {
 
   const endQueue = async () => {
     try {
-      // Update queue status to CLOSED in backend
-      // Backend expects snake_case property names
-      if (queueState.queueId) {
-        await queueApi.updateQueue(queueState.queueId, {
-          queueStatus: 'CLOSED'
-        })
+      // If there are pending patients, prompt the user to decide
+      const pending = patients.value.filter(p => p.status === 'Checked In' || p.status === 'Called')
+      if (pending.length > 0) {
+        const choice = window.prompt(
+          `There are still ${pending.length} patients in the queue. Type one of: cancel | no-show | completed`,
+          'cancel'
+        )
+        if (!choice || choice.toLowerCase() === 'cancel') {
+          return
+        }
+        const nowIso = new Date().toISOString()
+        if (choice.toLowerCase() === 'no-show') {
+          await Promise.all(
+            pending.map(p => queueTicketsApi.update(p.ticket_id, { ticket_status: 'No Show', no_show_at: nowIso }))
+          )
+        } else if (choice.toLowerCase() === 'completed') {
+          await Promise.all(
+            pending.map(p => queueTicketsApi.update(p.ticket_id, { ticket_status: 'Completed', completed_at: nowIso }))
+          )
+        } else {
+          return
+        }
       }
 
-      // Update local state - reset everything as queue is now closed
+      if (queueState.queueId) {
+        await queueApi.updateQueue(queueState.queueId, { queueStatus: 'CLOSED' })
+      }
+
+      // Clear local tickets and state
+      patients.value = []
       queueState.isActive = false
       queueState.isPaused = false
       queueState.queueId = null
       queueState.endedAt = new Date()
+
+      // Unsubscribe from realtime
+      unsubscribeQueueTickets()
 
       console.log('Queue ended successfully')
     } catch (error) {
@@ -364,50 +406,86 @@ export function useQueueManagement() {
     }
   }
 
-  const callNext = () => {
-    if (queueState.isPaused) return
+  // Realtime: subscribe/unsubscribe helpers
+  let ticketsChannel: any | null = null
+  const subscribeToQueueTickets = (qid: number) => {
+    unsubscribeQueueTickets()
+    ticketsChannel = supabase
+      .channel(`queue_tickets_${qid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_tickets', filter: `queue_id=eq.${qid}` }, async () => {
+        await loadQueueTickets(qid)
+      })
+      .subscribe()
+  }
 
-    // Find the next patient to call (priority first, then by queue number)
-    const nextPatient = priorityPatients.value.length > 0 
-      ? priorityPatients.value.sort((a, b) => a.queueNumber - b.queueNumber)[0]
-      : normalPatients.value.sort((a, b) => a.queueNumber - b.queueNumber)[0]
-
-    if (nextPatient) {
-      // Mark current patient as completed if exists
-      if (currentPatient.value) {
-        updatePatientStatus(currentPatient.value.id, 'completed')
-      }
-
-      // Call next patient
-      updatePatientStatus(nextPatient.id, 'called')
-      nextPatient.calledTime = new Date().toLocaleTimeString()
-      queueState.currentNumber = nextPatient.queueNumber
-      queueState.totalServed++
+  const unsubscribeQueueTickets = () => {
+    if (ticketsChannel) {
+      try { ticketsChannel.unsubscribe() } catch {}
+      ticketsChannel = null
     }
   }
 
-  const updatePatientStatus = (patientId: number, status: QueueTicketStatus) => {
-    const patient = patients.value.find(p => p.id === patientId)
-    if (patient) {
-      patient.status = status
-      if (status === 'checked-in') {
-        patient.checkInTime = new Date().toLocaleTimeString()
-      }
-    }
+  const callNext = async () => {
+    if (queueState.isPaused || hasCalledTicket.value) return
+    // Determine eligible: not Completed/No Show/Called => essentially 'Checked In'
+    const eligible = patients.value
+      .filter(p => p.status === 'Checked In')
+      .sort((a, b) => {
+        // priority fast-track first (1), then by id asc
+        const pa = pToPriorityNum(a.priority)
+        const pb = pToPriorityNum(b.priority)
+        if (pa !== pb) return pb - pa
+        return a.id - b.id
+      })
+
+    const next = eligible[0]
+    if (!next) return
+
+    await updatePatientStatus(next.id, 'Called', { setCalledAtNow: true })
+    queueState.currentNumber = next.queueNumber
   }
 
-  const moveToFastTrack = (patientId: number) => {
+  const pToPriorityNum = (p: QueuePriority): number => (p === 'fast-track' ? 1 : 0)
+
+  const updatePatientStatus = async (
+    patientId: number,
+    status: QueueTicketStatus | 'checked-in' | 'called' | 'completed' | 'no-show',
+    opts?: { setCalledAtNow?: boolean; setCompletedAtNow?: boolean; setNoShowAtNow?: boolean }
+  ) => {
     const patient = patients.value.find(p => p.id === patientId)
-    if (patient) {
-      patient.priority = 'fast-track'
-    }
+    if (!patient) return
+    const nowIso = new Date().toISOString()
+    // Normalize legacy lowercase statuses to canonical labels
+    const normalized: QueueTicketStatus =
+      status === 'checked-in' ? 'Checked In' :
+      status === 'called' ? 'Called' :
+      status === 'completed' ? 'Completed' :
+      status === 'no-show' ? 'No Show' : status
+    const payload: any = { ticket_status: normalized }
+    if (opts?.setCalledAtNow) payload.called_at = nowIso
+    if (opts?.setCompletedAtNow) payload.completed_at = nowIso
+    if (opts?.setNoShowAtNow) payload.no_show_at = nowIso
+
+    // Persist to backend
+    await queueTicketsApi.update(patient.ticket_id, payload)
+
+    // Update local state
+    patient.status = normalized
+    if (opts?.setCalledAtNow) patient.calledTime = new Date().toLocaleTimeString()
   }
 
-  const removeFromFastTrack = (patientId: number) => {
+  const moveToFastTrack = async (patientId: number) => {
     const patient = patients.value.find(p => p.id === patientId)
-    if (patient && patient.priority === 'fast-track') {
-      patient.priority = 'normal'
-    }
+    if (!patient) return
+    await queueTicketsApi.update(patient.ticket_id, { priority: 1 })
+    patient.priority = 'fast-track'
+  }
+
+  const removeFromFastTrack = async (patientId: number) => {
+    const patient = patients.value.find(p => p.id === patientId)
+    if (!patient) return
+    await queueTicketsApi.update(patient.ticket_id, { priority: 0 })
+    patient.priority = 'normal'
   }
 
   // Reset queue for new day
@@ -420,8 +498,8 @@ export function useQueueManagement() {
     queueState.startedAt = null
     queueState.endedAt = null
     patients.value.forEach(p => {
-      if (p.status !== 'completed' && p.status !== 'no-show') {
-        p.status = 'checked-in'
+      if (p.status !== 'Completed' && p.status !== 'No Show') {
+        p.status = 'Checked In'
         p.checkInTime = undefined
         p.calledTime = undefined
       }
@@ -438,6 +516,7 @@ export function useQueueManagement() {
     priorityPatients,
     normalPatients,
     currentPatient,
+    hasCalledTicket,
     completedToday,
     noShowToday,
     

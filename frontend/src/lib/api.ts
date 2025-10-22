@@ -3,14 +3,36 @@ import { supabase } from './supabase'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 export const apiClient = {
+  async ensureToken(): Promise<string> {
+    // Try to get a valid token; if missing, attempt a refresh once
+    let token = await this.getToken()
+    if (token) return token
+    try {
+      // Attempt to refresh the session
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error) throw error
+      token = data.session?.access_token || null
+    } catch {
+      // ignore and fall through
+    }
+    if (!token) {
+      throw new Error('User not authenticated. Please sign in again.')
+    }
+    return token
+  },
   async get(endpoint: string) {
-    const token = await this.getToken()
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const token = await this.ensureToken()
+    const doFetch = async (bearer: string) => fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${bearer}`,
         'Content-Type': 'application/json'
       }
     })
+    let response = await doFetch(token)
+    if (response.status === 401 || response.status === 403) {
+      const retryToken = await this.ensureToken()
+      response = await doFetch(retryToken)
+    }
     
     if (!response.ok) {
       // Try to get error message from response body
@@ -34,15 +56,20 @@ export const apiClient = {
   },
 
   async post(endpoint: string, data: any) {
-    const token = await this.getToken()
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const token = await this.ensureToken()
+    const doFetch = async (bearer: string) => fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${bearer}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(data)
     })
+    let response = await doFetch(token)
+    if (response.status === 401 || response.status === 403) {
+      const retryToken = await this.ensureToken()
+      response = await doFetch(retryToken)
+    }
     
     if (!response.ok) {
       // Try to get error message from response body
@@ -66,15 +93,20 @@ export const apiClient = {
   },
 
   async put(endpoint: string, data: any) {
-    const token = await this.getToken()
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const token = await this.ensureToken()
+    const doFetch = async (bearer: string) => fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${bearer}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(data)
     })
+    let response = await doFetch(token)
+    if (response.status === 401 || response.status === 403) {
+      const retryToken = await this.ensureToken()
+      response = await doFetch(retryToken)
+    }
     
     if (!response.ok) {
       // Try to get error message from response body
@@ -98,14 +130,19 @@ export const apiClient = {
   },
 
   async delete(endpoint: string) {
-    const token = await this.getToken()
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const token = await this.ensureToken()
+    const doFetch = async (bearer: string) => fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${bearer}`,
         'Content-Type': 'application/json'
       }
     })
+    let response = await doFetch(token)
+    if (response.status === 401 || response.status === 403) {
+      const retryToken = await this.ensureToken()
+      response = await doFetch(retryToken)
+    }
     
     if (!response.ok) {
       // Try to get error message from response body

@@ -180,22 +180,18 @@ const formatTime = (date: Date) => {
                             <div class="grid grid-cols-5 gap-2">
                                 <div v-for="patient in waitingNumbers.slice(0, 10)" :key="patient.number" :class="[
                                     'rounded-lg p-2 text-center border transition-all duration-300',
-                                    patient.priority === 'emergency' || patient.priority === 'elderly' || patient.priority === 'fast-track'
+                                    patient.priority === 'fast-track'
                                         ? 'bg-red-50 border-red-200'
                                         : 'bg-blue-50 border-blue-200'
                                 ]">
                                     <div :class="[
                                         'text-3xl font-bold mb-1',
-                                        patient.priority === 'emergency' || patient.priority === 'elderly' || patient.priority === 'fast-track'
-                                            ? 'text-red-600'
-                                            : 'text-blue-600'
+                                        patient.priority === 'fast-track' ? 'text-red-600' : 'text-blue-600'
                                     ]">
                                         #{{ patient.number }}
                                     </div>
                                     <div class="text-xs font-medium text-gray-600">
-                                        {{ patient.priority === 'emergency' ? 'EMERGENCY' :
-                                            patient.priority === 'elderly' ? 'PRIORITY' :
-                                                patient.priority === 'fast-track' ? 'FAST TRACK' : 'WAITING' }}
+                                        {{ patient.priority === 'fast-track' ? 'FAST TRACK' : 'WAITING' }}
                                     </div>
                                 </div>
                             </div>
