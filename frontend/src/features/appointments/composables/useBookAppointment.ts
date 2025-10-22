@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { schedulesApi } from '@/services/schedulesApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
-import { ensureSgtOffset, SGT_OFFSET, hasTz } from '@/lib/utils'
+import { ensureSgtOffset, SGT_OFFSET, hasTz, sgtLocalToUtcIso, utcIsoToSgTime } from '@/lib/utils'
 
 // Type aliases from database
 type Clinic = Tables<'clinics'>
@@ -323,7 +323,8 @@ export const useBookAppointment = () => {
       const rows = (fetchedSchedules.value || []).filter((r: any) => Number(r.day_of_week) === Number(dayNum) || Number(r.dayOfWeek) === Number(dayNum))
       if (!rows || rows.length === 0) continue
 
-      const dateStr = d.toISOString().slice(0, 10) // YYYY-MM-DD
+  // Use Singapore local date string (YYYY-MM-DD) to avoid timezone shifting
+  const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) // e.g. "2025-10-27"
 
       let dateHasFree = false
       for (const row of rows) {
@@ -337,16 +338,25 @@ export const useBookAppointment = () => {
 
         for (const s of slots) {
           try {
-            const slotStartIso = new Date(`${dateStr}T${s.start}`).toISOString()
-            const slotEndIso = new Date(`${dateStr}T${s.end}`).toISOString()
-            // check if any fetched appointment overlaps this slot
+            // Treat computed slots as Singapore-local times; normalize to UTC for comparisons
+              // Build Singapore-local datetimes for the slot and convert to UTC for comparison
+              const sgStartRaw = `${dateStr}T${s.start}`
+              const sgEndRaw = `${dateStr}T${s.end}`
+              const slotStartUtc = sgtLocalToUtcIso(sgStartRaw)
+              const slotEndUtc = sgtLocalToUtcIso(sgEndRaw)
+            if (!slotStartUtc || !slotEndUtc) continue
+            // check if any fetched appointment overlaps this slot (compare in UTC)
             const overlap = (fetchedAppointments.value || []).some(a => {
-              const aStart = new Date(a.start_time ?? a.startTime ?? a.start).getTime()
-              const aEnd = new Date(a.end_time ?? a.endTime ?? a.end).getTime()
-              if (isNaN(aStart) || isNaN(aEnd)) return false
-              const sMs = new Date(slotStartIso).getTime()
-              const eMs = new Date(slotEndIso).getTime()
-              return aStart < eMs && aEnd > sMs
+              const aStartRaw = a.start_time ?? a.startTime ?? a.start
+              const aEndRaw = a.end_time ?? a.endTime ?? a.end
+              const aStartUtc = hasTz(aStartRaw) ? sgtLocalToUtcIso(aStartRaw) : sgtLocalToUtcIso(aStartRaw)
+              const aEndUtc = hasTz(aEndRaw) ? sgtLocalToUtcIso(aEndRaw) : sgtLocalToUtcIso(aEndRaw)
+              if (!aStartUtc || !aEndUtc) return false
+              const aStartMs = new Date(aStartUtc).getTime()
+              const aEndMs = new Date(aEndUtc).getTime()
+              const sMs = new Date(slotStartUtc).getTime()
+              const eMs = new Date(slotEndUtc).getTime()
+              return aStartMs < eMs && aEndMs > sMs
             })
             if (!overlap) {
               dateHasFree = true
@@ -447,13 +457,19 @@ export const useBookAppointment = () => {
       // derive date string from bookingData if available so slot timestamps include the selected date
       const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
       // map to a shape similar to TimeSlot expected by UI (slot_start, slot_end, id)
+      // Ensure generated timestamps include Singapore offset so parsing and display
+      // are consistent (avoid implicit conversion to UTC display in some browsers).
       return scheduleSlots.value.map((s, idx) => {
         const dayPrefix = dateStr ? `${dateStr}T` : ''
+        const rawStart = `${dayPrefix}${s.start}${dateStr ? ':00' : ''}`
+        const rawEnd = `${dayPrefix}${s.end}${dateStr ? ':00' : ''}`
+        const slotStart = ensureSgtOffset(rawStart) || rawStart
+        const slotEnd = ensureSgtOffset(rawEnd) || rawEnd
         return {
           id: `sch-${dateStr ?? 'nodate'}-${idx}-${s.start.replace(/[: ]/g, '')}`,
-          slot_start: `${dayPrefix}${s.start}${dateStr ? ':00' : ''}`,
-          slot_end: `${dayPrefix}${s.end}${dateStr ? ':00' : ''}`,
-          display: s.display,
+          slot_start: slotStart,
+          slot_end: slotEnd,
+          display: `${utcIsoToSgTime(slotStart) ?? s.start} - ${utcIsoToSgTime(slotEnd) ?? s.end}`,
           booked: (s as any).booked === true
         }
       })
@@ -466,7 +482,7 @@ export const useBookAppointment = () => {
         id: slot.id,
         slot_start: slot.slot_start,
         slot_end: slot.slot_end,
-        display: `${new Date(slot.slot_start).toLocaleTimeString()} - ${new Date(slot.slot_end).toLocaleTimeString()}`,
+  display: `${new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}`,
   booked: slot.status === 'scheduled'
       }))
   })
@@ -661,7 +677,8 @@ export const useBookAppointment = () => {
       unique.sort((a, b) => a.start.localeCompare(b.start))
 
       // Annotate slots with `booked` flag by comparing to fetched appointments for this doctor
-      const dateStr = bookingData.value.date ? bookingData.value.date.toString() : String(date)
+  // Derive date string in Singapore local date (YYYY-MM-DD) to build SGT-local slot timestamps
+  const dateStr = bookingData.value.date ? bookingData.value.date.toString() : new Date(String(date)).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 
       const overlaps = (slotStartIso: string, slotEndIso: string, appts: any[]) => {
         if (!appts || appts.length === 0) return false
@@ -684,8 +701,13 @@ export const useBookAppointment = () => {
 
       const annotated = unique.map(s => {
         try {
-          const slotStartIso = new Date(`${dateStr}T${s.start}`).toISOString()
-          const slotEndIso = new Date(`${dateStr}T${s.end}`).toISOString()
+          // Ensure we interpret the times as Singapore-local before converting to ISO
+          const sgStartRaw = `${dateStr}T${s.start}`
+          const sgEndRaw = `${dateStr}T${s.end}`
+          const startWithOffset = ensureSgtOffset(sgStartRaw) || sgStartRaw
+          const endWithOffset = ensureSgtOffset(sgEndRaw) || sgEndRaw
+          const slotStartIso = new Date(startWithOffset).toISOString()
+          const slotEndIso = new Date(endWithOffset).toISOString()
           const booked = overlaps(slotStartIso, slotEndIso, fetchedAppointments.value)
           return { ...s, booked }
         } catch (e) {
@@ -892,9 +914,23 @@ export const useBookAppointment = () => {
           })) as any[]
 
           // compute slots
+          // Helper: convert a time-of-day string that is in UTC (HH:mm[:ss]) to Singapore local time (HH:mm)
+          const convertUtcTimeToSgt = (timeStr: string | null | undefined) => {
+            if (!timeStr) return timeStr
+            // Expect formats like '01:00:00' or '01:00'
+            const parts = (timeStr || '').split(':').map((p: string) => parseInt(p, 10) || 0)
+            let hh = parts[0] || 0
+            const mm = parts[1] || 0
+            // Add 8 hours to convert UTC -> SGT
+            hh = (hh + 8) % 24
+            const pad = (n: number) => n.toString().padStart(2, '0')
+            return `${pad(hh)}:${pad(mm)}`
+          }
+
           const scheduleWithSlots = rows.map(row => {
-            const start = row.start_time
-            const end = row.end_time
+            // For API-sourced rows we treat returned times as UTC-of-day and convert to SGT
+            const start = convertUtcTimeToSgt(row.start_time)
+            const end = convertUtcTimeToSgt(row.end_time)
             const duration = Number(row.slot_duration_minutes) || 0
             const dayNum = Number(row.day_of_week) || 0
 
@@ -1195,51 +1231,59 @@ export const useBookAppointment = () => {
 
       if (!startIso || !endIso) throw new Error('Unable to determine start/end time for booking')
 
-      // Preflight validation: ensure the selected slot exists in availableSlots (prevents sending off-schedule times)
-        try {
-          const sel = bookingData.value.timeSlot as any
-          if (sel) {
-            const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
+  // Convert the selected Singapore-local datetimes for sending.
+  // Prefer sending clinic-local timestamps with explicit +08:00 offset so backend
+  // can log and validate them easily. Also include UTC ISO for backward compatibility.
+  const startSgt = ensureSgtOffset(startIso)
+  const endSgt = ensureSgtOffset(endIso)
+  const startUtc = sgtLocalToUtcIso(startIso)
+  const endUtc = sgtLocalToUtcIso(endIso)
+  if (!startSgt || !endSgt || !startUtc || !endUtc) throw new Error('Failed to convert selected times to proper ISO formats')
 
-            // Build normalized available starts for easier debugging
-            const normalizedAvailableStarts = (availableSlots.value || []).map((s: any) => {
-              const sStart = hasTz(s?.slot_start || '') ? (s?.slot_start || '') : `${s?.slot_start || ''}${SGT_OFFSET}`
-              return { id: s?.id, slot_start: s?.slot_start, normalized: sStart }
+      // Preflight validation: ensure the selected slot exists in availableSlots (compare in UTC)
+      try {
+        const sel = bookingData.value.timeSlot as any
+        if (sel) {
+          const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
+
+          const normalizedAvailableStarts = (availableSlots.value || []).map((s: any) => {
+            const raw = s?.slot_start || ''
+            const utc = hasTz(raw) ? sgtLocalToUtcIso(raw) : sgtLocalToUtcIso(`${raw}${SGT_OFFSET}`)
+            return { id: s?.id, slot_start: raw, normalizedUtc: utc }
+          })
+
+          // Compute selected start normalized to UTC for comparison
+          let selStartUtc: string | null = null
+          if (hasTz(sel?.slot_start || '')) {
+            selStartUtc = sgtLocalToUtcIso(sel.slot_start)
+          } else if (sel?.start && dateStr) {
+            selStartUtc = sgtLocalToUtcIso(`${dateStr}T${sel.start}:00`)
+          } else if (sel?.slot_start && dateStr) {
+            const raw = sel.slot_start
+            selStartUtc = hasTz(raw) ? sgtLocalToUtcIso(raw) : sgtLocalToUtcIso(`${raw}${SGT_OFFSET}`)
+          }
+
+          const foundById = sel?.id ? (availableSlots.value || []).some((s: any) => s && s.id === sel.id) : false
+          const foundByStart = selStartUtc ? normalizedAvailableStarts.some((a: any) => a.normalizedUtc === selStartUtc) : false
+
+          if (!foundById && !foundByStart) {
+            console.warn('Preflight validation: selected slot not found in availableSlots', {
+              dateStr,
+              selectedRaw: sel,
+              selectedNormalizedStartUtc: selStartUtc,
+              sampleAvailable: normalizedAvailableStarts.slice(0, 8)
             })
 
-            // Compute normalized selected start for comparison
-            let selStart = ''
-            if (hasTz(sel?.slot_start || '')) {
-              selStart = sel.slot_start || ''
-            } else if (sel?.start && dateStr) {
-              selStart = `${dateStr}T${sel.start}:00${SGT_OFFSET}`
-            } else if (sel?.slot_start && dateStr) {
-              // fallback: sometimes sel.slot_start contains a date-time without tz
-              selStart = hasTz(sel.slot_start) ? sel.slot_start : `${sel.slot_start}${SGT_OFFSET}`
-            }
-
-            // Try to find by id first, then by normalized start string
-            const foundById = sel?.id ? (availableSlots.value || []).some((s: any) => s && s.id === sel.id) : false
-            const foundByStart = selStart ? normalizedAvailableStarts.some((a: any) => a.normalized === selStart) : false
-
-            if (!foundById && !foundByStart) {
-              console.warn('Preflight validation: selected slot not found in availableSlots', {
-                dateStr,
-                selectedRaw: sel,
-                selectedNormalizedStart: selStart,
-                sampleAvailable: normalizedAvailableStarts.slice(0, 8)
-              })
-
-              toast.error('Requested time is outside doctor schedule', {
-                description: 'The selected time slot is not available for this doctor. Please choose another time.'
-              })
-              return { success: false, status: 422 }
-            }
+            toast.error('Requested time is outside doctor schedule', {
+              description: 'The selected time slot is not available for this doctor. Please choose another time.'
+            })
+            return { success: false, status: 422 }
           }
-        } catch (e) {
-          // ignore validation failure and proceed; backend will also validate
-          console.error('Preflight validation error', e)
         }
+      } catch (e) {
+        // ignore validation failure and proceed; backend will also validate
+        console.error('Preflight validation error', e)
+      }
 
       // Resolve API base
       const env = (import.meta.env as any)
@@ -1250,8 +1294,11 @@ export const useBookAppointment = () => {
         clinicId: bookingData.value.clinic.id,
         doctorId: bookingData.value.doctor.id,
         patientId: undefined as number | undefined, // replaced below from auth
-        startTime: startIso,
-        endTime: endIso,
+        // include both representations: clinic-local (SGT) and UTC (Z)
+        startTime: startSgt,           // primary: '2025-10-27T09:30:00+08:00'
+        endTime: endSgt,
+        startTimeUtc: startUtc,       // compatibility: '2025-10-27T01:30:00.000Z'
+        endTimeUtc: endUtc,
         treatmentSummary: null
       }
 

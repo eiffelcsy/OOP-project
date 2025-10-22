@@ -77,7 +77,7 @@ export const useViewAppointments = () => {
   const doctorSpecialty = (row as any).doctor_specialty || row.doctors?.specialty || ''
     // time formatting: prefer start_time/end_time if present
     const time = row.start_time && row.end_time ?
-      `${new Date(row.start_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })} - ${new Date(row.end_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}` :
+      `${new Date(row.start_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(row.end_time).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}` :
       ''
 
     // Normalize status values from different sources (supabase/backend variations)
@@ -369,7 +369,10 @@ export const useViewAppointments = () => {
   const openRescheduleDialog = (appointment: Appointment) => {
     appointmentToReschedule.value = appointment
     // Set current appointment date and time as default
-    const currentDate = parseDate(appointment.date.toISOString().split('T')[0])
+    // Use Asia/Singapore timezone to derive the calendar date so the calendar highlights
+    // the correct day regardless of the browser's local timezone.
+    const sgDateStr = new Date(appointment.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    const currentDate = parseDate(sgDateStr)
     selectedDate.value = currentDate
     selectedTimeSlot.value = availableSlots.value.find(slot => slot.time === appointment.time) || null
     isRescheduleDialogOpen.value = true

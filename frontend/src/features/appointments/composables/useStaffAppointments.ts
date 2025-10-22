@@ -122,10 +122,11 @@ export const useStaffAppointments = () => {
       // only today's appointments
       let data = await res.json()
 
-      const today = new Date().toISOString().split('T')[0] // e.g. "2025-10-18"
+      // Compute today's date in Asia/Singapore timezone so appointments are filtered by SGT day
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) // e.g. "2025-10-18"
       data = data.filter((appt: any) => {
         if (!appt.start_time) return false
-        const apptDate = new Date(appt.start_time).toISOString().split('T')[0]
+        const apptDate = new Date(appt.start_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
         return apptDate === today
       })
 

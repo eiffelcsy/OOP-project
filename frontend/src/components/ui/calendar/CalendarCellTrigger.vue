@@ -24,7 +24,13 @@ const isAvailable = computed(() => {
     if (!dayVal) return false
     const dt = new Date(String(dayVal))
     if (isNaN(dt.getTime())) return false
-    const dateStr = dt.toISOString().slice(0, 10)
+    // Prefer Singapore local date string to avoid timezone-based day shifts
+    let dateStr: string
+    try {
+      dateStr = dt.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    } catch (e) {
+      dateStr = dt.toISOString().slice(0, 10)
+    }
 
   // availableDates may be passed as a raw Array, a Set, or a ref/computed wrapping any of those.
   let datesRaw: any = (props.availableDates ?? (forwardedProps as any).availableDates)

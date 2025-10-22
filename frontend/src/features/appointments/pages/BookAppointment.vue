@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useBookAppointment } from '../composables/useBookAppointment'
+import { TIME_ZONE } from '@/lib/utils'
 // Removed Supabase debug code
 import { Stepper, StepperItem, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from '@/components/ui/stepper'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -308,8 +309,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                     :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
                                     :disabled="slot.booked === true"
                                     @click="selectTimeSlot(slot)">
-                                    {{ new Date(slot.slot_start).toLocaleTimeString() }} - {{ new Date(slot.slot_end).toLocaleTimeString() }}
-                                    <span v-if="slot.booked" class="ml-2 text-xs text-muted-foreground">(scheduled)</span>
+                                    {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
@@ -348,12 +348,12 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 <div>
                                     <Label class="text-sm font-medium">Date</Label>
                                     <p class="text-sm text-muted-foreground mt-1">
-                                        {{ bookingData.date?.toDate(getLocalTimeZone()).toLocaleDateString() }}
+                                        {{ bookingData.date?.toDate(TIME_ZONE).toLocaleDateString() }}
                                     </p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start }} - {{ bookingData.timeSlot?.slot_end }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start ? new Date(bookingData.timeSlot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }} - {{ bookingData.timeSlot?.slot_end ? new Date(bookingData.timeSlot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }}</p>
                                 </div>
                             </div>
                         </div>

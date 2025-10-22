@@ -98,18 +98,46 @@ public class AppointmentService {
     LocalTime timeOfDayStart = zstart.toLocalTime();
     LocalTime timeOfDayEnd = appointment.getEndTime().atZoneSameInstant(clinicZone).toLocalTime();
 
-        List<Schedule> schedules = scheduleRepository.findByDoctorIdAndDayOfWeek(appointment.getDoctorId(), weekday);
+        // Prefer date-aware schedule lookup so valid_from/valid_to are respected
+        java.time.LocalDate apptDate = zstart.toLocalDate();
+        List<Schedule> schedules = scheduleRepository.findValidSchedulesForDate(appointment.getDoctorId(), apptDate);
+
         boolean fitsSchedule = false;
+        if (schedules == null || schedules.isEmpty()) {
+            log.warn("No schedules found for doctor={} on weekday={} date={}", appointment.getDoctorId(), weekday, apptDate);
+        } else {
+            log.debug("Checking {} schedule rows for doctor={} on {}", schedules.size(), appointment.getDoctorId(), apptDate);
+        }
+
         for (Schedule s : schedules) {
-            // Schedule stores LocalTime for start/end so use them directly
-            LocalTime sStart = s.getStartTime();
-            LocalTime sEnd = s.getEndTime();
-            if (!timeOfDayStart.isBefore(sStart) && !timeOfDayEnd.isAfter(sEnd)) {
+            // Schedule stores LocalTime for start/end. Historically some schedules
+            // were stored as UTC-of-day in the backend DB. To be robust, convert
+            // the stored LocalTime (treated as UTC-of-day) to the clinic local
+            // time before comparing to the requested local times.
+            LocalTime sStartUtc = s.getStartTime();
+            LocalTime sEndUtc = s.getEndTime();
+
+            java.time.ZonedDateTime zSStart = java.time.ZonedDateTime.of(apptDate, sStartUtc, java.time.ZoneOffset.UTC).withZoneSameInstant(clinicZone);
+            java.time.ZonedDateTime zSEnd = java.time.ZonedDateTime.of(apptDate, sEndUtc, java.time.ZoneOffset.UTC).withZoneSameInstant(clinicZone);
+
+            LocalTime sStartLocal = zSStart.toLocalTime();
+            LocalTime sEndLocal = zSEnd.toLocalTime();
+
+            log.debug("Comparing requested {}-{} against schedule (UTC) {}-{} -> (SGT) {}-{} (scheduleId={})",
+                    timeOfDayStart, timeOfDayEnd, sStartUtc, sEndUtc, sStartLocal, sEndLocal, s.getId());
+
+            if (!timeOfDayStart.isBefore(sStartLocal) && !timeOfDayEnd.isAfter(sEndLocal)) {
                 fitsSchedule = true;
                 break;
             }
         }
-        if (!fitsSchedule) throw new IllegalArgumentException("Requested time is outside doctor's schedule");
+
+        if (!fitsSchedule) {
+            String msg = String.format("Requested time %s - %s (sgt date=%s, weekday=%d) is outside doctor's schedule (no matching schedule row)",
+                    timeOfDayStart, timeOfDayEnd, apptDate, weekday);
+            log.warn(msg + "; schedulesCount=" + (schedules == null ? 0 : schedules.size()));
+            throw new IllegalArgumentException(msg);
+        }
 
         // Check overlapping scheduled appointments
         long conflicts = repository.countOverlapping(appointment.getDoctorId(), appointment.getStartTime(), appointment.getEndTime());
