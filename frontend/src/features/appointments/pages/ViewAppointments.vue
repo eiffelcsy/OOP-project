@@ -32,6 +32,10 @@ const {
   formatDate,
   getStatusColor
   ,
+  upcomingSortOrder,
+  toggleUpcomingSortOrder,
+  pastSortOrder,
+  togglePastSortOrder,
   fetchPatientAppointments
 } = useViewAppointments()
 
@@ -142,6 +146,14 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
             <Badge v-for="status in upcomingStatuses" :key="status" variant="outline" class="cursor-pointer" :class="upcomingStatusFilter === status ? 'bg-gray-100' : ''" @click="upcomingStatusFilter = status">{{ prettyStatus(status) }}</Badge>
             <Button variant="ghost" size="sm" class="ml-2" @click="upcomingStatusFilter = 'all'">Clear</Button>
           </div>
+          <!-- Sort control placed on same line as status filter -->
+          <div class="ml-auto flex items-center gap-2">
+            <label class="text-sm text-muted-foreground">Sort:</label>
+            <select v-model="upcomingSortOrder" class="text-sm rounded border px-2 py-1">
+              <option value="asc">Oldest first</option>
+              <option value="desc">Newest first</option>
+            </select>
+          </div>
         </div>
 
         <!-- Explanatory line -->
@@ -245,6 +257,13 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
             <Badge variant="outline" class="cursor-pointer" :class="pastStatusFilter === 'all' ? 'bg-gray-100' : ''" @click="pastStatusFilter = 'all'">All</Badge>
             <Badge v-for="status in pastStatuses" :key="status" variant="outline" class="cursor-pointer" :class="pastStatusFilter === status ? 'bg-gray-100' : ''" @click="pastStatusFilter = status">{{ prettyStatus(status) }}</Badge>
             <Button variant="ghost" size="sm" class="ml-2" @click="pastStatusFilter = 'all'">Clear</Button>
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <label class="text-sm text-muted-foreground">Sort:</label>
+            <select v-model="pastSortOrder" class="text-sm rounded border px-2 py-1">
+              <option value="asc">Oldest first</option>
+              <option value="desc">Newest first</option>
+            </select>
           </div>
         </div>
 
