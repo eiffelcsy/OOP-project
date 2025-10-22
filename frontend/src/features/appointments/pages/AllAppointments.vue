@@ -193,7 +193,7 @@ const confirmReschedule = async () => {
 
     <!-- Reschedule Dialog -->
     <Dialog v-model:open="showReschedule">
-      <DialogContent class="sm:max-w-lg">
+  <DialogContent class="max-w-[1200px] w-[95vw] lg:w-[1200px] mx-auto">
         <DialogHeader>
           <DialogTitle>Reschedule Appointment</DialogTitle>
         </DialogHeader>

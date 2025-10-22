@@ -3,7 +3,9 @@ import type { DateValue } from '@internationalized/date'
 import { CalendarDate, parseDate, getLocalTimeZone } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
+import { ensureSgtOffset, SGT_OFFSET } from '@/lib/utils'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { toast } from 'vue-sonner'
 
 // Type aliases from database
 // Add 'confirmed' so backend/client-confirmed appointments are recognized
@@ -412,23 +414,129 @@ export const useViewAppointments = () => {
       return false
     }
 
+    // Helper to build ISO strings (Asia/Singapore offset) from selectedDate and slot
+    const buildIsoFromSlot = (date: CalendarDate, slot: any) => {
+      try {
+        // dateStr in YYYY-MM-DD
+        const dateStr = date.toString()
+
+        // If slot has explicit slot_start/slot_end fields (possibly with offset or date)
+        const maybeStart = slot.slot_start ?? slot.start ?? null
+        const maybeEnd = slot.slot_end ?? slot.end ?? null
+        if (maybeStart && maybeEnd) {
+          // If value already has a 'T' or timezone, attempt to ensure offset
+          const startCandidate = String(maybeStart)
+          const endCandidate = String(maybeEnd)
+          const startIso = ensureSgtOffset(startCandidate.includes('T') ? startCandidate : `${dateStr}T${startCandidate.replace(/\s+/g, '')}:00`)
+          const endIso = ensureSgtOffset(endCandidate.includes('T') ? endCandidate : `${dateStr}T${endCandidate.replace(/\s+/g, '')}:00`)
+          return { startIso, endIso }
+        }
+
+        // If slot has display like '09:00 - 09:30'
+        const display = slot.display ?? slot.time ?? ''
+        const parts = String(display).split('-').map((p: string) => p.trim())
+        if (parts.length >= 2) {
+          // parts[0] and parts[1] may be '09:00' or '09:00 AM'
+          const parseTime = (t: string) => {
+            const m = t.match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/) // matches 12-hour with optional AM/PM
+            if (m) {
+              let hh = parseInt(m[1], 10)
+              const mm = parseInt(m[2], 10)
+              const ampm = (m[3] || '').toUpperCase()
+              if (ampm === 'PM' && hh < 12) hh += 12
+              if (ampm === 'AM' && hh === 12) hh = 0
+              return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+            }
+            // fallback: try HH:MM 24h
+            const m2 = t.match(/(\d{1,2}):(\d{2})/)
+            if (m2) return `${String(parseInt(m2[1], 10)).padStart(2, '0')}:${String(m2[2]).padStart(2, '0')}`
+            return null
+          }
+
+          const startTime = parseTime(parts[0])
+          const endTime = parseTime(parts[1])
+          if (startTime && endTime) {
+            const startIso = ensureSgtOffset(`${dateStr}T${startTime}:00`)
+            const endIso = ensureSgtOffset(`${dateStr}T${endTime}:00`)
+            return { startIso, endIso }
+          }
+        }
+
+        // As last resort, if slot.time exists and is a single time, assume a default duration (e.g., 30m)
+        const single = slot.time ?? slot.display ?? ''
+        const m = String(single).match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/) || String(single).match(/(\d{1,2}):(\d{2})/)
+        if (m) {
+          let hh = parseInt(m[1], 10)
+          const mm = parseInt(m[2], 10)
+          const ampm = (m[3] || '').toUpperCase()
+          if (ampm === 'PM' && hh < 12) hh += 12
+          if (ampm === 'AM' && hh === 12) hh = 0
+          const start = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+          // default 30 minutes
+          const endDate = new Date(`${dateStr}T${start}:00${SGT_OFFSET}`)
+          endDate.setMinutes(endDate.getMinutes() + 30)
+          const endH = String(endDate.getHours()).padStart(2, '0')
+          const endM = String(endDate.getMinutes()).padStart(2, '0')
+          return {
+            startIso: ensureSgtOffset(`${dateStr}T${start}:00`),
+            endIso: ensureSgtOffset(`${dateStr}T${endH}:${endM}:00`)
+          }
+        }
+
+        return { startIso: null, endIso: null }
+      } catch (e) {
+        console.warn('buildIsoFromSlot failed', e, slot)
+        return { startIso: null, endIso: null }
+      }
+    }
+
     try {
-      // Simulate API call
-      console.log('Rescheduling appointment:', {
-        appointmentId: appointmentToReschedule.value.id,
-        newDate: selectedDate.value.toDate(getLocalTimeZone()),
-        newTime: selectedTimeSlot.value.time
+      // Build ISO start/end for API
+      const { startIso, endIso } = buildIsoFromSlot(selectedDate.value as CalendarDate, selectedTimeSlot.value)
+      if (!startIso || !endIso) {
+        console.warn('Unable to build ISO start/end for selected slot', selectedTimeSlot.value)
+        return false
+      }
+
+      // Call backend PUT /api/appointments/{id}?newStartTime=...&newEndTime=...
+      const env = (import.meta.env as any)
+      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+      const endpoint = `${apiBase.replace(/\/+$/, '')}/appointments/${appointmentToReschedule.value.id}?newStartTime=${encodeURIComponent(startIso)}&newEndTime=${encodeURIComponent(endIso)}`
+      const token = await getAccessToken()
+
+      console.log('Calling reschedule API', endpoint)
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       })
 
-      // Update the appointment in our local data
-      const appointmentIndex = appointments.value.findIndex(
-        app => app.id === appointmentToReschedule.value!.id
-      )
-      if (appointmentIndex !== -1) {
-        appointments.value[appointmentIndex] = {
-          ...appointments.value[appointmentIndex],
-          date: selectedDate.value.toDate(getLocalTimeZone()),
-          time: selectedTimeSlot.value.time
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        console.warn('Reschedule API returned non-OK', res.status, txt)
+        toast.error('Failed to reschedule appointment. Please try again.')
+        return false
+      }
+
+      // Success — refresh appointments from backend for canonical state
+      try {
+        await fetchPatientAppointments()
+        toast.success('Appointment rescheduled')
+      } catch (e) {
+        // fallback to optimistic local update
+        const appointmentIndex = appointments.value.findIndex(
+          app => app.id === appointmentToReschedule.value!.id
+        )
+        if (appointmentIndex !== -1) {
+          appointments.value[appointmentIndex] = {
+            ...appointments.value[appointmentIndex],
+            date: selectedDate.value.toDate(getLocalTimeZone()),
+            time: typeof selectedTimeSlot.value === 'string' ? String(selectedTimeSlot.value) : (selectedTimeSlot.value.time ?? (selectedTimeSlot.value as any).display ?? '')
+          }
+          toast.success('Appointment rescheduled (local update)')
         }
       }
 

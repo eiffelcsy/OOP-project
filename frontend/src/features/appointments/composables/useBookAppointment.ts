@@ -836,6 +836,56 @@ export const useBookAppointment = () => {
     }
   }
 
+  // Fetch appointments for a given doctor and optionally compute slots for a date
+  const fetchAppointmentsForDoctor = async (doctorId: number, date?: DateValue) => {
+    try {
+      let appts: any[] = []
+
+      try {
+        const env = (import.meta.env as any)
+        const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+        const endpoint = `${apiBase.replace(/\/+$/, '')}/staff/appointments?doctorId=${doctorId}`
+        const r = await fetch(endpoint, { headers: { Accept: 'application/json' } })
+        if (r.ok) {
+          const data = await r.json()
+          appts = (data ?? []) as any[]
+        }
+      } catch (backendErr) {
+        // fallback to Supabase if backend fails
+        console.warn('fetchAppointmentsForDoctor: backend query failed, falling back to Supabase', backendErr)
+      }
+
+      if (!appts || appts.length === 0) {
+        try {
+          const apptQ = await supabase
+            .from('appointments')
+            .select('*')
+            .eq('doctor_id', doctorId)
+
+          if (!apptQ.error) appts = (apptQ.data ?? []) as any[]
+        } catch (serr) {
+          console.warn('fetchAppointmentsForDoctor: Supabase query failed', serr)
+        }
+      }
+
+      fetchedAppointments.value = appts ?? []
+
+      // If a date was provided, compute slots for that date so booked flags are annotated
+      if (date && doctorId != null) {
+        try {
+          await loadSlotsForDate(doctorId, date)
+        } catch (e) {
+          console.warn('fetchAppointmentsForDoctor: loadSlotsForDate failed', e)
+        }
+      }
+
+      return fetchedAppointments.value
+    } catch (err) {
+      console.error('fetchAppointmentsForDoctor error', err)
+      return [] as any[]
+    }
+  }
+
   const previousStep = () => {
     if (!isFirstStep.value) {
       currentStep.value--
@@ -1437,6 +1487,7 @@ export const useBookAppointment = () => {
     previousStep,
     goToStep,
     resetBooking,
+    fetchAppointmentsForDoctor,
     confirmBooking
   }
 }

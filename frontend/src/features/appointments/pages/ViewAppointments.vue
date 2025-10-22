@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useViewAppointments } from '../composables/useViewAppointments'
+import { useBookAppointment } from '../composables/useBookAppointment'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { CalendarDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
+import { CalendarDate, parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Icon } from '@iconify/vue'
 
 const {
@@ -38,6 +39,99 @@ const {
   togglePastSortOrder,
   fetchPatientAppointments
 } = useViewAppointments()
+
+// Use booking composable so reschedule dialog has the same availability logic
+const {
+  availableSlots: bookAvailableSlots,
+  availableWeekdays,
+  availableDates,
+  selectDate: bookSelectDate,
+  selectTimeSlot: bookSelectTimeSlot,
+  selectDoctor: bookSelectDoctor,
+  fetchAppointmentsForDoctor,
+  bookingData
+} = useBookAppointment()
+
+// Helper to create arrays from refs/sets/etc (same helper used in BookAppointment.vue)
+const toIterableArray = (maybeRef: any) => {
+  const raw = (maybeRef && (maybeRef as any).value !== undefined) ? (maybeRef as any).value : maybeRef
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (raw instanceof Set) return Array.from(raw)
+  if (typeof raw === 'object' && typeof (raw as any)[Symbol.iterator] === 'function') {
+    try { return Array.from(raw) } catch { /* fallthrough */ }
+  }
+  if (typeof raw === 'object') return Object.values(raw)
+  return []
+}
+
+const availableWeekdaysArray = computed(() => toIterableArray(availableWeekdays))
+const availableDatesArray = computed(() => toIterableArray(availableDates))
+
+// Wrap handlers so both composables stay in sync
+const handleDateSelect = async (date: DateValue | undefined) => {
+  // If we have a selected doctor, prefetch their appointments for this date so booked flags are available
+  try {
+    const docId = (bookingData as any)?.doctor?.id ?? (bookingData as any)?.doctor_id
+    if (docId && typeof fetchAppointmentsForDoctor === 'function' && date) {
+      await fetchAppointmentsForDoctor(Number(docId), date).catch((e: any) => console.warn('fetchAppointmentsForDoctor in handleDateSelect failed', e))
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // call both book flow and view flow
+  if ((bookSelectDate as any)) (bookSelectDate as any)(date)
+  if ((selectDate as any)) (selectDate as any)(date)
+}
+
+const handleSlotSelect = (slot: any) => {
+  if ((bookSelectTimeSlot as any)) (bookSelectTimeSlot as any)(slot)
+  if ((selectTimeSlot as any)) (selectTimeSlot as any)(slot)
+}
+
+// Open reschedule and prime booking composable so calendar & slots populate
+const openReschedule = async (appointment: any) => {
+  // reset wizard to first step and clear previous selection
+  wizardStep.value = 1
+  selectedDate.value = undefined
+  selectedTimeSlot.value = null
+
+  // open view's reschedule dialog and set appointment
+  openRescheduleDialog(appointment)
+
+  // try to prime booking composable with doctor so it fetches schedules/slots when date is chosen
+  const docId = appointment?.doctor_id ?? appointment?.doctorId ?? appointment?.doctor_id
+  if (docId && (bookSelectDoctor as any)) {
+    try {
+      (bookSelectDoctor as any)({ id: docId })
+    } catch (e) {
+      console.warn('bookSelectDoctor failed to run', e)
+    }
+  }
+
+  // Also prime the booking composable with the appointment date so slots compute immediately
+  try {
+    const sgDateStr = new Date(appointment.date).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    const parsed = parseDate(sgDateStr)
+
+    // If we have a doctor id and the helper to prefetch appointments, await it so fetchedAppointments exist
+    try {
+      const docNum = Number(docId)
+      if (!isNaN(docNum) && typeof fetchAppointmentsForDoctor === 'function') {
+        await fetchAppointmentsForDoctor(docNum, parsed).catch((e: any) => console.warn('fetchAppointmentsForDoctor failed', e))
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    if ((bookSelectDate as any)) {
+      (bookSelectDate as any)(parsed)
+    }
+  } catch (e) {
+    // ignore parse failures
+  }
+}
 
 // Local UI filters for sections
 const upcomingStatusFilter = ref<string>('all')
@@ -84,6 +178,9 @@ const filteredPastAppointments = computed(() => {
 const isRescheduling = ref(false)
 const isCancelling = ref(false)
 
+// Wizard step for reschedule: 1 = pick date, 2 = pick time
+const wizardStep = ref(1)
+
 const handleReschedule = async () => {
   isRescheduling.value = true
   try {
@@ -110,9 +207,50 @@ const handleCancel = async () => {
   }
 }
 
-const handleDateSelect = (date: DateValue | undefined) => {
-  selectDate(date)
+// Helper to safely format selectedDate which may be a CalendarDate or Date
+const formatMaybeDate = (d: any) => {
+  try {
+    return d ? (formatDate as any)(d) : ''
+  } catch (e) {
+    return ''
+  }
 }
+
+// Helper to show a slot's display time without assuming types
+const slotTimeDisplay = (slot: any) => {
+  if (!slot) return ''
+  if (slot.slot_start) return new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })
+  return slot.time ?? slot.display ?? ''
+}
+
+// Determine if a slot should be treated as booked for the reschedule UI.
+// Allow selecting the appointment's own current slot (so the user can keep the same time if desired).
+const isSlotBooked = (slot: any) => {
+  try {
+    const bookedFlag = !!(slot && (slot.booked === true || slot.status === 'scheduled'))
+    if (!bookedFlag) return false
+
+    // If we have an appointment being rescheduled, allow selecting the same exact times
+    if (appointmentToReschedule && appointmentToReschedule.value) {
+      const appt = appointmentToReschedule.value
+      const apptStart = appt.start_time ?? appt.startTime ?? appt.start ?? appt.time
+      const apptEnd = appt.end_time ?? appt.endTime ?? appt.end
+      // Compare normalized time strings (slot.slot_start may include date or +08 offset)
+      const normalize = (s: any) => s ? String(s).replace(/[:\-T+ ]/g, '') : ''
+      const s1 = normalize(slot.slot_start || slot.start || slot.display)
+      const s2 = normalize(slot.slot_end || slot.end)
+      const a1 = normalize(apptStart)
+      const a2 = normalize(apptEnd)
+      if (a1 && a2 && s1 && s2 && a1 === s1 && a2 === s2) return false
+    }
+
+    return true
+  } catch (e) {
+    return !!(slot && slot.booked)
+  }
+}
+
+// handleDateSelect is defined above to keep book and view composables in sync
 
 // Explicitly trigger fetch and add page-level log to ensure we see console output when page mounts
 fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatientAppointments() completed')).catch(err => console.error('ViewAppointments: fetch failed', err))
@@ -214,21 +352,13 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
                   <Button 
                     variant="outline" 
                     size="sm"
-                    @click="openRescheduleDialog(appointment)"
+                    @click="openReschedule(appointment)"
                     class="flex items-center gap-2"
                   >
                     <Icon icon="lucide:calendar-clock" class="w-4 h-4" />
                     Reschedule
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    @click="openCancelDialog(appointment)"
-                    class="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
-                  >
-                    <Icon icon="lucide:x" class="w-4 h-4" />
-                    Cancel
-                  </Button>
+                  <Button variant="ghost" size="sm" @click="openCancelDialog(appointment)">Cancel</Button>
                 </template>
               </div>
             </CardContent>
@@ -326,9 +456,9 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
       </div>
     </div>
 
-    <!-- Reschedule Dialog -->
+    <!-- Reschedule Dialog (two-step wizard) -->
     <Dialog v-model:open="isRescheduleDialogOpen">
-      <DialogContent class="max-w-4xl">
+      <DialogContent class="max-w-[1000px] w-[96vw] mx-auto">
         <DialogHeader>
           <DialogTitle>Reschedule Appointment</DialogTitle>
           <DialogDescription>
@@ -336,67 +466,77 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
           </DialogDescription>
         </DialogHeader>
 
-        <div v-if="appointmentToReschedule" class="space-y-6">
-          <!-- Current appointment details -->
-          <div class="p-4 bg-muted rounded-lg">
-            <h4 class="font-medium mb-2 text-base">Current Appointment</h4>
-            <div class="flex justify-between gap-4 text-sm">
-              <div>
-                <span class="text-muted-foreground">Date:</span>
-                <span class="ml-2">{{ formatDate(appointmentToReschedule.date) }}</span>
-              </div>
-              <div>
-                <span class="text-muted-foreground">Time:</span>
-                <span class="ml-2">{{ appointmentToReschedule.time }}</span>
-              </div>
-            </div>
+        <div v-if="appointmentToReschedule" class="p-6">
+          <!-- Step indicator -->
+          <div class="flex items-center gap-4 mb-6">
+            <div :class="['w-10 h-10 rounded-full flex items-center justify-center', wizardStep===1 ? 'bg-primary text-white' : 'bg-gray-100']">1</div>
+            <div class="flex-1 border-t"></div>
+            <div :class="['w-10 h-10 rounded-full flex items-center justify-center', wizardStep===2 ? 'bg-primary text-white' : 'bg-gray-100']">2</div>
           </div>
 
-          <div class="flex gap-6">
-            <!-- Calendar -->
-            <div class="space-y-4">
-              <h4 class="font-medium">Select New Date</h4>
-              <Calendar 
-                v-model="selectedDate" 
+          <!-- Step 1: Calendar -->
+          <div v-if="wizardStep===1">
+            <div class="mb-4 p-4 bg-muted rounded">
+              <h4 class="font-medium mb-2">Pick a Date</h4>
+              <p class="text-sm text-muted-foreground">Choose a date with available time slots.</p>
+            </div>
+
+            <div class="flex justify-center">
+              <Calendar
+                v-model="selectedDate"
                 :min-value="today(getLocalTimeZone())"
-                @update:model-value="handleDateSelect" 
-                class="rounded-md border p-4" 
+                :available-weekdays="availableWeekdaysArray"
+                :available-dates="availableDatesArray"
+                @update:model-value="(d) => { handleDateSelect(d); if (d) wizardStep = 2 }"
+                class="rounded-md border"
               />
             </div>
 
-            <!-- Time Slots -->
-            <div class="flex-1 space-y-4">
-              <h4 class="font-medium">Select New Time</h4>
-              <div v-if="selectedDate" class="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-                <Button 
-                  v-for="slot in availableSlots" 
-                  :key="slot.id"
-                  :variant="selectedTimeSlot?.id === slot.id ? 'default' : 'outline'" 
-                  size="sm"
-                  @click="selectTimeSlot(slot)"
-                >
-                  {{ slot.time }}
+            <div class="mt-6 flex justify-end">
+              <Button variant="outline" @click="closeRescheduleDialog" class="mr-2">Cancel</Button>
+              <Button :disabled="!selectedDate" @click="wizardStep = 2">Next</Button>
+            </div>
+          </div>
+
+          <!-- Step 2: Time slots (use same layout/logic as BookAppointment) -->
+          <div v-else>
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-lg">Available Time Slots</CardTitle>
+                <CardDescription v-if="!bookingData.date">
+                  Please select a date first
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
+                  <Button v-for="slot in bookAvailableSlots" :key="slot.id"
+                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'"
+                    size="sm"
+                    :disabled="isSlotBooked(slot)"
+                    @click="handleSlotSelect(slot)">
+                    <span :class="isSlotBooked(slot) ? 'text-muted-foreground line-through' : ''">
+                      {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
+                    </span>
+                  </Button>
+                </div>
+                <div v-else class="text-center py-8 text-muted-foreground">
+                  Select a date to view available time slots
+                </div>
+              </CardContent>
+            </Card>
+
+            <div class="mt-6 flex justify-between">
+              <Button variant="outline" @click="wizardStep = 1">Back</Button>
+              <div>
+                <Button variant="outline" @click="closeRescheduleDialog" class="mr-2">Cancel</Button>
+                <Button @click="handleReschedule" :disabled="!selectedTimeSlot || isRescheduling">
+                  <Icon v-if="isRescheduling" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+                  {{ isRescheduling ? 'Rescheduling...' : 'Save Changes' }}
                 </Button>
-              </div>
-              <div v-else class="text-center py-8 text-muted-foreground">
-                Select a date to view available time slots
               </div>
             </div>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" @click="closeRescheduleDialog">
-            Cancel
-          </Button>
-          <Button 
-            @click="handleReschedule"
-            :disabled="!canRescheduleOrCancel || isRescheduling"
-          >
-            <Icon v-if="isRescheduling" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
-            {{ isRescheduling ? 'Rescheduling...' : 'Save Changes' }}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
 
