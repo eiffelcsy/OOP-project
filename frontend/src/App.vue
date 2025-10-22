@@ -8,7 +8,6 @@ import { Toaster } from '@/components/ui/sonner'
   <RouterView />
   <Toaster 
     :duration="4000"
-    :close-button="true"
     rich-colors
   />
 </template>

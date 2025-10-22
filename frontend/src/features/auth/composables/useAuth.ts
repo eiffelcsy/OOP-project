@@ -28,6 +28,7 @@ Composable:
 
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
+import { apiClient } from '@/lib/api'
 import type { Session } from '@supabase/supabase-js'
 import type {
   Tables,
@@ -195,6 +196,9 @@ const createAuth = () => {
       isLoading.value = true
       const { error: signOutError } = await supabase.auth.signOut()
       if (signOutError) throw signOutError
+
+      // Clear the API client's token cache
+      apiClient.clearTokenCache()
 
       currentUser.value = null
       session.value = null
