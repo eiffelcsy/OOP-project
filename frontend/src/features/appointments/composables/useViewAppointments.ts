@@ -65,8 +65,10 @@ export const useViewAppointments = () => {
 
   // Helper: map DB row to ViewAppointment/UI Appointment
   const mapRowToView = (row: any) => {
-    // row fields: id, patient_id, doctor_id, clinic_id, status, created_at, updated_at, time_slot_id, treatment_summary
-    const date = row.created_at ? new Date(row.start_time ?? row.created_at) : new Date()
+  // row fields: id, patient_id, doctor_id, clinic_id, status, created_at, updated_at, time_slot_id, treatment_summary
+  // Prefer explicit appointment start time when available for accurate sorting/display.
+  const preferredTime = row.start_time ?? row.slot_start ?? row.end_time ?? row.created_at
+  const date = preferredTime ? new Date(preferredTime) : new Date()
     // best-effort mapping; some fields may be null
   const clinicName = (row as any).clinic_name || row.clinics?.name || 'Clinic'
   const clinicType = (row as any).clinic_type || row.clinics?.clinic_type || row.clinics?.clinicType || ''
@@ -109,7 +111,8 @@ export const useViewAppointments = () => {
       id: row.id.toString(),
       clinicName,
       doctorName,
-      date: row.start_time ? new Date(row.start_time) : date,
+  // Use explicit start_time if available, otherwise use the computed preferred date
+  date: row.start_time ? new Date(row.start_time) : date,
       time,
       status: statusCanon || 'scheduled',
       specialization,
@@ -309,20 +312,43 @@ export const useViewAppointments = () => {
   ])
 
   // Computed properties to separate appointments
+  // Sort controls: allow UI to set sort order independently for upcoming and past lists
+  // 'asc' = oldest first, 'desc' = newest first
+  const upcomingSortOrder = ref<'asc' | 'desc'>('asc')
+  const pastSortOrder = ref<'asc' | 'desc'>('desc')
+
+  const toggleUpcomingSortOrder = () => {
+    upcomingSortOrder.value = upcomingSortOrder.value === 'asc' ? 'desc' : 'asc'
+  }
+
+  const togglePastSortOrder = () => {
+    pastSortOrder.value = pastSortOrder.value === 'asc' ? 'desc' : 'asc'
+  }
+
   const scheduledAppointments = computed(() => {
     const now = new Date()
     // Upcoming: include both scheduled and confirmed appointments with start >= now
-    return appointments.value
+    const list = appointments.value
       .filter(appointment => (appointment.status === 'scheduled' || appointment.status === 'confirmed') && appointment.date >= now)
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    return list.sort((a, b) => {
+      return upcomingSortOrder.value === 'asc'
+        ? a.date.getTime() - b.date.getTime()
+        : b.date.getTime() - a.date.getTime()
+    })
   })
 
   const pastAppointments = computed(() => {
     const now = new Date()
     // Past: include completed, cancelled and missed (no-show/missed)
-    return appointments.value
+    const list = appointments.value
       .filter(appointment => ['completed', 'cancelled', 'no-show', 'missed'].includes(appointment.status))
-      .sort((a, b) => b.date.getTime() - a.date.getTime())
+
+    return list.sort((a, b) => {
+      return pastSortOrder.value === 'asc'
+        ? a.date.getTime() - b.date.getTime()
+        : b.date.getTime() - a.date.getTime()
+    })
   })
 
   const availableSlots = computed(() => {
@@ -417,17 +443,42 @@ export const useViewAppointments = () => {
     }
 
     try {
-      // Simulate API call
-      console.log('Cancelling appointment:', appointmentToCancel.value.id)
+      // Call backend API to cancel the appointment so DB is updated server-side
+      const env = (import.meta.env as any)
+      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
+      const endpoint = `${apiBase.replace(/\/+$/, '')}/appointments/${appointmentToCancel.value.id}`
+      const token = await getAccessToken()
 
-      // Update the appointment status in our local data
-      const appointmentIndex = appointments.value.findIndex(
-        app => app.id === appointmentToCancel.value!.id
-      )
-      if (appointmentIndex !== -1) {
-        appointments.value[appointmentIndex] = {
-          ...appointments.value[appointmentIndex],
-          status: 'cancelled'
+      console.log('Cancelling appointment via API', endpoint)
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      })
+
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        console.warn('Cancel API returned non-OK', res.status, txt)
+        throw new Error(`Failed to cancel appointment: ${res.status}`)
+      }
+
+      // Refetch appointments from backend to keep UI authoritative
+      try {
+        await fetchPatientAppointments()
+      } catch (e) {
+        // If refetch fails, fall back to optimistic local update
+        const appointmentIndex = appointments.value.findIndex(
+          app => app.id === appointmentToCancel.value!.id
+        )
+        if (appointmentIndex !== -1) {
+          appointments.value[appointmentIndex] = {
+            ...appointments.value[appointmentIndex],
+            status: 'cancelled'
+          }
         }
       }
 
@@ -435,6 +486,19 @@ export const useViewAppointments = () => {
       return true
     } catch (error) {
       console.error('Cancel failed:', error)
+      // As a fallback, try marking locally (without persisting) so UI reflects the action
+      try {
+        const appointmentIndex = appointments.value.findIndex(
+          app => app.id === appointmentToCancel.value!.id
+        )
+        if (appointmentIndex !== -1) {
+          appointments.value[appointmentIndex] = {
+            ...appointments.value[appointmentIndex],
+            status: 'cancelled'
+          }
+        }
+        closeCancelDialog()
+      } catch (e) { /* ignore */ }
       return false
     }
   }
@@ -506,6 +570,11 @@ export const useViewAppointments = () => {
     
     // Computed
     canRescheduleOrCancel,
+  // Sort controls (can be used on same line as status filter)
+  upcomingSortOrder,
+  toggleUpcomingSortOrder,
+  pastSortOrder,
+  togglePastSortOrder,
     
     // Actions
     openRescheduleDialog,
