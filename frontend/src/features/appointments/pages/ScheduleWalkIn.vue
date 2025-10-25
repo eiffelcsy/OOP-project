@@ -25,9 +25,6 @@ const {
     selectDoctor,
     selectDate,
     selectTimeSlot,
-    setAppointmentType,
-    setUrgency,
-    setNotes,
     nextStep,
     previousStep,
     scheduleWalkIn,
@@ -52,11 +49,6 @@ const stepperItems = [
     { title: 'Confirmation', description: 'Review and confirm walk-in appointment' }
 ]
 
-const urgencyOptions = [
-    { value: 'normal', label: 'Normal', description: 'Regular walk-in appointment' },
-    { value: 'urgent', label: 'Urgent', description: 'Needs to be seen soon' },
-    { value: 'emergency', label: 'Emergency', description: 'Immediate attention required' }
-]
 
 // Calendar setup
 const calendarValue = ref<CalendarDate>()
@@ -75,7 +67,6 @@ const patientForm = ref({
     nric: '',
     email: '',
     dateOfBirth: '',
-    emergencyContact: ''
 })
 
 const updatePatient = () => {
@@ -136,9 +127,9 @@ const updatePatient = () => {
                                     placeholder="+65 XXXX XXXX" required />
                             </div>
                             <div class="space-y-2">
-                                <Label for="patient-nric">NRIC/FIN</Label>
+                                <Label for="patient-nric">NRIC/FIN *</Label>
                                 <Input id="patient-nric" v-model="patientForm.nric" @input="updatePatient"
-                                    placeholder="SXXXXXXXA" />
+                                    placeholder="SXXXXXXXA"  required/>
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-email">Email</Label>
@@ -149,43 +140,6 @@ const updatePatient = () => {
                                 <Label for="patient-dob">Date of Birth</Label>
                                 <Input id="patient-dob" v-model="patientForm.dateOfBirth" @input="updatePatient"
                                     type="date" />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="emergency-contact">Emergency Contact</Label>
-                                <Input id="emergency-contact" v-model="patientForm.emergencyContact"
-                                    @input="updatePatient" placeholder="+65 XXXX XXXX" />
-                            </div>
-                        </div>
-
-                        <!-- Appointment Type -->
-                        <div class="space-y-3">
-                            <Label>Appointment Type</Label>
-                            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                <Button v-for="type in appointmentTypes" :key="type"
-                                    :variant="bookingData.appointmentType === type ? 'default' : 'outline'" size="sm"
-                                    @click="setAppointmentType(type)" class="text-left justify-start">
-                                    {{ type }}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <!-- Urgency Level -->
-                        <div class="space-y-3">
-                            <Label>Urgency Level</Label>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <Card v-for="option in urgencyOptions" :key="option.value"
-                                    class="cursor-pointer transition-colors hover:bg-muted/50"
-                                    :class="{ 'ring-2 ring-primary': bookingData.urgency === option.value }"
-                                    @click="setUrgency(option.value as any)">
-                                    <CardContent class="p-4">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <Badge :class="getUrgencyColor(option.value)" variant="outline">
-                                                {{ option.label }}
-                                            </Badge>
-                                        </div>
-                                        <p class="text-sm text-muted-foreground">{{ option.description }}</p>
-                                    </CardContent>
-                                </Card>
                             </div>
                         </div>
                     </CardContent>
