@@ -1,9 +1,6 @@
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
-import { useAuth } from '@/features/auth/composables/useAuth'
-
-const { currentUser, initializeAuth } = useAuth()
 
 // Type aliases from database
 type Doctor = Tables<'doctors'>
@@ -33,7 +30,7 @@ interface WalkInBookingData {
 export const useScheduleWalkIn = () => {
   // Current step (1-3: Patient Info, Doctor & Time, Confirmation)
   const currentStep = ref(1)
-
+  
   // Booking data
   const bookingData = ref<WalkInBookingData>({
     patient: null,
@@ -63,46 +60,44 @@ export const useScheduleWalkIn = () => {
   })
 
   // Available doctors at staff's clinic
-  const availableDoctors = ref<Doctor[]>([])
-
-  // Fetch doctors for the current staff's clinic
-  const fetchDoctors = async (clinicId: number) => {
-    try {
-      console.log('Fetching doctors for clinic ID:', clinicId)
-      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch doctors')
-
-      const data: Tables<'doctors'>[] = await res.json()
-      availableDoctors.value = data.map((doc, index) => ({
-        ...doc,
-        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5],
-      }))
-    } catch (error) {
-      console.error('Error fetching doctors:', error)
+  const availableDoctors = ref<Doctor[]>([
+    {
+      id: 1,
+      name: 'Dr. Sarah Lim',
+      specialty: 'General Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 2,
+      name: 'Dr. Michael Tan',
+      specialty: 'Cardiology',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 3,
+      name: 'Dr. Jennifer Wong',
+      specialty: 'Internal Medicine',
+      clinic_id: 1,
+      active: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: 4,
+      name: 'Dr. David Chen',
+      specialty: 'Emergency Medicine',
+      clinic_id: 1,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }
-  }
-
-  onMounted(async () => {
-    // Ensure the auth state is initialized
-    await initializeAuth()
-
-    // Watch for currentUser to be ready and contain staff data
-    watch(
-      () => currentUser.value,
-      (user) => {
-        if (user?.staff?.clinic_id) {
-          const staffId = user.staff.id
-          const clinicId = user.staff.clinic_id
-          console.log('Auth loaded. Staff ID:', staffId)
-          console.log('Clinic ID:', clinicId)
-          fetchDoctors(clinicId)
-        } else {
-          console.warn('Waiting for staff info to be available...')
-        }
-      },
-      { immediate: true } // run instantly if already loaded
-    )
-  })
+  ])
 
   // Available time slots for today and next few days
   const generateTimeSlots = (doctorId?: number): TimeSlot[] => {
@@ -111,7 +106,7 @@ export const useScheduleWalkIn = () => {
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
       '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
     ]
-
+    
     baseSlots.forEach((time, index) => {
       // Simulate some slots being unavailable
       const available = Math.random() > 0.3
@@ -119,7 +114,7 @@ export const useScheduleWalkIn = () => {
       startTime.setHours(parseInt(time.split(':')[0]), parseInt(time.split(':')[1]), 0, 0)
       const endTime = new Date(startTime)
       endTime.setMinutes(endTime.getMinutes() + 30)
-
+      
       slots.push({
         id: index + 1,
         doctor_id: doctorId || 1,
@@ -131,7 +126,7 @@ export const useScheduleWalkIn = () => {
         updated_at: new Date().toISOString()
       })
     })
-
+    
     return slots
   }
 
@@ -244,7 +239,7 @@ export const useScheduleWalkIn = () => {
   const scheduleWalkIn = async () => {
     try {
       console.log('Scheduling walk-in appointment:', bookingData.value)
-
+      
       // Simulate API call to schedule walk-in appointment
       const appointmentData = {
         ...bookingData.value,
@@ -254,10 +249,10 @@ export const useScheduleWalkIn = () => {
         createdAt: new Date().toISOString(),
         isWalkIn: true
       }
-
+      
       // Here you would make an actual API call
       // await scheduleWalkInAppointment(appointmentData)
-
+      
       return {
         success: true,
         appointmentId: `WI-${Date.now()}`,
@@ -296,13 +291,13 @@ export const useScheduleWalkIn = () => {
     staffClinic,
     availableDoctors,
     appointmentTypes,
-
+    
     // Computed
     availableSlots,
     canProceedToNextStep,
     isLastStep,
     isFirstStep,
-
+    
     // Actions
     updatePatientInfo,
     selectDoctor,
@@ -316,7 +311,7 @@ export const useScheduleWalkIn = () => {
     goToStep,
     resetBooking,
     scheduleWalkIn,
-
+    
     // Utilities
     formatTime,
     getUrgencyColor

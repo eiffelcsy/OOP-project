@@ -92,7 +92,7 @@ const updatePatient = () => {
 
         <div class="mb-8">
             <Stepper v-model="currentStep" class="w-full items-center justify-center">
-                <StepperItem v-for="(item, index) in stepperItems" :key="index" :step="index + 1" 
+                <StepperItem v-for="(item, index) in stepperItems" :key="index" :step="index + 1"
                     :class="index + 1 < stepperItems.length ? 'flex-1' : 'flex-none'">
                     <div class="p-1 flex flex-col items-center text-center gap-1 rounded-md max-w-[10rem] mx-auto">
                         <StepperIndicator :step="index + 1">
@@ -107,7 +107,7 @@ const updatePatient = () => {
                             </StepperDescription>
                         </div>
                     </div>
-                    <StepperSeparator v-if="index + 1 < stepperItems.length" class="flex-1 h-[2px]"/>
+                    <StepperSeparator v-if="index + 1 < stepperItems.length" class="flex-1 h-[2px]" />
                 </StepperItem>
             </Stepper>
         </div>
@@ -127,60 +127,33 @@ const updatePatient = () => {
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="space-y-2">
                                 <Label for="patient-name">Full Name *</Label>
-                                <Input 
-                                    id="patient-name" 
-                                    v-model="patientForm.name"
-                                    @input="updatePatient"
-                                    placeholder="Enter patient's full name"
-                                    required
-                                />
+                                <Input id="patient-name" v-model="patientForm.name" @input="updatePatient"
+                                    placeholder="Enter patient's full name" required />
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-phone">Phone Number *</Label>
-                                <Input 
-                                    id="patient-phone" 
-                                    v-model="patientForm.phone"
-                                    @input="updatePatient"
-                                    placeholder="+65 XXXX XXXX"
-                                    required
-                                />
+                                <Input id="patient-phone" v-model="patientForm.phone" @input="updatePatient"
+                                    placeholder="+65 XXXX XXXX" required />
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-nric">NRIC/FIN</Label>
-                                <Input 
-                                    id="patient-nric" 
-                                    v-model="patientForm.nric"
-                                    @input="updatePatient"
-                                    placeholder="SXXXXXXXA"
-                                />
+                                <Input id="patient-nric" v-model="patientForm.nric" @input="updatePatient"
+                                    placeholder="SXXXXXXXA" />
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-email">Email</Label>
-                                <Input 
-                                    id="patient-email" 
-                                    v-model="patientForm.email"
-                                    @input="updatePatient"
-                                    type="email"
-                                    placeholder="patient@example.com"
-                                />
+                                <Input id="patient-email" v-model="patientForm.email" @input="updatePatient"
+                                    type="email" placeholder="patient@example.com" />
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-dob">Date of Birth</Label>
-                                <Input 
-                                    id="patient-dob" 
-                                    v-model="patientForm.dateOfBirth"
-                                    @input="updatePatient"
-                                    type="date"
-                                />
+                                <Input id="patient-dob" v-model="patientForm.dateOfBirth" @input="updatePatient"
+                                    type="date" />
                             </div>
                             <div class="space-y-2">
                                 <Label for="emergency-contact">Emergency Contact</Label>
-                                <Input 
-                                    id="emergency-contact" 
-                                    v-model="patientForm.emergencyContact"
-                                    @input="updatePatient"
-                                    placeholder="+65 XXXX XXXX"
-                                />
+                                <Input id="emergency-contact" v-model="patientForm.emergencyContact"
+                                    @input="updatePatient" placeholder="+65 XXXX XXXX" />
                             </div>
                         </div>
 
@@ -188,14 +161,9 @@ const updatePatient = () => {
                         <div class="space-y-3">
                             <Label>Appointment Type</Label>
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                <Button 
-                                    v-for="type in appointmentTypes" 
-                                    :key="type"
-                                    :variant="bookingData.appointmentType === type ? 'default' : 'outline'" 
-                                    size="sm"
-                                    @click="setAppointmentType(type)"
-                                    class="text-left justify-start"
-                                >
+                                <Button v-for="type in appointmentTypes" :key="type"
+                                    :variant="bookingData.appointmentType === type ? 'default' : 'outline'" size="sm"
+                                    @click="setAppointmentType(type)" class="text-left justify-start">
                                     {{ type }}
                                 </Button>
                             </div>
@@ -205,13 +173,10 @@ const updatePatient = () => {
                         <div class="space-y-3">
                             <Label>Urgency Level</Label>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <Card 
-                                    v-for="option in urgencyOptions" 
-                                    :key="option.value"
+                                <Card v-for="option in urgencyOptions" :key="option.value"
                                     class="cursor-pointer transition-colors hover:bg-muted/50"
                                     :class="{ 'ring-2 ring-primary': bookingData.urgency === option.value }"
-                                    @click="setUrgency(option.value as any)"
-                                >
+                                    @click="setUrgency(option.value as any)">
                                     <CardContent class="p-4">
                                         <div class="flex items-center gap-2 mb-1">
                                             <Badge :class="getUrgencyColor(option.value)" variant="outline">
@@ -242,13 +207,10 @@ const updatePatient = () => {
                 <div class="space-y-4">
                     <h3 class="text-lg font-semibold">Available Doctors</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Card 
-                            v-for="doctor in availableDoctors.filter(d => d.active)" 
-                            :key="doctor.id"
+                        <Card v-for="doctor in availableDoctors.filter(d => d.active)" :key="doctor.id"
                             class="cursor-pointer transition-colors hover:bg-muted/50"
                             :class="{ 'ring-2 ring-primary': bookingData.doctor?.id === doctor.id }"
-                            @click="selectDoctor(doctor)"
-                        >
+                            @click="selectDoctor(doctor)">
                             <CardHeader>
                                 <CardTitle class="text-lg flex items-center gap-2">
                                     {{ doctor.name }}
@@ -272,12 +234,8 @@ const updatePatient = () => {
                             <CardTitle class="text-lg">Select Date</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Calendar 
-                                v-model="calendarValue" 
-                                :min-value="today(getLocalTimeZone())"
-                                @update:model-value="handleDateSelect" 
-                                class="rounded-md border p-6" 
-                            />
+                            <Calendar v-model="calendarValue" :min-value="today(getLocalTimeZone())"
+                                @update:model-value="handleDateSelect" class="rounded-md border p-6" />
                         </CardContent>
                     </Card>
 
@@ -291,13 +249,9 @@ const updatePatient = () => {
                         </CardHeader>
                         <CardContent>
                             <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
-                                <Button 
-                                    v-for="slot in availableSlots" 
-                                    :key="slot.id"
-                                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" 
-                                    size="sm"
-                                    @click="selectTimeSlot(slot)"
-                                >
+                                <Button v-for="slot in availableSlots" :key="slot.id"
+                                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
+                                    @click="selectTimeSlot(slot)">
                                     {{ formatTime(slot.slot_start) }}
                                 </Button>
                             </div>
@@ -309,7 +263,7 @@ const updatePatient = () => {
                 </div>
 
                 <!-- Notes -->
-                <Card v-if="bookingData.doctor && bookingData.date">
+                <!-- <Card v-if="bookingData.doctor && bookingData.date">
                     <CardHeader>
                         <CardTitle class="text-lg">Additional Notes</CardTitle>
                         <CardDescription>
@@ -324,7 +278,7 @@ const updatePatient = () => {
                             placeholder="Enter any additional notes or special instructions..."
                         ></textarea>
                     </CardContent>
-                </Card>
+                </Card> -->
             </div>
 
             <!-- Step 3: Confirmation -->
@@ -364,7 +318,8 @@ const updatePatient = () => {
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ formatTime(bookingData.timeSlot?.slot_start || '') }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{
+                                        formatTime(bookingData.timeSlot?.slot_start || '') }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Appointment Type</Label>
@@ -381,7 +336,8 @@ const updatePatient = () => {
 
                         <div v-if="bookingData.notes" class="mt-4">
                             <Label class="text-sm font-medium">Notes</Label>
-                            <p class="text-sm text-muted-foreground mt-1 p-3 bg-muted rounded-md">{{ bookingData.notes }}</p>
+                            <p class="text-sm text-muted-foreground mt-1 p-3 bg-muted rounded-md">{{ bookingData.notes
+                                }}</p>
                         </div>
 
                         <div v-if="!isBookingConfirmed" class="pt-4">
@@ -402,8 +358,9 @@ const updatePatient = () => {
                                 The walk-in appointment has been successfully scheduled.
                             </p>
                             <div v-if="bookingResult?.success" class="space-y-2">
-                                <p class="text-sm"><strong>Appointment ID:</strong> {{ bookingResult.appointmentId }}</p>
-                                <p class="text-sm"><strong>Queue Number:</strong> {{ bookingResult.queueNumber }}</p>
+                                <p class="text-sm"><strong>Appointment ID:</strong> {{ bookingResult.appointmentId }}
+                                </p>
+                                <!-- <p class="text-sm"><strong>Queue Number:</strong> {{ bookingResult.queueNumber }}</p> -->
                             </div>
                         </div>
                     </CardContent>
