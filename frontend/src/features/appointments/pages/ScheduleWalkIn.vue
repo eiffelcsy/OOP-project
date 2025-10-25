@@ -29,7 +29,6 @@ const {
     previousStep,
     scheduleWalkIn,
     formatTime,
-    getUrgencyColor
 } = useScheduleWalkIn()
 
 const isBookingConfirmed = ref(false)
@@ -274,16 +273,6 @@ const updatePatient = () => {
                                     <Label class="text-sm font-medium">Time</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{
                                         formatTime(bookingData.timeSlot?.slot_start || '') }}</p>
-                                </div>
-                                <div>
-                                    <Label class="text-sm font-medium">Appointment Type</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.appointmentType }}</p>
-                                </div>
-                                <div>
-                                    <Label class="text-sm font-medium">Urgency</Label>
-                                    <Badge :class="getUrgencyColor(bookingData.urgency)" variant="outline" class="mt-1">
-                                        {{ bookingData.urgency.toUpperCase() }}
-                                    </Badge>
                                 </div>
                             </div>
                         </div>

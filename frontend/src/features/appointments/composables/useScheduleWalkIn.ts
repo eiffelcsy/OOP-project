@@ -25,9 +25,6 @@ interface WalkInBookingData {
   doctor: Doctor | null
   date: DateValue | null
   timeSlot: TimeSlot | null
-  appointmentType: string
-  notes: string
-  urgency: 'normal' | 'urgent' | 'emergency'
 }
 
 export const useScheduleWalkIn = () => {
@@ -39,10 +36,7 @@ export const useScheduleWalkIn = () => {
     patient: null,
     doctor: null,
     date: null,
-    timeSlot: null,
-    appointmentType: 'Walk-in Consultation',
-    notes: '',
-    urgency: 'normal'
+    timeSlot: null
   })
 
   // Staff clinic info (would come from auth context in real app)
@@ -59,7 +53,6 @@ export const useScheduleWalkIn = () => {
     updated_at: new Date().toISOString(),
     open_time: null,
     close_time: null,
-    note: null
   })
 
   // Available doctors at staff's clinic
@@ -140,16 +133,6 @@ export const useScheduleWalkIn = () => {
     return generateTimeSlots(bookingData.value.doctor.id).filter(slot => slot.status === 'available')
   })
 
-  const appointmentTypes = [
-    'Walk-in Consultation',
-    'Emergency Visit',
-    'Follow-up',
-    'Medication Review',
-    'Health Screening',
-    'Vaccination',
-    'Minor Procedure'
-  ]
-
   // Computed properties
   const canProceedToNextStep = computed(() => {
     switch (currentStep.value) {
@@ -198,18 +181,6 @@ export const useScheduleWalkIn = () => {
     bookingData.value.timeSlot = timeSlot
   }
 
-  const setAppointmentType = (type: string) => {
-    bookingData.value.appointmentType = type
-  }
-
-  const setUrgency = (urgency: 'normal' | 'urgent' | 'emergency') => {
-    bookingData.value.urgency = urgency
-  }
-
-  const setNotes = (notes: string) => {
-    bookingData.value.notes = notes
-  }
-
   const nextStep = () => {
     if (canProceedToNextStep.value && !isLastStep.value) {
       currentStep.value++
@@ -235,9 +206,6 @@ export const useScheduleWalkIn = () => {
       doctor: null,
       date: null,
       timeSlot: null,
-      appointmentType: 'Walk-in Consultation',
-      notes: '',
-      urgency: 'normal'
     }
   }
 
@@ -281,13 +249,6 @@ export const useScheduleWalkIn = () => {
     return `${hour12}:${minutes} ${ampm}`
   }
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'emergency': return 'bg-red-100 text-red-800 border-red-200'
-      case 'urgent': return 'bg-orange-100 text-orange-800 border-orange-200'
-      default: return 'bg-blue-100 text-blue-800 border-blue-200'
-    }
-  }
 
   return {
     // State
@@ -295,7 +256,6 @@ export const useScheduleWalkIn = () => {
     bookingData,
     staffClinic,
     availableDoctors,
-    appointmentTypes,
 
     // Computed
     availableSlots,
@@ -308,9 +268,6 @@ export const useScheduleWalkIn = () => {
     selectDoctor,
     selectDate,
     selectTimeSlot,
-    setAppointmentType,
-    setUrgency,
-    setNotes,
     nextStep,
     previousStep,
     goToStep,
@@ -318,7 +275,6 @@ export const useScheduleWalkIn = () => {
     scheduleWalkIn,
 
     // Utilities
-    formatTime,
-    getUrgencyColor
+    formatTime
   }
 }
