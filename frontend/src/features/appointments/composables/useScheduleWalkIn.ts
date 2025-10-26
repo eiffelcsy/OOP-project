@@ -5,11 +5,9 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 
 const { currentUser, initializeAuth } = useAuth()
 
-// Type aliases from database
 type Doctor = Tables<'doctors'>
 type TimeSlot = Tables<'time_slots'>
 
-// Walk-in patient data interface
 interface WalkInPatientData {
   name: string
   phone: string
@@ -19,7 +17,6 @@ interface WalkInPatientData {
   emergencyContact: string
 }
 
-// Walk-in booking data interface
 interface WalkInBookingData {
   patient: WalkInPatientData | null
   doctor: Doctor | null
@@ -28,10 +25,7 @@ interface WalkInBookingData {
 }
 
 export const useScheduleWalkIn = () => {
-  // Current step (1-3: Patient Info, Doctor & Time, Confirmation)
   const currentStep = ref(1)
-
-  // Booking data
   const bookingData = ref<WalkInBookingData>({
     patient: null,
     doctor: null,
@@ -39,7 +33,6 @@ export const useScheduleWalkIn = () => {
     timeSlot: null
   })
 
-  // Staff clinic info (would come from auth context in real app)
   const staffClinic = ref({
     id: 1,
     name: 'Singapore General Hospital',
@@ -55,76 +48,57 @@ export const useScheduleWalkIn = () => {
     close_time: null,
   })
 
-  // Available doctors at staff's clinic
   const availableDoctors = ref<Doctor[]>([])
   const clinicAppointments = ref<Tables<'appointments'>[]>([])
 
-  // Fetch doctors for the current staff's clinic
   const fetchDoctors = async (clinicId: number) => {
     try {
-      console.log('Fetching doctors for clinic ID:', clinicId)
       const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
-
       const data: Tables<'doctors'>[] = await res.json()
-      availableDoctors.value = data.map((doc, index) => ({
+      availableDoctors.value = data.map((doc, idx) => ({
         ...doc,
-        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5],
+        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][idx % 5],
       }))
-    } catch (error) {
-      console.error('Error fetching doctors:', error)
+    } catch (err) {
+      console.error(err)
     }
   }
 
-  // get appointments for the clinic
   const fetchClinicAppointments = async (clinicId: number) => {
     try {
       const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch clinic appointments')
-      const data = await res.json()
-      clinicAppointments.value = data
-    } catch (error) {
-      console.error('Error fetching clinic appointments:', error)
+      if (!res.ok) throw new Error('Failed to fetch appointments')
+      clinicAppointments.value = await res.json()
+    } catch (err) {
+      console.error(err)
     }
   }
 
   onMounted(async () => {
-    // Ensure the auth state is initialized
     await initializeAuth()
-    // Watch for currentUser to be ready and contain staff data
     watch(
       () => currentUser.value,
       (user) => {
         if (user?.staff?.clinic_id) {
-          const staffId = user.staff.id
           const clinicId = user.staff.clinic_id
-          console.log('Auth loaded. Staff ID:', staffId)
-          console.log('Clinic ID:', clinicId)
           fetchDoctors(clinicId)
-
-          if (user?.staff?.clinic_id) {
-            const clinicId = user.staff.clinic_id
-            fetchDoctors(clinicId)
-            fetchClinicAppointments(clinicId)
-          }
-        } else {
-          console.warn('Waiting for staff info to be available...')
+          fetchClinicAppointments(clinicId)
         }
       },
-      { immediate: true } // run instantly if already loaded
+      { immediate: true }
     )
   })
 
-  // Generate time slots for a doctor on a selected date
+  // --- Slot generation ---
   const generateTimeSlots = async (doctorId: number, selectedDate: DateValue): Promise<TimeSlot[]> => {
     if (!doctorId || !selectedDate) return []
 
-    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0] // YYYY-MM-DD
+    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0]
     const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay()
 
-    // Fetch doctor schedules
     const res = await fetch(`http://localhost:8080/api/admin/doctors/${doctorId}/schedules`)
-    if (!res.ok) throw new Error('Failed to fetch doctor schedules')
+    if (!res.ok) throw new Error('Failed to fetch schedules')
     const schedules = await res.json()
 
     const validSchedules = schedules.filter((sch: any) => {
@@ -135,27 +109,27 @@ export const useScheduleWalkIn = () => {
     })
 
     const slots: TimeSlot[] = []
-    let slotIndex = 1  // Move outside validSchedules.forEach
+    let slotIndex = 1
 
     validSchedules.forEach((schedule: any) => {
       const slotDuration = schedule.slotDurationMinutes
 
-      const toSgtDate = (timeStr: string) => {
-        const [hours, minutes] = timeStr.split(':').map(Number)
-        const d = new Date(`${selectedDateStr}T00:00:00`)
-        d.setHours(hours + 8, minutes)
+      const toUtcDate = (timeStr: string) => {
+        const [hours, minutes, seconds] = timeStr.split(':').map(Number)
+        const d = new Date(`${selectedDateStr}T00:00:00Z`) // UTC midnight
+        d.setUTCHours(hours, minutes, seconds || 0)
         return d
       }
 
-      let current = toSgtDate(schedule.startTime)
-      const endTime = toSgtDate(schedule.endTime)
+      let current = toUtcDate(schedule.startTime)
+      const endTime = toUtcDate(schedule.endTime)
 
       while (current < endTime) {
         const slotEnd = new Date(current)
         slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
 
         slots.push({
-          id: slotIndex++, // unique across all schedules
+          id: slotIndex++,
           doctor_id: doctorId,
           clinic_id: staffClinic.value.id,
           slot_start: current.toISOString(),
@@ -172,7 +146,6 @@ export const useScheduleWalkIn = () => {
     return slots
   }
 
-  // Watch for doctor/date changes and update available slots
   const availableSlots = ref<TimeSlot[]>([])
 
   watch(
@@ -184,19 +157,18 @@ export const useScheduleWalkIn = () => {
       }
 
       const generatedSlots = await generateTimeSlots(doctor.id, date)
-
       const selectedDateStr = new Date(date.toString()).toISOString().split('T')[0]
+
       const bookedAppointments = clinicAppointments.value.filter(
         (appt) =>
           appt.doctor_id === doctor.id &&
-          appt.status === 'scheduled' &&
+          (appt.status === 'scheduled' || appt.status === 'confirmed') &&
           appt.start_time.startsWith(selectedDateStr)
       )
 
       availableSlots.value = generatedSlots.map((slot) => {
         const slotStart = new Date(slot.slot_start)
         const slotEnd = new Date(slot.slot_end)
-
         const isBooked = bookedAppointments.some((appt) => {
           const apptStart = new Date(appt.start_time)
           const apptEnd = new Date(appt.end_time)
@@ -212,115 +184,6 @@ export const useScheduleWalkIn = () => {
     { immediate: true }
   )
 
-  // Computed properties
-  const canProceedToNextStep = computed(() => {
-    switch (currentStep.value) {
-      case 1:
-        return !!(bookingData.value.patient?.name && bookingData.value.patient?.phone)
-      case 2:
-        return !!(bookingData.value.doctor && bookingData.value.date && bookingData.value.timeSlot)
-      case 3:
-        return true
-      default:
-        return false
-    }
-  })
-
-  const isLastStep = computed(() => currentStep.value === 3)
-  const isFirstStep = computed(() => currentStep.value === 1)
-
-  // Actions
-  const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
-    if (!bookingData.value.patient) {
-      bookingData.value.patient = {
-        name: '',
-        phone: '',
-        nric: '',
-        email: '',
-        dateOfBirth: '',
-        emergencyContact: ''
-      }
-    }
-    Object.assign(bookingData.value.patient, patientData)
-  }
-
-  const selectDoctor = (doctor: Doctor) => {
-    bookingData.value.doctor = doctor
-    // Reset time slot when doctor changes
-    bookingData.value.timeSlot = null
-  }
-
-  const selectDate = (date: DateValue) => {
-    bookingData.value.date = date
-    // Reset time slot when date changes
-    bookingData.value.timeSlot = null
-  }
-
-  const selectTimeSlot = (timeSlot: TimeSlot) => {
-    bookingData.value.timeSlot = timeSlot
-  }
-
-  const nextStep = () => {
-    if (canProceedToNextStep.value && !isLastStep.value) {
-      currentStep.value++
-    }
-  }
-
-  const previousStep = () => {
-    if (!isFirstStep.value) {
-      currentStep.value--
-    }
-  }
-
-  const goToStep = (step: number) => {
-    if (step >= 1 && step <= 3) {
-      currentStep.value = step
-    }
-  }
-
-  const resetBooking = () => {
-    currentStep.value = 1
-    bookingData.value = {
-      patient: null,
-      doctor: null,
-      date: null,
-      timeSlot: null,
-    }
-  }
-
-  const scheduleWalkIn = async () => {
-    try {
-      console.log('Scheduling walk-in appointment:', bookingData.value)
-
-      // Simulate API call to schedule walk-in appointment
-      const appointmentData = {
-        ...bookingData.value,
-        clinicId: staffClinic.value.id,
-        clinicName: staffClinic.value.name,
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-        isWalkIn: true
-      }
-
-      // Here you would make an actual API call
-      // await scheduleWalkInAppointment(appointmentData)
-
-      return {
-        success: true,
-        appointmentId: `WI-${Date.now()}`,
-        queueNumber: Math.floor(Math.random() * 50) + 1
-      }
-    } catch (error) {
-      console.error('Walk-in scheduling failed:', error)
-      return {
-        success: false,
-        error: 'Failed to schedule walk-in appointment'
-      }
-    }
-  }
-
-  // Utility functions
-  // Format time to SGT for display
   const formatTime = (time: Date | string | undefined) => {
     if (!time) return ''
     const date = typeof time === 'string' ? new Date(time) : time
@@ -332,33 +195,54 @@ export const useScheduleWalkIn = () => {
     })
   }
 
+  // --- Booking actions ---
+  const canProceedToNextStep = computed(() => {
+    switch (currentStep.value) {
+      case 1: return !!(bookingData.value.patient?.name && bookingData.value.patient?.phone)
+      case 2: return !!(bookingData.value.doctor && bookingData.value.date && bookingData.value.timeSlot)
+      case 3: return true
+      default: return false
+    }
+  })
 
+  const isLastStep = computed(() => currentStep.value === 3)
+  const isFirstStep = computed(() => currentStep.value === 1)
+
+  const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
+    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: '', emergencyContact: '' }
+    Object.assign(bookingData.value.patient, patientData)
+  }
+
+  const selectDoctor = (doctor: Doctor) => { bookingData.value.doctor = doctor; bookingData.value.timeSlot = null }
+  const selectDate = (date: DateValue) => { bookingData.value.date = date; bookingData.value.timeSlot = null }
+  const selectTimeSlot = (timeSlot: TimeSlot) => { bookingData.value.timeSlot = timeSlot }
+  const nextStep = () => { if (canProceedToNextStep.value && !isLastStep.value) currentStep.value++ }
+  const previousStep = () => { if (!isFirstStep.value) currentStep.value-- }
+  const goToStep = (step: number) => { if (step >= 1 && step <= 3) currentStep.value = step }
+  const resetBooking = () => { currentStep.value = 1; bookingData.value = { patient: null, doctor: null, date: null, timeSlot: null } }
+
+  const scheduleWalkIn = async () => {
+    try {
+      const appointmentData = {
+        ...bookingData.value,
+        clinicId: staffClinic.value.id,
+        clinicName: staffClinic.value.name,
+        status: 'scheduled',
+        createdAt: new Date().toISOString(),
+        isWalkIn: true
+      }
+      return { success: true, appointmentId: `WI-${Date.now()}`, queueNumber: Math.floor(Math.random() * 50) + 1 }
+    } catch (err) {
+      console.error(err)
+      return { success: false, error: 'Failed to schedule walk-in appointment' }
+    }
+  }
 
   return {
-    // State
-    currentStep,
-    bookingData,
-    staffClinic,
-    availableDoctors,
-
-    // Computed
-    availableSlots,
-    canProceedToNextStep,
-    isLastStep,
-    isFirstStep,
-
-    // Actions
-    updatePatientInfo,
-    selectDoctor,
-    selectDate,
-    selectTimeSlot,
-    nextStep,
-    previousStep,
-    goToStep,
-    resetBooking,
-    scheduleWalkIn,
-
-    // Utilities
+    currentStep, bookingData, staffClinic, availableDoctors,
+    availableSlots, canProceedToNextStep, isLastStep, isFirstStep,
+    updatePatientInfo, selectDoctor, selectDate, selectTimeSlot,
+    nextStep, previousStep, goToStep, resetBooking, scheduleWalkIn,
     formatTime
   }
 }
