@@ -10,6 +10,10 @@ import com.clinic.management.dto.response.QueueResponse;
 import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Queue;
+import com.clinic.management.model.QueueTicket;
+import com.clinic.management.model.Patient;
+import com.clinic.management.model.Profile;
+import com.clinic.management.repository.ProfileRepository;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
 import com.clinic.management.service.QueueTicketService;
@@ -21,6 +25,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
 
@@ -52,12 +57,14 @@ public class StaffController {
     private final AppointmentService appointmentService;
     private final QueueService queueService;
     private final QueueTicketService queueTicketService;
+    private final ProfileRepository profileRepository;
 
     @Autowired
-    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService) {
+    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
+        this.profileRepository = profileRepository;
     }
 
     // =========================
@@ -224,8 +231,44 @@ public class StaffController {
         return ResponseEntity.status(HttpStatus.CREATED).body(QueueTicketResponse.from(ticket));
     }
 
-    // Reading queue tickets is now handled directly by the frontend via Supabase Realtime.
-    // GET endpoints for reading queue tickets have been removed.
+    /**
+     * List queue tickets with patient names
+     * GET /api/staff/queues/{queueId}/tickets
+     */
+    @GetMapping("/staff/queues/{queueId}/tickets")
+    public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
+        List<QueueTicket> tickets = queueTicketService.list(queueId);
+        
+        // Collect all user IDs from patients
+        List<String> userIds = tickets.stream()
+                .map(QueueTicket::getPatient)
+                .filter(patient -> patient != null)
+                .map(Patient::getUserId)
+                .filter(userId -> userId != null)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        // Fetch all profiles in one query
+        Map<String, String> userIdToNameMap = profileRepository.findByUserIdIn(userIds).stream()
+                .collect(Collectors.toMap(Profile::getUserId, Profile::getFullName));
+        
+        // Convert tickets to responses and enrich with patient names
+        List<QueueTicketResponse> responses = tickets.stream()
+                .map(ticket -> {
+                    QueueTicketResponse response = QueueTicketResponse.from(ticket);
+                    // Add patient name if available
+                    if (ticket.getPatient() != null && ticket.getPatient().getUserId() != null) {
+                        String patientName = userIdToNameMap.get(ticket.getPatient().getUserId());
+                        response.setPatientName(patientName != null ? patientName : "Patient #" + ticket.getPatient().getId());
+                    } else {
+                        response.setPatientName("Walk-in");
+                    }
+                    return response;
+                })
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(responses);
+    }
 
     /**
      * Update queue ticket

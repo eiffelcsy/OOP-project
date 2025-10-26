@@ -9,6 +9,7 @@ public class QueueTicketResponse {
     private Long queueId;
     private Long appointmentId;
     private Long patientId;
+    private String patientName; // Added: patient's full name from profiles
     private Integer ticketNumber;
     private Short priority;
     private String ticketStatus;
@@ -44,6 +45,8 @@ public class QueueTicketResponse {
     public void setAppointmentId(Long appointmentId) { this.appointmentId = appointmentId; }
     public Long getPatientId() { return patientId; }
     public void setPatientId(Long patientId) { this.patientId = patientId; }
+    public String getPatientName() { return patientName; }
+    public void setPatientName(String patientName) { this.patientName = patientName; }
     public Integer getTicketNumber() { return ticketNumber; }
     public void setTicketNumber(Integer ticketNumber) { this.ticketNumber = ticketNumber; }
     public Short getPriority() { return priority; }

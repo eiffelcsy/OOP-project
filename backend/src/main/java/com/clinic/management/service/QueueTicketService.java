@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Service
 public class QueueTicketService {
@@ -17,16 +18,19 @@ public class QueueTicketService {
     private final QueueRepository queueRepository;
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
+    private final ProfileRepository profileRepository;
 
     @Autowired
     public QueueTicketService(QueueTicketRepository queueTicketRepository,
                               QueueRepository queueRepository,
                               AppointmentRepository appointmentRepository,
-                              PatientRepository patientRepository) {
+                              PatientRepository patientRepository,
+                              ProfileRepository profileRepository) {
         this.queueTicketRepository = queueTicketRepository;
         this.queueRepository = queueRepository;
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
+        this.profileRepository = profileRepository;
     }
 
     @Transactional
@@ -59,7 +63,11 @@ public class QueueTicketService {
         return queueTicketRepository.save(t);
     }
 
-    // Read operations have been deprecated: frontend reads directly from Supabase Realtime.
+    @Transactional(readOnly = true)
+    public List<QueueTicket> list(Long queueId) {
+        // Use the method that eagerly fetches patient to avoid N+1 queries
+        return queueTicketRepository.findByQueueIdWithPatient(queueId);
+    }
 
     @Transactional
     public QueueTicket update(Long id, UpdateQueueTicketRequest req) {

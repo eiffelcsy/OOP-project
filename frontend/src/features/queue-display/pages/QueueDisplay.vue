@@ -25,10 +25,20 @@ const isValidQueue = computed(() => {
 const now = ref(new Date())
 
 // Computed properties for display
-const currentNumber = computed(() => currentPatient.value?.queueNumber || 0)
-const currentPatientName = computed(() => currentPatient.value?.name || 'No one')
-const waitingNumbers = computed(() =>
-    waitingPatients.value
+const currentNumber = computed(() => {
+    const num = currentPatient.value?.queueNumber || 0
+    console.log('[QueueDisplay] currentNumber computed:', num, 'currentPatient:', currentPatient.value)
+    return num
+})
+
+const currentPatientName = computed(() => {
+    const name = currentPatient.value?.name || 'No one'
+    console.log('[QueueDisplay] currentPatientName computed:', name)
+    return name
+})
+
+const waitingNumbers = computed(() => {
+    const result = waitingPatients.value
         .sort((a, b) => a.queueNumber - b.queueNumber)
         .slice(0, 10) // Show only next 10 patients
         .map(p => ({
@@ -36,7 +46,9 @@ const waitingNumbers = computed(() =>
             priority: p.priority,
             status: p.status
         }))
-)
+    console.log('[QueueDisplay] waitingNumbers computed:', result.length, 'items')
+    return result
+})
 const averageWaitTime = ref(15)
 
 // Interval handle for realtime clock

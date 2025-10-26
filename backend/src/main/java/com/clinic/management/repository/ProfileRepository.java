@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -54,5 +55,14 @@ public interface ProfileRepository extends JpaRepository<Profile, Long> {
     @Modifying
     @Query(value = "DELETE FROM profiles WHERE user_id = CAST(:userId AS uuid)", nativeQuery = true)
     void deleteByUserId(@Param("userId") String userId);
+    
+    /**
+     * Find profiles by multiple user IDs
+     * Used for batch fetching patient names
+     * @param userIds List of UUID strings
+     * @return List of profiles
+     */
+    @Query("SELECT p FROM Profile p WHERE p.userId IN :userIds")
+    List<Profile> findByUserIdIn(@Param("userIds") List<String> userIds);
 }
 

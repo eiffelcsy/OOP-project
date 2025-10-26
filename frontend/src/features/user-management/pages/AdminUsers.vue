@@ -212,7 +212,7 @@ onMounted(async () => {
               </CardDescription>
             </div>
             <Badge :variant="getRoleBadgeVariant(user.role)" class="ml-2">
-              {{ user.role.toUpperCase() }}
+              {{ user.role }}
             </Badge>
           </div>
         </CardHeader>
