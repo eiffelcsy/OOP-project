@@ -99,38 +99,36 @@ export const useScheduleWalkIn = () => {
 
   // Available time slots for today and next few days
   const generateTimeSlots = (doctorId?: number): TimeSlot[] => {
-    const slots: TimeSlot[] = []
     const baseSlots = [
       '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'
+      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
     ]
 
-    baseSlots.forEach((time, index) => {
-      // Simulate some slots being unavailable
-      const available = Math.random() > 0.3
-      const startTime = new Date()
-      startTime.setHours(parseInt(time.split(':')[0]), parseInt(time.split(':')[1]), 0, 0)
-      const endTime = new Date(startTime)
-      endTime.setMinutes(endTime.getMinutes() + 30)
+    const add30Minutes = (time: string): string => {
+      const [hour, minute] = time.split(':').map(Number)
+      const totalMinutes = hour * 60 + minute + 30
+      const newHour = Math.floor(totalMinutes / 60)
+      const newMinute = totalMinutes % 60
+      return `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`
+    }
 
-      slots.push({
-        id: index + 1,
-        doctor_id: doctorId || 1,
-        clinic_id: 1,
-        slot_start: startTime.toISOString(),
-        slot_end: endTime.toISOString(),
-        status: available ? 'available' : 'booked',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-    })
-
-    return slots
+    return baseSlots.map((time, index) => ({
+      id: index + 1,
+      doctor_id: doctorId || 1,
+      clinic_id: 1,
+      slot_start: time,
+      slot_end: add30Minutes(time),
+      status: Math.random() > 0.3 ? 'available' : 'booked',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
   }
 
+  // different schedule per day
   const availableSlots = computed(() => {
     if (!bookingData.value.doctor || !bookingData.value.date) return []
-    return generateTimeSlots(bookingData.value.doctor.id).filter(slot => slot.status === 'available')
+    // Return all generated slots (both available & booked)
+    return generateTimeSlots(bookingData.value.doctor.id)
   })
 
   // Computed properties

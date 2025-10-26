@@ -128,7 +128,7 @@ const updatePatient = () => {
                             <div class="space-y-2">
                                 <Label for="patient-nric">NRIC/FIN *</Label>
                                 <Input id="patient-nric" v-model="patientForm.nric" @input="updatePatient"
-                                    placeholder="SXXXXXXXA"  required/>
+                                    placeholder="SXXXXXXXA" required />
                             </div>
                             <div class="space-y-2">
                                 <Label for="patient-email">Email</Label>
@@ -202,11 +202,13 @@ const updatePatient = () => {
                         </CardHeader>
                         <CardContent>
                             <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
-                                <Button v-for="slot in availableSlots" :key="slot.id"
-                                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
-                                    @click="selectTimeSlot(slot)">
+                                <Button v-for="slot in availableSlots" :key="slot.id" :variant="slot.status === 'available'
+                                    ? (bookingData.timeSlot?.id === slot.id ? 'default' : 'outline')
+                                    : 'ghost'" size="sm" class="w-full" :disabled="slot.status !== 'available'"
+                                    @click="slot.status === 'available' && selectTimeSlot(slot)">
                                     {{ formatTime(slot.slot_start) }}
                                 </Button>
+
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
                                 Select a date to view available time slots
@@ -280,7 +282,7 @@ const updatePatient = () => {
                         <div v-if="bookingData.notes" class="mt-4">
                             <Label class="text-sm font-medium">Notes</Label>
                             <p class="text-sm text-muted-foreground mt-1 p-3 bg-muted rounded-md">{{ bookingData.notes
-                                }}</p>
+                            }}</p>
                         </div>
 
                         <div v-if="!isBookingConfirmed" class="pt-4">
