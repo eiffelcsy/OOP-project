@@ -16,7 +16,6 @@ const {
     bookingData,
     staffClinic,
     availableDoctors,
-    appointmentTypes,
     availableSlots,
     canProceedToNextStep,
     isLastStep,
@@ -216,24 +215,6 @@ const updatePatient = () => {
                         </CardContent>
                     </Card>
                 </div>
-
-                <!-- Notes -->
-                <!-- <Card v-if="bookingData.doctor && bookingData.date">
-                    <CardHeader>
-                        <CardTitle class="text-lg">Additional Notes</CardTitle>
-                        <CardDescription>
-                            Any special instructions or notes for this appointment
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <textarea 
-                            :value="bookingData.notes"
-                            @input="setNotes(($event.target as HTMLTextAreaElement).value)"
-                            class="w-full min-h-[100px] p-3 border rounded-md resize-none"
-                            placeholder="Enter any additional notes or special instructions..."
-                        ></textarea>
-                    </CardContent>
-                </Card> -->
             </div>
 
             <!-- Step 3: Confirmation -->

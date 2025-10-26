@@ -116,75 +116,98 @@ export const useScheduleWalkIn = () => {
   })
 
   // Available time slots for today and next few days
-  const generateTimeSlots = (doctorId?: number): TimeSlot[] => {
-    const baseSlots = [
-      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-      '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-    ]
+  // Generate time slots for a doctor on a selected date
+  const generateTimeSlots = async (doctorId: number, selectedDate: DateValue): Promise<TimeSlot[]> => {
+    if (!doctorId || !selectedDate) return []
 
-    // calculate the end time of a 30 min slot from its start time
-    const add30Minutes = (time: string): string => {
-      const [hour, minute] = time.split(':').map(Number)
-      const totalMinutes = hour * 60 + minute + 30
-      const newHour = Math.floor(totalMinutes / 60)
-      const newMinute = totalMinutes % 60
-      return `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`
-    }
+    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0] // 'YYYY-MM-DD'
+    const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay() // Sunday=7
 
-    // creating a structured list of slot for a doctor's schedule
-    return baseSlots.map((time, index) => ({
-      id: index + 1, // unique id for each slot 
-      doctor_id: doctorId,
-      clinic_id: staffClinic.value.id,
-      slot_start: time, // how to make sure this is the time selected by user?
-      slot_end: add30Minutes(time),
-      status: Math.random() > 0.3 ? 'available' : 'scheduled',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
-  }
+    // Fetch doctor schedules from API
+    const res = await fetch(`http://localhost:8080/api/admin/doctors/${doctorId}/schedules`)
+    if (!res.ok) throw new Error('Failed to fetch doctor schedules')
+    const schedules = await res.json()
 
-  // different schedule per day
-  const availableSlots = computed(() => {
-    const doctor = bookingData.value.doctor
-    const date = bookingData.value.date
-    if (!doctor || !date) return []
+    // Filter schedules valid for this day and date
+    const validSchedules = schedules.filter((sch: any) => {
+      const validFrom = new Date(sch.validFrom)
+      const validTo = new Date(sch.validTo)
+      const selected = new Date(selectedDate.toString())
+      return sch.dayOfWeek === dayOfWeek && selected >= validFrom && selected <= validTo
+    })
 
-    const baseSlots = generateTimeSlots(doctor.id)
+    const slots: TimeSlot[] = []
 
-    const selectedDate = new Date(date.toString())
-    const selectedDateStr = selectedDate.toISOString().split('T')[0] // "YYYY-MM-DD"
+    validSchedules.forEach((schedule: any) => {
+      const [startHour, startMinute] = schedule.startTime.split(':').map(Number)
+      const [endHour, endMinute] = schedule.endTime.split(':').map(Number)
+      const slotDuration = schedule.slotDurationMinutes
 
-    // Filter appointments for this doctor & selected date
-    const bookedAppointments = clinicAppointments.value.filter(
-      (appt) =>
-        appt.doctor_id === doctor.id &&
-        appt.status === 'scheduled' &&
-        appt.start_time.startsWith(selectedDateStr)
-    )
+      let current = new Date(`${selectedDateStr}T${schedule.startTime}`) // ✅ combine date + time
+      const endTime = new Date(`${selectedDateStr}T${schedule.endTime}`)
 
-    // Mark slots as booked if they overlap with any scheduled appointment
-    return baseSlots.map((slot) => {
-      const slotStart = slot.slot_start
-      const slotEnd = slot.slot_end
+      let slotIndex = 1
+      while (current < endTime) {
+        const slotEnd = new Date(current)
+        slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
 
-      const isBooked = bookedAppointments.some((appt) => {
-        const apptStart = new Date(appt.start_time)
-        const apptEnd = new Date(appt.end_time)
+        slots.push({
+          id: slotIndex++,
+          doctor_id: doctorId,
+          clinic_id: staffClinic.value.id,
+          slot_start: current.toISOString(), // ISO string for Supabase
+          slot_end: slotEnd.toISOString(),
+          status: 'available',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
 
-        // Convert UTC → local time string "HH:mm"
-        const apptStartStr = apptStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-        const apptEndStr = apptEnd.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
-
-        return slotStart >= apptStartStr && slotStart < apptEndStr
-      })
-
-      return {
-        ...slot,
-        status: isBooked ? 'scheduled' : 'available'
+        current = slotEnd
       }
     })
-  })
+
+    return slots
+  }
+
+  // Watch for doctor/date changes and update available slots
+  const availableSlots = ref<TimeSlot[]>([])
+
+  watch(
+    [() => bookingData.value.doctor, () => bookingData.value.date],
+    async ([doctor, date]) => {
+      if (!doctor || !date) {
+        availableSlots.value = []
+        return
+      }
+
+      const generatedSlots = await generateTimeSlots(doctor.id, date)
+
+      const selectedDateStr = new Date(date.toString()).toISOString().split('T')[0]
+      const bookedAppointments = clinicAppointments.value.filter(
+        (appt) =>
+          appt.doctor_id === doctor.id &&
+          appt.status === 'scheduled' &&
+          appt.start_time.startsWith(selectedDateStr)
+      )
+
+      availableSlots.value = generatedSlots.map((slot) => {
+        const slotStart = new Date(slot.slot_start)
+        const slotEnd = new Date(slot.slot_end)
+
+        const isBooked = bookedAppointments.some((appt) => {
+          const apptStart = new Date(appt.start_time)
+          const apptEnd = new Date(appt.end_time)
+          return slotStart < apptEnd && slotEnd > apptStart
+        })
+
+        return {
+          ...slot,
+          status: isBooked ? 'scheduled' : 'available'
+        }
+      })
+    },
+    { immediate: true }
+  )
 
   // Computed properties
   const canProceedToNextStep = computed(() => {
@@ -294,11 +317,13 @@ export const useScheduleWalkIn = () => {
   }
 
   // Utility functions
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':')
-    const hour = parseInt(hours, 10)
-    const ampm = hour >= 12 ? 'PM' : 'AM'
-    const hour12 = hour % 12 || 12
+  const formatTime = (time: Date | string | undefined) => {
+    if (!time) return ''
+    const date = typeof time === 'string' ? new Date(time) : time
+    const hours = date.getHours()
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    const hour12 = hours % 12 || 12
     return `${hour12}:${minutes} ${ampm}`
   }
 
