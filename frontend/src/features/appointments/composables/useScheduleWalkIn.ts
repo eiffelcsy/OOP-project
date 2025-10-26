@@ -33,7 +33,7 @@ export const useScheduleWalkIn = () => {
     timeSlot: null
   })
 
-  // Always keep this structure
+  // Always keep this structure | default values to avoid undefined errors
   const staffClinic = ref({
     id: 1,
     name: 'Singapore General Hospital',
@@ -247,22 +247,87 @@ export const useScheduleWalkIn = () => {
   const goToStep = (step: number) => { if (step >= 1 && step <= 3) currentStep.value = step }
   const resetBooking = () => { currentStep.value = 1; bookingData.value = { patient: null, doctor: null, date: null, timeSlot: null } }
 
+  // --- Updated scheduleWalkIn function ---
   const scheduleWalkIn = async () => {
     try {
-      const appointmentData = {
-        ...bookingData.value,
-        clinicId: staffClinic.value.id,
-        clinicName: staffClinic.value.name,
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-        isWalkIn: true
+      if (!bookingData.value.patient || !bookingData.value.doctor || !bookingData.value.date || !bookingData.value.timeSlot) {
+        throw new Error('Incomplete booking data')
       }
-      return { success: true, appointmentId: `WI-${Date.now()}`, queueNumber: Math.floor(Math.random() * 50) + 1 }
-    } catch (err) {
+
+      // Fetch patient ID by NRIC
+      const patientRes = await fetch('http://localhost:8080/api/patient/all')
+      if (!patientRes.ok) throw new Error('Failed to fetch patients')
+      const patients = await patientRes.json()
+      const patient = patients.find(
+        (p: any) => p.nric.trim().toUpperCase() === bookingData.value.patient?.nric.trim().toUpperCase()
+      )
+      if (!patient) throw new Error('Patient not found')
+      const patientId = patient.id
+
+      // Prepare start and end time in UTC
+      const startTime = new Date(bookingData.value.timeSlot.slot_start).toISOString()
+      const slotDurationMinutes = (new Date(bookingData.value.timeSlot.slot_end).getTime() - new Date(bookingData.value.timeSlot.slot_start).getTime()) / 60000
+      const endTime = new Date(new Date(startTime).getTime() + slotDurationMinutes * 60 * 1000).toISOString()
+      const nowUtc = new Date().toISOString()
+
+      // Build appointment payload
+      const appointmentPayload = {
+        // required by backend
+        patient_id: patientId,
+        doctor_id: bookingData.value.doctor.id,
+        clinic_id: staffClinic.value.id,
+        start_time: startTime,
+        end_time: endTime,
+        status: 'scheduled',
+        treatment_summary: null,
+        created_at: nowUtc,
+        updated_at: nowUtc
+      }
+
+      // Add Idempotency-Key to prevent duplicate bookings
+      const idempotencyKeyRef = (bookingData as any)._idempotencyKey ||= ref<string | null>(null)
+      if (!idempotencyKeyRef.value) {
+        idempotencyKeyRef.value = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+      }
+
+      // Attach Authorization header if available (staff/admin token)
+      const { getAccessToken } = useAuth()
+      let token: string | null = null
+      try {
+        token = await getAccessToken?.()
+      } catch { token = null }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotencyKeyRef.value,
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+
+      // POST to backend
+      const res = await fetch('http://localhost:8080/api/appointments', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(appointmentPayload)
+      })
+
+      if (!res.ok) {
+        let errText = await res.text().catch(() => '')
+        throw new Error(errText || 'Failed to schedule appointment')
+      }
+
+      const appointment = await res.json()
+
+      return {
+        success: true,
+        appointmentId: appointment.id,
+        queueNumber: Math.floor(Math.random() * 50) + 1
+      }
+    } catch (err: any) {
       console.error(err)
-      return { success: false, error: 'Failed to schedule walk-in appointment' }
+      return { success: false, error: err.message || 'Failed to schedule walk-in appointment' }
     }
   }
+
 
   return {
     currentStep, bookingData, staffClinic, availableDoctors,
