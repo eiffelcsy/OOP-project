@@ -8,15 +8,16 @@ const { currentUser, initializeAuth } = useAuth()
 type Doctor = Tables<'doctors'>
 type TimeSlot = Tables<'time_slots'>
 
+// Ensures that whenever you create or update a patient, TypeScript will check that all these fields exist and have the correct type
 interface WalkInPatientData {
   name: string
   phone: string
   nric: string
   email: string
   dateOfBirth: string
-  emergencyContact: string
 }
 
+// Groups together all the information you need to make a booking: patient info, selected doctor, date, and time slot.
 interface WalkInBookingData {
   patient: WalkInPatientData | null
   doctor: Doctor | null
@@ -222,6 +223,7 @@ export const useScheduleWalkIn = () => {
   }
 
   // --- Booking actions ---
+  // Determines whether the user can go to the next step in the booking process
   const canProceedToNextStep = computed(() => {
     switch (currentStep.value) {
       case 1: return !!(bookingData.value.patient?.name && bookingData.value.patient?.phone)
@@ -234,8 +236,9 @@ export const useScheduleWalkIn = () => {
   const isLastStep = computed(() => currentStep.value === 3)
   const isFirstStep = computed(() => currentStep.value === 1)
 
+  // Updates the patient info in bookingData.
   const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
-    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: '', emergencyContact: '' }
+    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: ''}
     Object.assign(bookingData.value.patient, patientData)
   }
 
@@ -247,7 +250,7 @@ export const useScheduleWalkIn = () => {
   const goToStep = (step: number) => { if (step >= 1 && step <= 3) currentStep.value = step }
   const resetBooking = () => { currentStep.value = 1; bookingData.value = { patient: null, doctor: null, date: null, timeSlot: null } }
 
-  // --- Updated scheduleWalkIn function ---
+  // --- ADD (POST) scheduleWalkIn function ---
   const scheduleWalkIn = async () => {
     try {
       if (!bookingData.value.patient || !bookingData.value.doctor || !bookingData.value.date || !bookingData.value.timeSlot) {

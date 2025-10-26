@@ -260,12 +260,6 @@ const updatePatient = () => {
                             </div>
                         </div>
 
-                        <div v-if="bookingData.notes" class="mt-4">
-                            <Label class="text-sm font-medium">Notes</Label>
-                            <p class="text-sm text-muted-foreground mt-1 p-3 bg-muted rounded-md">{{ bookingData.notes
-                            }}</p>
-                        </div>
-
                         <div v-if="!isBookingConfirmed" class="pt-4">
                             <Button @click="handleScheduleWalkIn" class="w-full" size="lg">
                                 Schedule Walk-in Appointment
@@ -286,7 +280,6 @@ const updatePatient = () => {
                             <div v-if="bookingResult?.success" class="space-y-2">
                                 <p class="text-sm"><strong>Appointment ID:</strong> {{ bookingResult.appointmentId }}
                                 </p>
-                                <!-- <p class="text-sm"><strong>Queue Number:</strong> {{ bookingResult.queueNumber }}</p> -->
                             </div>
                         </div>
                     </CardContent>
