@@ -5,14 +5,15 @@ import { Icon } from '@iconify/vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 
 const route = useRoute()
-const queueId = computed(() => route.params.queueId as unknown as number)
+const queueId = computed(() => Number(route.params.queueId))
 
 // Use the same queue management composable for real-time data
 const {
     queueState,
     patients,
     waitingPatients,
-    currentPatient
+    currentPatient,
+    initializeQueueById
 } = useQueueManagement()
 
 // Validate queue ID and check if queue is active
@@ -20,7 +21,8 @@ const isValidQueue = computed(() => {
     return queueState.queueId === queueId.value && queueState.isActive
 })
 
-const lastUpdated = ref(new Date())
+// Realtime clock for display
+const now = ref(new Date())
 
 // Computed properties for display
 const currentNumber = computed(() => currentPatient.value?.queueNumber || 0)
@@ -37,22 +39,23 @@ const waitingNumbers = computed(() =>
 )
 const averageWaitTime = ref(15)
 
-// Auto-refresh every 30 seconds
-let refreshInterval: number
+// Interval handle for realtime clock
+let nowInterval: number
 
-const refreshData = () => {
-    // Simulate data refresh
-    lastUpdated.value = new Date()
-    // In a real app, this would fetch from the queue management API
-}
-
-onMounted(() => {
-    refreshInterval = setInterval(refreshData, 30000)
+onMounted(async () => {
+    // Initialize queue by route ID
+    if (!isNaN(queueId.value)) {
+        await initializeQueueById(queueId.value)
+    }
+    // Start realtime clock
+    nowInterval = window.setInterval(() => {
+        now.value = new Date()
+    }, 1000)
 })
 
 onUnmounted(() => {
-    if (refreshInterval) {
-        clearInterval(refreshInterval)
+    if (nowInterval) {
+        clearInterval(nowInterval)
     }
 })
 
@@ -63,6 +66,13 @@ const formatTime = (date: Date) => {
         hour12: true
     })
 }
+
+// React to route param changes
+watch(queueId, async (newId) => {
+    if (!isNaN(newId)) {
+        await initializeQueueById(newId)
+    }
+})
 </script>
 
 <template>
@@ -78,8 +88,7 @@ const formatTime = (date: Date) => {
                     </div>
                 </div>
                 <div class="text-right">
-                    <div class="text-xl font-bold text-gray-800">{{ formatTime(new Date()) }}</div>
-                    <div class="text-xs text-gray-500">Last updated: {{ formatTime(lastUpdated) }}</div>
+                    <div class="text-xl font-bold text-gray-800">{{ formatTime(now) }}</div>
                 </div>
             </div>
 
@@ -102,8 +111,8 @@ const formatTime = (date: Date) => {
                                             This queue is no longer active or does not exist
                                         </div>
                                         <div class="text-xs text-gray-500 mt-2">
-                                            Queue ID: {{ queueId }}
-                                        </div>
+                                                Queue ID: {{ queueId }}
+                                            </div>
                                     </div>
                                 </div>
                                 

@@ -10,6 +10,7 @@ const {
   patients,
   waitingPatients,
   priorityPatients,
+  normalPatients,
   currentPatient,
   completedToday,
   noShowToday,
@@ -274,11 +275,11 @@ const getStatusColor = (status: string) => {
           </div>
 
           <!-- Normal Patients -->
-          <div>
+          <div v-if="normalPatients.length > 0">
             <h4 class="font-medium mb-2">Regular Patients</h4>
             <div class="space-y-2">
               <div 
-                v-for="patient in patients.filter(p => p.status === 'Checked In' && p.priority === 'normal')" 
+                v-for="patient in normalPatients" 
                 :key="patient.id"
                 class="flex items-center justify-between p-4 border rounded-lg"
               >

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 
 @Service
 public class QueueTicketService {
@@ -60,16 +59,7 @@ public class QueueTicketService {
         return queueTicketRepository.save(t);
     }
 
-    @Transactional(readOnly = true)
-    public QueueTicket getById(Long id) {
-        return queueTicketRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Queue ticket not found with id: " + id));
-    }
-
-    @Transactional(readOnly = true)
-    public List<QueueTicket> listByQueueId(Long queueId) {
-        return queueTicketRepository.findByQueueId(queueId);
-    }
+    // Read operations have been deprecated: frontend reads directly from Supabase Realtime.
 
     @Transactional
     public QueueTicket update(Long id, UpdateQueueTicketRequest req) {

@@ -16,9 +16,6 @@ export interface QueueTicketResponse {
 }
 
 export const queueTicketsApi = {
-  async listByQueueId(queueId: number): Promise<QueueTicketResponse[]> {
-    return apiClient.get(`/api/queues/${queueId}/tickets`)
-  },
   async update(id: number, payload: Partial<{
     queue_id: number
     appointment_id: number | null

@@ -1,7 +1,7 @@
 import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import type { Tables } from '@/types/supabase'
 import { queueApi, type QueueResponse, type CreateQueueRequest } from '@/services/queueApi'
-import { queueTicketsApi, type QueueTicketResponse } from '@/services/queueTicketsApi'
+import { queueTicketsApi } from '@/services/queueTicketsApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { supabase } from '@/lib/supabase'
 
@@ -75,7 +75,18 @@ export function useQueueManagement() {
 
   // Load queue tickets and hydrate basic patient info
   const loadQueueTickets = async (queueId: number) => {
-    const tickets: QueueTicketResponse[] = await queueTicketsApi.listByQueueId(queueId)
+    // Fetch tickets directly from Supabase instead of backend
+    const { data: tickets, error } = await supabase
+      .from('queue_tickets')
+      .select('*')
+      .eq('queue_id', queueId)
+      .order('ticket_number', { ascending: true })
+
+    if (error) {
+      console.error('Error loading queue tickets from Supabase:', error)
+      patients.value = []
+      return
+    }
 
     const patientIds = Array.from(new Set(tickets.map(t => t.patient_id).filter((v): v is number => !!v)))
     const patientMap = new Map<number, { user_id: string | null; phone: string | null }>()
@@ -99,7 +110,7 @@ export function useQueueManagement() {
       }
     }
 
-    const transformed: QueuePatient[] = tickets.map(t => {
+    const transformed: QueuePatient[] = (tickets || []).map(t => {
       const patInfo = t.patient_id ? patientMap.get(t.patient_id) : undefined
       const fullName = patInfo?.user_id ? (nameByUserId.get(patInfo.user_id) || undefined) : undefined
       const status = mapStatus(t.ticket_status)
@@ -230,7 +241,15 @@ export function useQueueManagement() {
     if (document.visibilityState === 'visible') {
       try {
         await refreshUser()
-        await initializeQueueState()
+        // If we already know the queueId (either staff or display page), just reload and resubscribe
+        if (queueState.queueId) {
+          // Re-subscribe to ensure realtime connection is alive after tab switch
+          subscribeToQueueTickets(queueState.queueId)
+          await loadQueueTickets(queueState.queueId)
+        } else {
+          // Fallback: try to detect active/paused queue for the staff page
+          await initializeQueueState()
+        }
       } catch (e) {
         console.warn('Failed to refresh after visibility change', e)
       }
@@ -425,6 +444,33 @@ export function useQueueManagement() {
     }
   }
 
+  /**
+   * Initialize queue state for a specific queue ID (used by public display)
+   * Loads the queue by ID, sets local state, loads tickets, and subscribes to realtime updates.
+   */
+  const initializeQueueById = async (qid: number) => {
+    try {
+      await initializeAuth()
+      const q = await queueApi.getQueueById(qid)
+      // Consider ACTIVE or PAUSED as active for display purposes
+      queueState.isActive = q.queue_status !== 'CLOSED'
+      queueState.isPaused = q.queue_status === 'PAUSED'
+      queueState.queueId = q.id
+      queueState.startedAt = new Date(q.created_at * 1000)
+      queueState.endedAt = null
+
+      await loadQueueTickets(qid)
+      subscribeToQueueTickets(qid)
+    } catch (error) {
+      console.error('Failed to initialize queue by ID:', error)
+      queueState.isActive = false
+      queueState.isPaused = false
+      queueState.queueId = null
+      queueState.startedAt = null
+      queueState.endedAt = null
+    }
+  }
+
   const callNext = async () => {
     if (queueState.isPaused || hasCalledTicket.value) return
     // Determine eligible: not Completed/No Show/Called => essentially 'Checked In'
@@ -530,6 +576,7 @@ export function useQueueManagement() {
     updatePatientStatus,
     moveToFastTrack,
     removeFromFastTrack,
+    initializeQueueById,
     resetQueue
   }
 }

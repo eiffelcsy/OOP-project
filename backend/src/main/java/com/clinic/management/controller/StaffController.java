@@ -224,25 +224,8 @@ public class StaffController {
         return ResponseEntity.status(HttpStatus.CREATED).body(QueueTicketResponse.from(ticket));
     }
 
-    /**
-     * Get queue ticket by ID
-     * GET /api/queue-tickets/{id}
-     */
-    @GetMapping("/queue-tickets/{id}")
-    public ResponseEntity<QueueTicketResponse> getQueueTicketById(@PathVariable Long id) {
-        var ticket = queueTicketService.getById(id);
-        return ResponseEntity.ok(QueueTicketResponse.from(ticket));
-    }
-
-    /**
-     * List queue tickets by queue ID
-     * GET /api/queues/{queueId}/tickets
-     */
-    @GetMapping("/queues/{queueId}/tickets")
-    public ResponseEntity<List<QueueTicketResponse>> listQueueTicketsByQueue(@PathVariable Long queueId) {
-        var list = queueTicketService.listByQueueId(queueId).stream().map(QueueTicketResponse::from).toList();
-        return ResponseEntity.ok(list);
-    }
+    // Reading queue tickets is now handled directly by the frontend via Supabase Realtime.
+    // GET endpoints for reading queue tickets have been removed.
 
     /**
      * Update queue ticket

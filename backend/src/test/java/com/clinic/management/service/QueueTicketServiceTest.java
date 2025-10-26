@@ -18,7 +18,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,22 +67,7 @@ class QueueTicketServiceTest {
         assertThat(result.getTicketNumber()).isEqualTo(42);
     }
 
-    @Test
-    void getById_notFound_throws() {
-        when(queueTicketRepository.findById(999L)).thenReturn(Optional.empty());
-        assertThrows(NotFoundException.class, () -> service.getById(999L));
-    }
-
-    @Test
-    void listByQueueId_returnsRepositoryResult() {
-        QueueTicket t1 = new QueueTicket(); t1.setId(1L);
-        QueueTicket t2 = new QueueTicket(); t2.setId(2L);
-        when(queueTicketRepository.findByQueueId(123L)).thenReturn(List.of(t1, t2));
-
-        List<QueueTicket> result = service.listByQueueId(123L);
-
-        assertThat(result).hasSize(2).containsExactly(t1, t2);
-    }
+    // Read tests removed: backend no longer supports reading queue tickets; frontend reads via Supabase.
 
     @Test
     void update_withTimestampMismatch_throwsOptimisticLock() {
