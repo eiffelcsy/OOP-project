@@ -57,6 +57,7 @@ export const useScheduleWalkIn = () => {
 
   // Available doctors at staff's clinic
   const availableDoctors = ref<Doctor[]>([])
+  const clinicAppointments = ref<Tables<'appointments'>[]>([])
 
   // Fetch doctors for the current staff's clinic
   const fetchDoctors = async (clinicId: number) => {
@@ -75,10 +76,21 @@ export const useScheduleWalkIn = () => {
     }
   }
 
+  // get appointments for the clinic
+  const fetchClinicAppointments = async (clinicId: number) => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
+      if (!res.ok) throw new Error('Failed to fetch clinic appointments')
+      const data = await res.json()
+      clinicAppointments.value = data
+    } catch (error) {
+      console.error('Error fetching clinic appointments:', error)
+    }
+  }
+
   onMounted(async () => {
     // Ensure the auth state is initialized
     await initializeAuth()
-
     // Watch for currentUser to be ready and contain staff data
     watch(
       () => currentUser.value,
@@ -89,6 +101,12 @@ export const useScheduleWalkIn = () => {
           console.log('Auth loaded. Staff ID:', staffId)
           console.log('Clinic ID:', clinicId)
           fetchDoctors(clinicId)
+
+          if (user?.staff?.clinic_id) {
+            const clinicId = user.staff.clinic_id
+            fetchDoctors(clinicId)
+            fetchClinicAppointments(clinicId)
+          }
         } else {
           console.warn('Waiting for staff info to be available...')
         }
@@ -104,6 +122,7 @@ export const useScheduleWalkIn = () => {
       '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
     ]
 
+    // calculate the end time of a 30 min slot from its start time
     const add30Minutes = (time: string): string => {
       const [hour, minute] = time.split(':').map(Number)
       const totalMinutes = hour * 60 + minute + 30
@@ -112,13 +131,14 @@ export const useScheduleWalkIn = () => {
       return `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`
     }
 
+    // creating a structured list of slot for a doctor's schedule
     return baseSlots.map((time, index) => ({
-      id: index + 1,
-      doctor_id: doctorId || 1,
-      clinic_id: 1,
-      slot_start: time,
+      id: index + 1, // unique id for each slot 
+      doctor_id: doctorId,
+      clinic_id: staffClinic.value.id,
+      slot_start: time, // how to make sure this is the time selected by user?
       slot_end: add30Minutes(time),
-      status: Math.random() > 0.3 ? 'available' : 'booked',
+      status: Math.random() > 0.3 ? 'available' : 'scheduled',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }))
@@ -126,9 +146,44 @@ export const useScheduleWalkIn = () => {
 
   // different schedule per day
   const availableSlots = computed(() => {
-    if (!bookingData.value.doctor || !bookingData.value.date) return []
-    // Return all generated slots (both available & booked)
-    return generateTimeSlots(bookingData.value.doctor.id)
+    const doctor = bookingData.value.doctor
+    const date = bookingData.value.date
+    if (!doctor || !date) return []
+
+    const baseSlots = generateTimeSlots(doctor.id)
+
+    const selectedDate = new Date(date.toString())
+    const selectedDateStr = selectedDate.toISOString().split('T')[0] // "YYYY-MM-DD"
+
+    // Filter appointments for this doctor & selected date
+    const bookedAppointments = clinicAppointments.value.filter(
+      (appt) =>
+        appt.doctor_id === doctor.id &&
+        appt.status === 'scheduled' &&
+        appt.start_time.startsWith(selectedDateStr)
+    )
+
+    // Mark slots as booked if they overlap with any scheduled appointment
+    return baseSlots.map((slot) => {
+      const slotStart = slot.slot_start
+      const slotEnd = slot.slot_end
+
+      const isBooked = bookedAppointments.some((appt) => {
+        const apptStart = new Date(appt.start_time)
+        const apptEnd = new Date(appt.end_time)
+
+        // Convert UTC → local time string "HH:mm"
+        const apptStartStr = apptStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+        const apptEndStr = apptEnd.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+        return slotStart >= apptStartStr && slotStart < apptEndStr
+      })
+
+      return {
+        ...slot,
+        status: isBooked ? 'scheduled' : 'available'
+      }
+    })
   })
 
   // Computed properties
