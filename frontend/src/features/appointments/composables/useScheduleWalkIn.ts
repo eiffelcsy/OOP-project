@@ -33,6 +33,7 @@ export const useScheduleWalkIn = () => {
     timeSlot: null
   })
 
+  // Always keep this structure
   const staffClinic = ref({
     id: 1,
     name: 'Singapore General Hospital',
@@ -50,15 +51,40 @@ export const useScheduleWalkIn = () => {
 
   const availableDoctors = ref<Doctor[]>([])
   const clinicAppointments = ref<Tables<'appointments'>[]>([])
+  const availableSlots = ref<TimeSlot[]>([])
+
+  const fetchClinic = async (clinicId: number) => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/admin/clinics/${clinicId}`)
+      if (!res.ok) throw new Error('Failed to fetch clinic')
+      const data = await res.json()
+
+      // Update staffClinic fields while keeping the object structure
+      staffClinic.value.id = data.id
+      staffClinic.value.name = data.name
+      staffClinic.value.clinic_type = data.clinic_type
+      staffClinic.value.region = data.region
+      staffClinic.value.area = data.area
+      staffClinic.value.address_line = data.address_line
+      staffClinic.value.source_ref = data.source_ref
+      staffClinic.value.remarks = data.remarks
+      staffClinic.value.created_at = data.created_at || new Date().toISOString()
+      staffClinic.value.updated_at = data.updated_at || new Date().toISOString()
+      staffClinic.value.open_time = data.open_time
+      staffClinic.value.close_time = data.close_time
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const fetchDoctors = async (clinicId: number) => {
     try {
       const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
-      const data: Tables<'doctors'>[] = await res.json()
+      const data: Doctor[] = await res.json()
       availableDoctors.value = data.map((doc, idx) => ({
         ...doc,
-        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][idx % 5],
+        color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][idx % 5]
       }))
     } catch (err) {
       console.error(err)
@@ -77,11 +103,13 @@ export const useScheduleWalkIn = () => {
 
   onMounted(async () => {
     await initializeAuth()
+
     watch(
       () => currentUser.value,
       (user) => {
         if (user?.staff?.clinic_id) {
           const clinicId = user.staff.clinic_id
+          fetchClinic(clinicId)
           fetchDoctors(clinicId)
           fetchClinicAppointments(clinicId)
         }
@@ -91,7 +119,7 @@ export const useScheduleWalkIn = () => {
   })
 
   // --- Slot generation ---
-  const generateTimeSlots = async (doctorId: number, selectedDate: DateValue): Promise<TimeSlot[]> => {
+  const generateTimeSlots = async (doctorId: number, selectedDate: DateValue) => {
     if (!doctorId || !selectedDate) return []
 
     const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0]
@@ -116,7 +144,7 @@ export const useScheduleWalkIn = () => {
 
       const toUtcDate = (timeStr: string) => {
         const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-        const d = new Date(`${selectedDateStr}T00:00:00Z`) // UTC midnight
+        const d = new Date(`${selectedDateStr}T00:00:00Z`)
         d.setUTCHours(hours, minutes, seconds || 0)
         return d
       }
@@ -136,7 +164,7 @@ export const useScheduleWalkIn = () => {
           slot_end: slotEnd.toISOString(),
           status: 'available',
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
 
         current = slotEnd
@@ -145,8 +173,6 @@ export const useScheduleWalkIn = () => {
 
     return slots
   }
-
-  const availableSlots = ref<TimeSlot[]>([])
 
   watch(
     [() => bookingData.value.doctor, () => bookingData.value.date],
