@@ -135,31 +135,30 @@ export const useScheduleWalkIn = () => {
     })
 
     const slots: TimeSlot[] = []
+    let slotIndex = 1  // Move outside validSchedules.forEach
 
     validSchedules.forEach((schedule: any) => {
       const slotDuration = schedule.slotDurationMinutes
 
-      // Helper: convert "HH:mm" to SGT Date object
       const toSgtDate = (timeStr: string) => {
         const [hours, minutes] = timeStr.split(':').map(Number)
-        const d = new Date(`${selectedDateStr}T00:00:00`) // midnight
-        d.setHours(hours + 8, minutes) // add UTC+8 offset
+        const d = new Date(`${selectedDateStr}T00:00:00`)
+        d.setHours(hours + 8, minutes)
         return d
       }
 
       let current = toSgtDate(schedule.startTime)
       const endTime = toSgtDate(schedule.endTime)
-      let slotIndex = 1
 
       while (current < endTime) {
         const slotEnd = new Date(current)
         slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
 
         slots.push({
-          id: slotIndex++,
+          id: slotIndex++, // unique across all schedules
           doctor_id: doctorId,
           clinic_id: staffClinic.value.id,
-          slot_start: current.toISOString(), // store as ISO string with correct SGT offset
+          slot_start: current.toISOString(),
           slot_end: slotEnd.toISOString(),
           status: 'available',
           created_at: new Date().toISOString(),
