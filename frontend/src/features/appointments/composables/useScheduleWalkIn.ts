@@ -115,20 +115,18 @@ export const useScheduleWalkIn = () => {
     )
   })
 
-  // Available time slots for today and next few days
   // Generate time slots for a doctor on a selected date
   const generateTimeSlots = async (doctorId: number, selectedDate: DateValue): Promise<TimeSlot[]> => {
     if (!doctorId || !selectedDate) return []
 
-    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0] // 'YYYY-MM-DD'
-    const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay() // Sunday=7
+    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0] // YYYY-MM-DD
+    const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay()
 
-    // Fetch doctor schedules from API
+    // Fetch doctor schedules
     const res = await fetch(`http://localhost:8080/api/admin/doctors/${doctorId}/schedules`)
     if (!res.ok) throw new Error('Failed to fetch doctor schedules')
     const schedules = await res.json()
 
-    // Filter schedules valid for this day and date
     const validSchedules = schedules.filter((sch: any) => {
       const validFrom = new Date(sch.validFrom)
       const validTo = new Date(sch.validTo)
@@ -139,14 +137,20 @@ export const useScheduleWalkIn = () => {
     const slots: TimeSlot[] = []
 
     validSchedules.forEach((schedule: any) => {
-      const [startHour, startMinute] = schedule.startTime.split(':').map(Number)
-      const [endHour, endMinute] = schedule.endTime.split(':').map(Number)
       const slotDuration = schedule.slotDurationMinutes
 
-      let current = new Date(`${selectedDateStr}T${schedule.startTime}`) // ✅ combine date + time
-      const endTime = new Date(`${selectedDateStr}T${schedule.endTime}`)
+      // Helper: convert "HH:mm" to SGT Date object
+      const toSgtDate = (timeStr: string) => {
+        const [hours, minutes] = timeStr.split(':').map(Number)
+        const d = new Date(`${selectedDateStr}T00:00:00`) // midnight
+        d.setHours(hours + 8, minutes) // add UTC+8 offset
+        return d
+      }
 
+      let current = toSgtDate(schedule.startTime)
+      const endTime = toSgtDate(schedule.endTime)
       let slotIndex = 1
+
       while (current < endTime) {
         const slotEnd = new Date(current)
         slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
@@ -155,7 +159,7 @@ export const useScheduleWalkIn = () => {
           id: slotIndex++,
           doctor_id: doctorId,
           clinic_id: staffClinic.value.id,
-          slot_start: current.toISOString(), // ISO string for Supabase
+          slot_start: current.toISOString(), // store as ISO string with correct SGT offset
           slot_end: slotEnd.toISOString(),
           status: 'available',
           created_at: new Date().toISOString(),
@@ -317,15 +321,18 @@ export const useScheduleWalkIn = () => {
   }
 
   // Utility functions
+  // Format time to SGT for display
   const formatTime = (time: Date | string | undefined) => {
     if (!time) return ''
     const date = typeof time === 'string' ? new Date(time) : time
-    const hours = date.getHours()
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    const ampm = hours >= 12 ? 'PM' : 'AM'
-    const hour12 = hours % 12 || 12
-    return `${hour12}:${minutes} ${ampm}`
+    return date.toLocaleTimeString('en-SG', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Singapore'
+    })
   }
+
 
 
   return {
