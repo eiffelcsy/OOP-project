@@ -67,6 +67,7 @@ const createAuth = () => {
 
   // Fetch user profile and determine user type
   const fetchUserProfile = async (userId: string): Promise<AuthUser | null> => {
+    console.log('[FetchUserProfile] Fetching user profile for user ID:', userId)
     try {
       // Fetch profile
       const { data: profile, error: profileError } = await supabase
@@ -254,10 +255,14 @@ const createAuth = () => {
     try {
       isLoading.value = true
       const { data: { session: currentSession } } = await supabase.auth.getSession()
+      console.log('[RefreshUser] Refreshing user...')
+      console.log('[RefreshUser] Current session:', currentSession)
 
       if (currentSession?.user) {
         session.value = currentSession
+        console.log('[RefreshUser] Session refreshed successfully. Fetching user profile...')
         currentUser.value = await fetchUserProfile(currentSession.user.id)
+        console.log('[RefreshUser] User profile fetched successfully. Current user:', currentUser.value)
       }
     } catch (err: any) {
       error.value = err.message || 'Failed to refresh user'

@@ -1,4 +1,4 @@
-import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, triggerRef } from 'vue'
 import type { Tables } from '@/types/supabase'
 import { queueApi, type QueueResponse, type CreateQueueRequest } from '@/services/queueApi'
 import { queueTicketsApi } from '@/services/queueTicketsApi'
@@ -42,7 +42,8 @@ export interface QueuePatient {
   ticket_id: number
 }
 
-export function useQueueManagement() {
+// Create a factory function that constructs the queue management state and methods
+const createQueueManagement = () => {
   // Get auth state for accessing current user's clinic
   const { currentUser, initializeAuth, refreshUser } = useAuth()
 
@@ -75,66 +76,42 @@ export function useQueueManagement() {
 
   // Load queue tickets and hydrate basic patient info
   const loadQueueTickets = async (queueId: number) => {
-    // Fetch tickets directly from Supabase instead of backend
-    const { data: tickets, error } = await supabase
-      .from('queue_tickets')
-      .select('*')
-      .eq('queue_id', queueId)
-      .order('ticket_number', { ascending: true })
+    
+    try {
+      const tickets = await queueTicketsApi.list(queueId)
 
-    if (error) {
-      console.error('Error loading queue tickets from Supabase:', error)
-      patients.value = []
-      return
-    }
-
-    const patientIds = Array.from(new Set(tickets.map(t => t.patient_id).filter((v): v is number => !!v)))
-    const patientMap = new Map<number, { user_id: string | null; phone: string | null }>()
-    const nameByUserId = new Map<string, string>()
-
-    if (patientIds.length > 0) {
-      const { data: patientsRows } = await supabase
-        .from('patients')
-        .select('id, user_id, phone')
-        .in('id', patientIds)
-      if (patientsRows) {
-        patientsRows.forEach(r => patientMap.set(r.id, { user_id: r.user_id, phone: r.phone }))
-        const userIds = Array.from(new Set(patientsRows.map(r => r.user_id).filter((u): u is string => !!u)))
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('user_id, full_name')
-            .in('user_id', userIds)
-          if (profiles) profiles.forEach(p => nameByUserId.set(p.user_id, p.full_name || ''))
+      // Backend now returns patient names from profiles table
+      const transformed: QueuePatient[] = (tickets || []).map(t => {
+        const status = mapStatus(t.ticket_status)
+        const calledTimeStr = t.called_at ? new Date(t.called_at).toLocaleTimeString() : undefined
+        const updatedTimeStr = t.updated_at ? new Date(t.updated_at).toLocaleTimeString() : undefined
+        return {
+          id: t.id,
+          ticket_id: t.id,
+          queue_id: t.queue_id,
+          patient_id: t.patient_id ?? undefined,
+          appointment_id: t.appointment_id ?? undefined,
+          queueNumber: t.ticket_number,
+          name: t.patient_name || (t.patient_id ? `Patient #${t.patient_id}` : 'Walk-in'),
+          // Display time: if Called -> called_at; if Checked In -> updated_at; otherwise '-'
+          appointmentTime: status === 'Called' ? (calledTimeStr || '-') : (updatedTimeStr || '-'),
+          status,
+          priority: mapPriority(t.priority || 0),
+          estimatedTime: undefined,
+          checkInTime: t.created_at ? new Date(t.created_at).toLocaleTimeString() : undefined,
+          calledTime: calledTimeStr,
         }
-      }
+      })
+      
+      // Update the patients array
+      patients.value = transformed
+      
+      // Force trigger reactivity in case Vue doesn't detect the change
+      triggerRef(patients)
+      
+    } catch (error) {
+      console.error('Failed to load queue tickets:', error)
     }
-
-    const transformed: QueuePatient[] = (tickets || []).map(t => {
-      const patInfo = t.patient_id ? patientMap.get(t.patient_id) : undefined
-      const fullName = patInfo?.user_id ? (nameByUserId.get(patInfo.user_id) || undefined) : undefined
-      const status = mapStatus(t.ticket_status)
-      const calledTimeStr = t.called_at ? new Date(t.called_at).toLocaleTimeString() : undefined
-      const updatedTimeStr = t.updated_at ? new Date(t.updated_at).toLocaleTimeString() : undefined
-      return {
-        id: t.id,
-        ticket_id: t.id,
-        queue_id: t.queue_id,
-        patient_id: t.patient_id ?? undefined,
-        appointment_id: t.appointment_id ?? undefined,
-        queueNumber: t.ticket_number,
-        name: fullName || (t.patient_id ? `Patient #${t.patient_id}` : 'Walk-in'),
-        // Display time: if Called -> called_at; if Checked In -> updated_at; otherwise '-'
-        appointmentTime: status === 'Called' ? (calledTimeStr || '-') : (updatedTimeStr || '-'),
-        status,
-        priority: mapPriority(t.priority || 0),
-        estimatedTime: undefined,
-        checkInTime: t.created_at ? new Date(t.created_at).toLocaleTimeString() : undefined,
-        calledTime: calledTimeStr,
-      }
-    })
-
-    patients.value = transformed
   }
 
   // Computed properties
@@ -182,9 +159,7 @@ export function useQueueManagement() {
     try {
       // Ensure auth/user is loaded before accessing clinic
       await initializeAuth()
-      console.log('Initializing queue state...')
       const clinicId = getClinicId()
-      console.log('Clinic ID:', clinicId)
       
       // Query for active or paused queues for this clinic
       const result = await queueApi.listQueues({
@@ -195,34 +170,21 @@ export function useQueueManagement() {
         sortDir: 'DESC'
       })
 
-      console.log('List queues result:', result)
-
       if (result.data && result.data.length > 0) {
         const existingQueue = result.data[0]
         
-  console.log('DEBUG: queue_status value:', existingQueue.queue_status)
-  console.log('DEBUG: queue_status type:', typeof existingQueue.queue_status)
-  console.log('DEBUG: Comparison result:', existingQueue.queue_status === 'PAUSED')
-        
         // Update local state to reflect existing queue
         queueState.isActive = true
-  queueState.isPaused = existingQueue.queue_status === 'PAUSED'
+        queueState.isPaused = existingQueue.queue_status === 'PAUSED'
         queueState.queueId = existingQueue.id
-  queueState.startedAt = new Date(existingQueue.created_at * 1000) // Convert Unix timestamp to Date
+        queueState.startedAt = new Date(existingQueue.created_at * 1000) // Convert Unix timestamp to Date
         queueState.endedAt = null
 
-        console.log('Loaded existing queue:', existingQueue)
-        console.log('Queue state updated:', {
-          isActive: queueState.isActive,
-          isPaused: queueState.isPaused,
-          queueId: queueState.queueId
-        })
   // Load tickets for this queue and subscribe to realtime updates
   await loadQueueTickets(existingQueue.id)
   subscribeToQueueTickets(existingQueue.id)
       } else {
         // No active queue found
-        console.log('No active or paused queue found')
         queueState.isActive = false
         queueState.isPaused = false
         queueState.queueId = null
@@ -231,27 +193,21 @@ export function useQueueManagement() {
       }
     } catch (error) {
       console.error('Failed to initialize queue state:', error)
-      console.error('Error details:', error instanceof Error ? error.message : String(error))
-      // Don't show alert on initialization failure, just log
     }
   }
 
-  // Handle tab visibility changes: when returning to the tab, refresh auth and queue state
+  // Handle tab visibility changes: when returning to the tab, refresh queue state
   const handleVisibilityChange = async () => {
     if (document.visibilityState === 'visible') {
       try {
-        await refreshUser()
         // If we already know the queueId (either staff or display page), just reload and resubscribe
         if (queueState.queueId) {
           // Re-subscribe to ensure realtime connection is alive after tab switch
           subscribeToQueueTickets(queueState.queueId)
           await loadQueueTickets(queueState.queueId)
-        } else {
-          // Fallback: try to detect active/paused queue for the staff page
-          await initializeQueueState()
         }
       } catch (e) {
-        console.warn('Failed to refresh after visibility change', e)
+        console.warn('Failed to refresh queue data after visibility change', e)
       }
     }
   }
@@ -271,6 +227,7 @@ export function useQueueManagement() {
    */
   const startQueue = async () => {
     try {
+      console.log('Starting queue...', queueState.queueId)
       // Get the authenticated user's clinic_id
       const clinicId = getClinicId()
       
@@ -324,8 +281,6 @@ export function useQueueManagement() {
         throw new Error('No active queue to pause')
       }
 
-      // Update queue status to PAUSED in backend
-      // Backend expects snake_case property names
       const updateRequest = {
         queueStatus: 'PAUSED' as const
       }
@@ -334,7 +289,6 @@ export function useQueueManagement() {
       const updatedQueue = await queueApi.updateQueue(queueState.queueId, updateRequest)
       console.log('Queue paused successfully:', updatedQueue)
 
-      // Update local state
       queueState.isPaused = true
 
     } catch (error) {
@@ -427,19 +381,209 @@ export function useQueueManagement() {
 
   // Realtime: subscribe/unsubscribe helpers
   let ticketsChannel: any | null = null
+  let reconnectAttempts = 0
+  const MAX_RECONNECT_ATTEMPTS = 5
+  let isReconnecting = false
+  let reconnectTimeout: number | null = null
+  let isIntentionalUnsubscribe = false // Track intentional unsubscribes to prevent reconnection loops
+  
   const subscribeToQueueTickets = (qid: number) => {
+    // Clear any pending reconnection attempts
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout)
+      reconnectTimeout = null
+    }
+    
+    // Mark as intentional unsubscribe before calling unsubscribe
+    isIntentionalUnsubscribe = true
     unsubscribeQueueTickets()
+    isIntentionalUnsubscribe = false
+    
     ticketsChannel = supabase
-      .channel(`queue_tickets_${qid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_tickets', filter: `queue_id=eq.${qid}` }, async () => {
-        await loadQueueTickets(qid)
+      .channel(`queue_tickets_${qid}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: '' },
+          postgres_changes: [
+            {
+              event: '*',
+              schema: 'public',
+              table: 'queue_tickets',
+              filter: `queue_id=eq.${qid}`
+            }
+          ]
+        }
       })
-      .subscribe()
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_tickets', filter: `queue_id=eq.${qid}` }, async (payload: any) => {
+        try {
+          if (payload.eventType === 'INSERT') {
+            // New ticket added - need to fetch patient info
+            const newTicket = payload.new
+            
+            // Fetch patient info if needed
+            let patientName = 'Walk-in'
+            if (newTicket.patient_id) {
+              const { data: patient } = await supabase
+                .from('patients')
+                .select('user_id')
+                .eq('id', newTicket.patient_id)
+                .single()
+              
+              if (patient?.user_id) {
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('full_name')
+                  .eq('user_id', patient.user_id)
+                  .single()
+                
+                patientName = profile?.full_name || `Patient #${newTicket.patient_id}`
+              } else {
+                patientName = `Patient #${newTicket.patient_id}`
+              }
+            }
+            
+            const newPatient: QueuePatient = {
+              id: newTicket.id,
+              ticket_id: newTicket.id,
+              queue_id: newTicket.queue_id,
+              patient_id: newTicket.patient_id ?? undefined,
+              appointment_id: newTicket.appointment_id ?? undefined,
+              queueNumber: newTicket.ticket_number,
+              name: patientName,
+              appointmentTime: newTicket.updated_at ? new Date(newTicket.updated_at).toLocaleTimeString() : '-',
+              status: mapStatus(newTicket.ticket_status),
+              priority: mapPriority(newTicket.priority),
+              checkInTime: newTicket.created_at ? new Date(newTicket.created_at).toLocaleTimeString() : undefined,
+              calledTime: newTicket.called_at ? new Date(newTicket.called_at).toLocaleTimeString() : undefined,
+            }
+            
+            patients.value = [...patients.value, newPatient]
+            triggerRef(patients)
+            
+          } else if (payload.eventType === 'UPDATE') {
+            // Ticket updated - update the existing patient
+            const updatedTicket = payload.new
+            
+            const index = patients.value.findIndex(p => p.id === updatedTicket.id)
+            if (index !== -1) {
+              const existingPatient = patients.value[index]
+              const updatedPatient: QueuePatient = {
+                ...existingPatient,
+                status: mapStatus(updatedTicket.ticket_status),
+                priority: mapPriority(updatedTicket.priority),
+                appointmentTime: updatedTicket.called_at 
+                  ? new Date(updatedTicket.called_at).toLocaleTimeString() 
+                  : (updatedTicket.updated_at ? new Date(updatedTicket.updated_at).toLocaleTimeString() : '-'),
+                calledTime: updatedTicket.called_at ? new Date(updatedTicket.called_at).toLocaleTimeString() : undefined,
+              }
+              
+              // Create a new array with the updated patient
+              patients.value = [
+                ...patients.value.slice(0, index),
+                updatedPatient,
+                ...patients.value.slice(index + 1)
+              ]
+              triggerRef(patients)
+            } else {
+              await loadQueueTickets(qid)
+            }
+            
+          } else if (payload.eventType === 'DELETE') {
+            // Ticket deleted
+            const deletedId = payload.old.id
+            
+            patients.value = patients.value.filter(p => p.id !== deletedId)
+            triggerRef(patients)
+          }
+          
+        } catch (err) {
+          console.error('Error processing realtime update:', err)
+          await loadQueueTickets(qid)
+        }
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          reconnectAttempts = 0 // Reset on successful connection
+          isReconnecting = false
+        }
+        
+        if (status === 'CHANNEL_ERROR' && !isReconnecting) {
+          console.error('[Realtime] ✗ Channel error:', err)
+          handleReconnection(qid)
+        }
+        
+        if (status === 'TIMED_OUT' && !isReconnecting) {
+          console.error('[Realtime] ✗ Channel timed out')
+          handleReconnection(qid)
+        }
+        
+        if (status === 'CLOSED' && !isReconnecting && !isIntentionalUnsubscribe) {
+          console.warn('[Realtime] ⚠ Channel closed unexpectedly')
+          // Don't reconnect if we're switching tabs or intentionally closing
+          // Only reconnect if we have an active queue
+          if (queueState.queueId === qid && queueState.isActive) {
+            handleReconnection(qid)
+          }
+        } else if (status === 'CLOSED' && isIntentionalUnsubscribe) {
+          console.log('[Realtime] Channel closed intentionally (resubscribing)')
+        }
+      })
+  }
+
+  const handleReconnection = (qid: number) => {
+    if (isReconnecting) {
+      return
+    }
+    
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.error('[Realtime] Max reconnection attempts reached. Please refresh the page.')
+      isReconnecting = false
+      return
+    }
+    
+    isReconnecting = true
+    reconnectAttempts++
+    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000) // Exponential backoff, max 30s
+    
+    console.log(`[Realtime] Attempting reconnection ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`)
+    
+    reconnectTimeout = window.setTimeout(() => {
+      // Only reconnect if we still have this queue active
+      if (queueState.queueId === qid && queueState.isActive) {
+        subscribeToQueueTickets(qid)
+      } else {
+        console.log('[Realtime] Queue no longer active, cancelling reconnection')
+        isReconnecting = false
+      }
+    }, delay)
   }
 
   const unsubscribeQueueTickets = () => {
+    // Clear any pending reconnection attempts
+    if (reconnectTimeout) {
+      clearTimeout(reconnectTimeout)
+      reconnectTimeout = null
+    }
+    
+    isReconnecting = false
+    reconnectAttempts = 0 // Reset reconnect attempts
+    
     if (ticketsChannel) {
-      try { ticketsChannel.unsubscribe() } catch {}
+      try { 
+        console.log('[Realtime] Unsubscribing from channel')
+        // If not already marked as intentional, mark it now
+        if (!isIntentionalUnsubscribe) {
+          isIntentionalUnsubscribe = true
+        }
+        ticketsChannel.unsubscribe()
+        // Reset the flag after a short delay to allow the CLOSED event to fire
+        setTimeout(() => {
+          isIntentionalUnsubscribe = false
+        }, 100)
+      } catch (e) {
+        console.error('[Realtime] Error unsubscribing:', e)
+        isIntentionalUnsubscribe = false
+      }
       ticketsChannel = null
     }
   }
@@ -450,7 +594,6 @@ export function useQueueManagement() {
    */
   const initializeQueueById = async (qid: number) => {
     try {
-      await initializeAuth()
       const q = await queueApi.getQueueById(qid)
       // Consider ACTIVE or PAUSED as active for display purposes
       queueState.isActive = q.queue_status !== 'CLOSED'
@@ -579,4 +722,17 @@ export function useQueueManagement() {
     initializeQueueById,
     resetQueue
   }
+}
+
+// Singleton instance so every import of useQueueManagement() shares the same state
+let queueManagementInstance: ReturnType<typeof createQueueManagement> | null = null
+
+export const useQueueManagement = () => {
+  if (!queueManagementInstance) {
+    console.log('[useQueueManagement] Creating new singleton instance')
+    queueManagementInstance = createQueueManagement()
+  } else {
+    console.log('[useQueueManagement] Reusing existing singleton instance')
+  }
+  return queueManagementInstance
 }

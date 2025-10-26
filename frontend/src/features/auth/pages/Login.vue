@@ -13,6 +13,7 @@ type UserRole = 'patient' | 'staff' | 'admin'
 const selectedRole = ref<UserRole>('patient')
 const email = ref('')
 const password = ref('')
+const showPassword = ref(false)
 
 const router = useRouter()
 const { login, isLoading, error, currentUser } = useAuth()
@@ -163,13 +164,28 @@ const handleLogin = async () => {
             Forgot your password?
           </RouterLink>
         </div>
-        <Input 
-          id="password" 
-          v-model="password"
-          type="password" 
-          required
-          :disabled="isLoading"
-        />
+        <div class="relative">
+          <Input 
+            id="password" 
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'" 
+            required
+            :disabled="isLoading"
+            class="pr-10"
+          />
+          <button
+            type="button"
+            @click="showPassword = !showPassword"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            :disabled="isLoading"
+          >
+            <Icon 
+              :icon="showPassword ? 'mdi:eye-off' : 'mdi:eye'" 
+              width="20" 
+              height="20"
+            />
+          </button>
+        </div>
       </div>
       <Button type="submit" class="w-full" @click="handleLogin" :disabled="isLoading">
         <Icon v-if="isLoading" icon="svg-spinners:180-ring" class="mr-2" />
