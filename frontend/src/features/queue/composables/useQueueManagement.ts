@@ -85,6 +85,27 @@ const createQueueManagement = () => {
         const status = mapStatus(t.ticket_status)
         const calledTimeStr = t.called_at ? new Date(t.called_at).toLocaleTimeString() : undefined
         const updatedTimeStr = t.updated_at ? new Date(t.updated_at).toLocaleTimeString() : undefined
+        const completedTimeStr = t.completed_at ? new Date(t.completed_at).toLocaleTimeString() : undefined
+        const noShowTimeStr = t.no_show_at ? new Date(t.no_show_at).toLocaleTimeString() : undefined
+
+        // Determine the primary time to display under the patient's name based on status
+        let primaryTime: string | undefined
+        switch (status) {
+          case 'Called':
+            primaryTime = calledTimeStr
+            break
+          case 'Completed':
+            primaryTime = completedTimeStr
+            break
+          case 'No Show':
+            primaryTime = noShowTimeStr
+            break
+          case 'Checked In':
+          default:
+            primaryTime = updatedTimeStr
+            break
+        }
+
         return {
           id: t.id,
           ticket_id: t.id,
@@ -93,12 +114,14 @@ const createQueueManagement = () => {
           appointment_id: t.appointment_id ?? undefined,
           queueNumber: t.ticket_number,
           name: t.patient_name || (t.patient_id ? `Patient #${t.patient_id}` : 'Walk-in'),
-          // Display time: if Called -> called_at; if Checked In -> updated_at; otherwise '-'
-          appointmentTime: status === 'Called' ? (calledTimeStr || '-') : (updatedTimeStr || '-'),
+          // Display time under patient's name per status rules
+          appointmentTime: primaryTime || '-',
           status,
           priority: mapPriority(t.priority || 0),
           estimatedTime: undefined,
+          // Keep check-in time (created_at) as supplementary info
           checkInTime: t.created_at ? new Date(t.created_at).toLocaleTimeString() : undefined,
+          // Explicit called time used in "Currently Serving" section
           calledTime: calledTimeStr,
         }
       })
@@ -403,22 +426,17 @@ const createQueueManagement = () => {
       .channel(`queue_tickets_${qid}`, {
         config: {
           broadcast: { self: false },
-          presence: { key: '' },
-          postgres_changes: [
-            {
-              event: '*',
-              schema: 'public',
-              table: 'queue_tickets',
-              filter: `queue_id=eq.${qid}`
-            }
-          ]
+          presence: { key: '' }
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_tickets', filter: `queue_id=eq.${qid}` }, async (payload: any) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_tickets' }, async (payload: any) => {
         try {
           if (payload.eventType === 'INSERT') {
             // New ticket added - need to fetch patient info
             const newTicket = payload.new
+            if (newTicket.queue_id !== qid) {
+              return
+            }
             
             // Fetch patient info if needed
             let patientName = 'Walk-in'
@@ -461,19 +479,75 @@ const createQueueManagement = () => {
             triggerRef(patients)
             
           } else if (payload.eventType === 'UPDATE') {
-            // Ticket updated - update the existing patient
+            // Ticket updated - update the existing patient or add/remove if moved between queues
             const updatedTicket = payload.new
-            
+            const oldTicket = payload.old
+
+            const oldQueueId = oldTicket?.queue_id
+            const newQueueId = updatedTicket?.queue_id
+
+            // If this ticket moved out of this queue, remove it
+            if (oldQueueId === qid && newQueueId !== qid) {
+              const removedId = updatedTicket.id
+              patients.value = patients.value.filter(p => p.id !== removedId)
+              triggerRef(patients)
+              return
+            }
+
+            // If this ticket doesn't belong to this queue (neither old nor new), ignore
+            if (newQueueId !== qid && oldQueueId !== qid) {
+              return
+            }
+
             const index = patients.value.findIndex(p => p.id === updatedTicket.id)
             if (index !== -1) {
               const existingPatient = patients.value[index]
+              const newStatus = mapStatus(updatedTicket.ticket_status)
+              // Compute primary time per status
+              let updatedPrimaryTime: string | undefined
+              if (newStatus === 'Called' && updatedTicket.called_at) {
+                updatedPrimaryTime = new Date(updatedTicket.called_at).toLocaleTimeString()
+              } else if (newStatus === 'Completed' && updatedTicket.completed_at) {
+                updatedPrimaryTime = new Date(updatedTicket.completed_at).toLocaleTimeString()
+              } else if (newStatus === 'No Show' && updatedTicket.no_show_at) {
+                updatedPrimaryTime = new Date(updatedTicket.no_show_at).toLocaleTimeString()
+              } else if (updatedTicket.updated_at) {
+                updatedPrimaryTime = new Date(updatedTicket.updated_at).toLocaleTimeString()
+              }
+
+              // If patient_id changed, refresh name
+              let updatedName = existingPatient.name
+              if (updatedTicket.patient_id !== existingPatient.patient_id) {
+                if (updatedTicket.patient_id) {
+                  const { data: patient } = await supabase
+                    .from('patients')
+                    .select('user_id')
+                    .eq('id', updatedTicket.patient_id)
+                    .single()
+                  if (patient?.user_id) {
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('full_name')
+                      .eq('user_id', patient.user_id)
+                      .single()
+                    updatedName = profile?.full_name || `Patient #${updatedTicket.patient_id}`
+                  } else {
+                    updatedName = `Patient #${updatedTicket.patient_id}`
+                  }
+                } else {
+                  updatedName = 'Walk-in'
+                }
+              }
+
               const updatedPatient: QueuePatient = {
                 ...existingPatient,
-                status: mapStatus(updatedTicket.ticket_status),
+                name: updatedName,
+                patient_id: updatedTicket.patient_id ?? undefined,
+                queueNumber: updatedTicket.ticket_number,
+                status: newStatus,
                 priority: mapPriority(updatedTicket.priority),
-                appointmentTime: updatedTicket.called_at 
-                  ? new Date(updatedTicket.called_at).toLocaleTimeString() 
-                  : (updatedTicket.updated_at ? new Date(updatedTicket.updated_at).toLocaleTimeString() : '-'),
+                appointmentTime: updatedPrimaryTime || '-',
+                checkInTime: updatedTicket.created_at ? new Date(updatedTicket.created_at).toLocaleTimeString() : existingPatient.checkInTime,
                 calledTime: updatedTicket.called_at ? new Date(updatedTicket.called_at).toLocaleTimeString() : undefined,
               }
               
@@ -485,15 +559,64 @@ const createQueueManagement = () => {
               ]
               triggerRef(patients)
             } else {
-              await loadQueueTickets(qid)
+              // If the ticket moved into this queue (old was different), add it
+              if (newQueueId === qid) {
+                let patientName = 'Walk-in'
+                if (updatedTicket.patient_id) {
+                  const { data: patient } = await supabase
+                    .from('patients')
+                    .select('user_id')
+                    .eq('id', updatedTicket.patient_id)
+                    .single()
+                  if (patient?.user_id) {
+                    const { data: profile } = await supabase
+                      .from('profiles')
+                      .select('full_name')
+                      .eq('user_id', patient.user_id)
+                      .single()
+                    patientName = profile?.full_name || `Patient #${updatedTicket.patient_id}`
+                  } else {
+                    patientName = `Patient #${updatedTicket.patient_id}`
+                  }
+                }
+                const newStatus2 = mapStatus(updatedTicket.ticket_status)
+                let primaryTime: string | undefined
+                if (newStatus2 === 'Called' && updatedTicket.called_at) {
+                  primaryTime = new Date(updatedTicket.called_at).toLocaleTimeString()
+                } else if (newStatus2 === 'Completed' && updatedTicket.completed_at) {
+                  primaryTime = new Date(updatedTicket.completed_at).toLocaleTimeString()
+                } else if (newStatus2 === 'No Show' && updatedTicket.no_show_at) {
+                  primaryTime = new Date(updatedTicket.no_show_at).toLocaleTimeString()
+                } else if (updatedTicket.updated_at) {
+                  primaryTime = new Date(updatedTicket.updated_at).toLocaleTimeString()
+                }
+                const addedPatient: QueuePatient = {
+                  id: updatedTicket.id,
+                  ticket_id: updatedTicket.id,
+                  queue_id: updatedTicket.queue_id,
+                  patient_id: updatedTicket.patient_id ?? undefined,
+                  appointment_id: updatedTicket.appointment_id ?? undefined,
+                  queueNumber: updatedTicket.ticket_number,
+                  name: patientName,
+                  appointmentTime: primaryTime || '-',
+                  status: newStatus2,
+                  priority: mapPriority(updatedTicket.priority),
+                  checkInTime: updatedTicket.created_at ? new Date(updatedTicket.created_at).toLocaleTimeString() : undefined,
+                  calledTime: updatedTicket.called_at ? new Date(updatedTicket.called_at).toLocaleTimeString() : undefined,
+                }
+                patients.value = [...patients.value, addedPatient]
+                triggerRef(patients)
+              }
             }
             
           } else if (payload.eventType === 'DELETE') {
             // Ticket deleted
             const deletedId = payload.old.id
-            
-            patients.value = patients.value.filter(p => p.id !== deletedId)
-            triggerRef(patients)
+            const deletedQueueId = payload.old.queue_id
+            if (deletedQueueId === qid) {
+              patients.value = patients.value.filter(p => p.id !== deletedId)
+              triggerRef(patients)
+            }
           }
           
         } catch (err) {
