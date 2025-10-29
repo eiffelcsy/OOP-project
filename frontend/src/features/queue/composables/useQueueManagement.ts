@@ -206,6 +206,7 @@ const createQueueManagement = () => {
   // Load tickets for this queue and subscribe to realtime updates
   await loadQueueTickets(existingQueue.id)
   subscribeToQueueTickets(existingQueue.id)
+  subscribeToQueueStatus(existingQueue.id)
       } else {
         // No active queue found
         queueState.isActive = false
@@ -214,6 +215,9 @@ const createQueueManagement = () => {
         queueState.startedAt = null
         queueState.endedAt = null
       }
+
+      // Always subscribe at clinic scope to auto-discover new ACTIVE/PAUSED queues
+      subscribeToClinicQueues(clinicId)
     } catch (error) {
       console.error('Failed to initialize queue state:', error)
     }
@@ -224,10 +228,16 @@ const createQueueManagement = () => {
     if (document.visibilityState === 'visible') {
       try {
         // If we already know the queueId (either staff or display page), just reload and resubscribe
-        if (queueState.queueId) {
+        if (queueState.queueId && queueState.isActive) {
           // Re-subscribe to ensure realtime connection is alive after tab switch
           subscribeToQueueTickets(queueState.queueId)
+          subscribeToQueueStatus(queueState.queueId)
           await loadQueueTickets(queueState.queueId)
+        }
+        // Ensure clinic-level subscription exists (only when user has a clinic)
+        const cid = currentUser.value?.staff?.clinic_id
+        if (cid) {
+          subscribeToClinicQueues(cid)
         }
       } catch (e) {
         console.warn('Failed to refresh queue data after visibility change', e)
@@ -242,6 +252,8 @@ const createQueueManagement = () => {
   onBeforeUnmount(() => {
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     unsubscribeQueueTickets()
+    unsubscribeQueueStatus()
+    unsubscribeClinicQueues()
   })
 
   /**
@@ -278,6 +290,7 @@ const createQueueManagement = () => {
   // Load tickets for the newly started queue and subscribe to realtime updates
   await loadQueueTickets(queueResponse.id)
   subscribeToQueueTickets(queueResponse.id)
+  subscribeToQueueStatus(queueResponse.id)
     } catch (error) {
       console.error('Failed to start queue:', error)
       
@@ -389,6 +402,7 @@ const createQueueManagement = () => {
 
       // Unsubscribe from realtime
       unsubscribeQueueTickets()
+  unsubscribeQueueStatus()
 
       console.log('Queue ended successfully')
     } catch (error) {
@@ -404,6 +418,8 @@ const createQueueManagement = () => {
 
   // Realtime: subscribe/unsubscribe helpers
   let ticketsChannel: any | null = null
+  let queuesChannel: any | null = null
+  let clinicQueuesChannel: any | null = null
   let reconnectAttempts = 0
   const MAX_RECONNECT_ATTEMPTS = 5
   let isReconnecting = false
@@ -711,6 +727,134 @@ const createQueueManagement = () => {
     }
   }
 
+  // Subscribe to queues changes scoped to the user's clinic to auto-adopt new ACTIVE/PAUSED queues
+  const subscribeToClinicQueues = (clinicId: number) => {
+    // Ensure previous channel is closed
+    unsubscribeClinicQueues()
+
+    clinicQueuesChannel = supabase
+      .channel(`queues_clinic_${clinicId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'queues', filter: `clinic_id=eq.${clinicId}` },
+        async (payload: any) => {
+          try {
+            const row = payload.new || payload.old
+            if (!row) return
+
+            const statusRaw: string = row.queue_status || ''
+            const status = statusRaw.toString().toLowerCase()
+
+            // Ignore updates for the currently tracked queue; the per-queue subscription handles those
+            if (queueState.queueId && row.id === queueState.queueId) return
+
+            // Only adopt ACTIVE or PAUSED queues
+            const isActivish = status === 'active' || status === 'paused'
+            if (!isActivish) return
+
+            // Assumption: at most one non-CLOSED queue per clinic. Adopt the new/updated queue immediately.
+            // Clean up any existing per-queue subscriptions just in case
+            unsubscribeQueueTickets()
+            unsubscribeQueueStatus()
+
+            queueState.isActive = true
+            queueState.isPaused = status === 'paused'
+            queueState.queueId = row.id
+            queueState.startedAt = row.created_at ? new Date(row.created_at) : null
+            queueState.endedAt = null
+
+            await loadQueueTickets(row.id)
+            subscribeToQueueTickets(row.id)
+            subscribeToQueueStatus(row.id)
+          } catch (e) {
+            console.error('[Realtime][clinic-queues] Error handling payload:', e)
+          }
+        }
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime][clinic-queues] Channel error:', err)
+        }
+        if (status === 'TIMED_OUT') {
+          console.warn('[Realtime][clinic-queues] Channel timed out')
+        }
+        if (status === 'CLOSED') {
+          console.warn('[Realtime][clinic-queues] Channel closed')
+        }
+      })
+  }
+
+  const unsubscribeClinicQueues = () => {
+    if (clinicQueuesChannel) {
+      try {
+        clinicQueuesChannel.unsubscribe()
+      } catch (e) {
+        console.error('[Realtime][clinic-queues] Error unsubscribing:', e)
+      }
+      clinicQueuesChannel = null
+    }
+  }
+
+  // Subscribe to realtime changes on the queues table for the current queue id
+  const subscribeToQueueStatus = (qid: number) => {
+    // Ensure previous channel is closed
+    unsubscribeQueueStatus()
+
+    queuesChannel = supabase
+      .channel(`queues_${qid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queues', filter: `id=eq.${qid}` }, (payload: any) => {
+        try {
+          const row = payload.new || payload.old
+          if (!row) return
+          const statusRaw: string = row.queue_status || ''
+          const status = statusRaw.toString().toLowerCase()
+          if (status === 'active') {
+            queueState.isActive = true
+            queueState.isPaused = false
+          } else if (status === 'paused') {
+            queueState.isActive = true
+            queueState.isPaused = true
+          } else if (status === 'closed') {
+            // Queue closed: visually clear tickets and mark queue inactive
+            queueState.isActive = false
+            queueState.isPaused = false
+            queueState.endedAt = new Date()
+            // Clear displayed tickets without updating their statuses in DB
+            patients.value = []
+            triggerRef(patients)
+            // Stop listening for ticket updates of the closed queue
+            unsubscribeQueueTickets()
+            // Clear queue association to prevent auto-reload on visibility change
+            queueState.queueId = null
+          }
+        } catch (e) {
+          console.error('[Realtime][queues] Error handling payload:', e)
+        }
+      })
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime][queues] Channel error:', err)
+        }
+        if (status === 'TIMED_OUT') {
+          console.warn('[Realtime][queues] Channel timed out')
+        }
+        if (status === 'CLOSED') {
+          console.warn('[Realtime][queues] Channel closed')
+        }
+      })
+  }
+
+  const unsubscribeQueueStatus = () => {
+    if (queuesChannel) {
+      try {
+        queuesChannel.unsubscribe()
+      } catch (e) {
+        console.error('[Realtime][queues] Error unsubscribing:', e)
+      }
+      queuesChannel = null
+    }
+  }
+
   /**
    * Initialize queue state for a specific queue ID (used by public display)
    * Loads the queue by ID, sets local state, loads tickets, and subscribes to realtime updates.
@@ -727,6 +871,7 @@ const createQueueManagement = () => {
 
       await loadQueueTickets(qid)
       subscribeToQueueTickets(qid)
+      subscribeToQueueStatus(qid)
     } catch (error) {
       console.error('Failed to initialize queue by ID:', error)
       queueState.isActive = false
