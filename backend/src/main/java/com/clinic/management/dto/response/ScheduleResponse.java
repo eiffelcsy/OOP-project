@@ -1,7 +1,6 @@
 package com.clinic.management.dto.response;
 
 import com.clinic.management.model.Schedule;
-import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -13,34 +12,24 @@ import java.time.OffsetDateTime;
  */
 public class ScheduleResponse {
     
-    @JsonProperty("id")
     private Long id;
     
-    @JsonProperty("doctorId")
     private Long doctorId;
     
-    @JsonProperty("dayOfWeek")
     private Integer dayOfWeek;
     
-    @JsonProperty("startTime")
     private LocalTime startTime;
     
-    @JsonProperty("endTime")
     private LocalTime endTime;
     
-    @JsonProperty("slotDurationMinutes")
     private Integer slotDurationMinutes;
     
-    @JsonProperty("validFrom")
     private LocalDate validFrom;
     
-    @JsonProperty("validTo")
     private LocalDate validTo;
     
-    @JsonProperty("createdAt")
     private OffsetDateTime createdAt;
     
-    @JsonProperty("updatedAt")
     private OffsetDateTime updatedAt;
     
     // Constructors

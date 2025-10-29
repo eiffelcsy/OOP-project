@@ -111,7 +111,7 @@ const filteredSchedules = computed(() => {
 
   // Filter by day of week
   if (selectedDayFilter.value !== null) {
-    filtered = filtered.filter(s => s.dayOfWeek === selectedDayFilter.value)
+    filtered = filtered.filter(s => s.day_of_week === selectedDayFilter.value)
   }
 
   // Filter by validity
@@ -130,10 +130,10 @@ const filteredSchedules = computed(() => {
 const schedulesByDay = computed(() => {
   const grouped: Record<number, ScheduleResponse[]> = {}
   filteredSchedules.value.forEach(schedule => {
-    if (!grouped[schedule.dayOfWeek]) {
-      grouped[schedule.dayOfWeek] = []
+    if (!grouped[schedule.day_of_week]) {
+      grouped[schedule.day_of_week] = []
     }
-    grouped[schedule.dayOfWeek].push(schedule)
+    grouped[schedule.day_of_week].push(schedule)
   })
   return grouped
 })
@@ -148,8 +148,8 @@ const formatTime = (time: string) => {
 
 const isScheduleValid = (schedule: ScheduleResponse) => {
   const today = new Date().toISOString().split('T')[0]
-  return (!schedule.validTo || schedule.validTo >= today) && 
-         (!schedule.validFrom || schedule.validFrom <= today)
+  return (!schedule.valid_to || schedule.valid_to >= today) && 
+         (!schedule.valid_from || schedule.valid_from <= today)
 }
 
 const loadDoctor = async () => {
@@ -158,7 +158,7 @@ const loadDoctor = async () => {
     doctor.value = data
     Object.assign(editFormData, data)
     // Load clinic data to get operating hours
-    await loadClinic(data.clinicId)
+    await loadClinic(data.clinic_id)
     // Load schedules from API
     await loadSchedules()
   } catch (err) {
@@ -209,12 +209,12 @@ const handleEditSchedule = (schedule: ScheduleResponse) => {
   editingScheduleId.value = schedule.id
   scheduleValidationError.value = null
   Object.assign(scheduleFormData, {
-    dayOfWeek: schedule.dayOfWeek,
-    startTime: schedule.startTime,
-    endTime: schedule.endTime,
-    slotDurationMinutes: schedule.slotDurationMinutes,
-    validFrom: schedule.validFrom,
-    validTo: schedule.validTo
+    day_of_week: schedule.day_of_week,
+    start_time: schedule.start_time,
+    end_time: schedule.end_time,
+    slot_duration_minutes: schedule.slot_duration_minutes,
+    valid_from: schedule.valid_from,
+    valid_to: schedule.valid_to
   })
   showScheduleDialog.value = true
 }
@@ -226,11 +226,11 @@ const handleSaveSchedule = async () => {
   scheduleValidationError.value = null
 
   // Validate schedule times are within clinic operating hours
-  if (clinic.value?.openTime && clinic.value?.closeTime) {
-    const scheduleStart = scheduleFormData.startTime!
-    const scheduleEnd = scheduleFormData.endTime!
-    const clinicOpen = clinic.value.openTime
-    const clinicClose = clinic.value.closeTime
+  if (clinic.value?.open_time && clinic.value?.close_time) {
+    const scheduleStart = scheduleFormData.start_time!
+    const scheduleEnd = scheduleFormData.end_time!
+    const clinicOpen = clinic.value.open_time
+    const clinicClose = clinic.value.close_time
 
     // Compare times (in HH:MM:SS format)
     if (scheduleStart < clinicOpen) {
@@ -250,13 +250,13 @@ const handleSaveSchedule = async () => {
   }
 
   const scheduleData = {
-    doctorId: doctorId.value,
-    dayOfWeek: scheduleFormData.dayOfWeek!,
-    startTime: scheduleFormData.startTime!,
-    endTime: scheduleFormData.endTime!,
-    slotDurationMinutes: scheduleFormData.slotDurationMinutes!,
-    validFrom: scheduleFormData.validFrom || null,
-    validTo: scheduleFormData.validTo || null
+    doctor_id: doctorId.value,
+    day_of_week: scheduleFormData.day_of_week!,
+    start_time: scheduleFormData.start_time!,
+    end_time: scheduleFormData.end_time!,
+    slot_duration_minutes: scheduleFormData.slot_duration_minutes!,
+    valid_from: scheduleFormData.valid_from || null,
+    valid_to: scheduleFormData.valid_to || null
   }
 
   let result
@@ -369,7 +369,7 @@ const handleSave = async () => {
       name: editFormData.name,
       specialty: editFormData.specialty,
       active: editFormData.active,
-      clinicId: editFormData.clinicId
+      clinic_id: editFormData.clinic_id
     })
     doctor.value = result
     isEditing.value = false
@@ -512,7 +512,7 @@ onMounted(() => {
               </div>
               <div>
                 <Label class="text-muted-foreground">Clinic ID</Label>
-                <p class="text-base font-medium">{{ doctor.clinicId }}</p>
+                <p class="text-base font-medium">{{ doctor.clinic_id }}</p>
               </div>
             </div>
 
@@ -532,13 +532,13 @@ onMounted(() => {
                   <div>
                     <Label class="text-muted-foreground">Created At</Label>
                     <p class="text-base font-medium">
-                      {{ doctor.createdAt ? new Date(doctor.createdAt).toLocaleString() : 'Unknown' }}
+                      {{ doctor.created_at ? new Date(doctor.created_at).toLocaleString() : 'Unknown' }}
                     </p>
                   </div>
                   <div>
                     <Label class="text-muted-foreground">Last Updated</Label>
                     <p class="text-base font-medium">
-                      {{ doctor.updatedAt ? new Date(doctor.updatedAt).toLocaleString() : 'Unknown' }}
+                      {{ doctor.updated_at ? new Date(doctor.updated_at).toLocaleString() : 'Unknown' }}
                     </p>
                   </div>
                 </div>
@@ -644,24 +644,24 @@ onMounted(() => {
                           <div class="flex items-center gap-2">
                             <Icon icon="lucide:clock" class="h-4 w-4 text-muted-foreground" />
                             <span class="font-medium">
-                              {{ formatTime(schedule.startTime) }} - {{ formatTime(schedule.endTime) }}
+                              {{ formatTime(schedule.start_time) }} - {{ formatTime(schedule.end_time) }}
                             </span>
                           </div>
                           <div class="flex items-center gap-2 text-sm text-muted-foreground">
                             <Icon icon="lucide:timer" class="h-3 w-3" />
-                            <span>{{ schedule.slotDurationMinutes }} min slots</span>
+                            <span>{{ schedule.slot_duration_minutes }} min slots</span>
                           </div>
                         </div>
                         <div class="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div v-if="schedule.validFrom" class="flex items-center gap-1">
+                          <div v-if="schedule.valid_from" class="flex items-center gap-1">
                             <Icon icon="lucide:calendar-check" class="h-3 w-3" />
-                            <span>From: {{ schedule.validFrom }}</span>
+                            <span>From: {{ schedule.valid_from }}</span>
                           </div>
-                          <div v-if="schedule.validTo" class="flex items-center gap-1">
+                          <div v-if="schedule.valid_to" class="flex items-center gap-1">
                             <Icon icon="lucide:calendar-x" class="h-3 w-3" />
-                            <span>To: {{ schedule.validTo }}</span>
+                            <span>To: {{ schedule.valid_to }}</span>
                           </div>
-                          <div v-if="!schedule.validTo" class="flex items-center gap-1">
+                          <div v-if="!schedule.valid_to" class="flex items-center gap-1">
                             <Icon icon="lucide:infinity" class="h-3 w-3" />
                             <span>Ongoing</span>
                           </div>
@@ -866,9 +866,9 @@ onMounted(() => {
                   v-for="day in daysOfWeek" 
                   :key="day.value"
                   type="button"
-                  :variant="scheduleFormData.dayOfWeek === day.value ? 'default' : 'outline'" 
+                  :variant="scheduleFormData.day_of_week === day.value ? 'default' : 'outline'" 
                   size="sm"
-                  @click="scheduleFormData.dayOfWeek = day.value"
+                  @click="scheduleFormData.day_of_week = day.value"
                 >
                   {{ day.label }}
                 </Button>
@@ -879,11 +879,11 @@ onMounted(() => {
               <Label for="schedule-start-time">Start Time</Label>
               <Input 
                 id="schedule-start-time" 
-                v-model="scheduleFormData.startTime" 
+                v-model="scheduleFormData.start_time" 
                 type="time"
                 step="60"
-                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
-                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
+                :min="clinic?.open_time ? formatTimeForDisplay(clinic.open_time) : undefined"
+                :max="clinic?.close_time ? formatTimeForDisplay(clinic.close_time) : undefined"
                 required 
               />
             </div>
@@ -892,11 +892,11 @@ onMounted(() => {
               <Label for="schedule-end-time">End Time</Label>
               <Input 
                 id="schedule-end-time" 
-                v-model="scheduleFormData.endTime" 
+                v-model="scheduleFormData.end_time" 
                 type="time"
                 step="60"
-                :min="clinic?.openTime ? formatTimeForDisplay(clinic.openTime) : undefined"
-                :max="clinic?.closeTime ? formatTimeForDisplay(clinic.closeTime) : undefined"
+                :min="clinic?.open_time ? formatTimeForDisplay(clinic.open_time) : undefined"
+                :max="clinic?.close_time ? formatTimeForDisplay(clinic.close_time) : undefined"
                 required 
               />
             </div>
@@ -908,9 +908,9 @@ onMounted(() => {
                   v-for="duration in [15, 20, 30, 45, 60]" 
                   :key="duration"
                   type="button"
-                  :variant="scheduleFormData.slotDurationMinutes === duration ? 'default' : 'outline'" 
+                  :variant="scheduleFormData.slot_duration_minutes === duration ? 'default' : 'outline'" 
                   size="sm"
-                  @click="scheduleFormData.slotDurationMinutes = duration"
+                  @click="scheduleFormData.slot_duration_minutes = duration"
                 >
                   {{ duration }} min
                 </Button>
@@ -921,7 +921,7 @@ onMounted(() => {
               <Label for="schedule-valid-from">Valid From (Optional)</Label>
               <Input 
                 id="schedule-valid-from" 
-                v-model="scheduleFormData.validFrom" 
+                v-model="scheduleFormData.valid_from" 
                 type="date"
               />
             </div>
@@ -930,7 +930,7 @@ onMounted(() => {
               <Label for="schedule-valid-to">Valid To (Optional)</Label>
               <Input 
                 id="schedule-valid-to" 
-                v-model="scheduleFormData.validTo" 
+                v-model="scheduleFormData.valid_to" 
                 type="date"
               />
             </div>

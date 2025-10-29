@@ -1,6 +1,5 @@
 package com.clinic.management.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -16,34 +15,25 @@ import java.time.LocalTime;
  */
 public class CreateClinicRequest {
     
-    @JsonProperty("name")
     @NotBlank(message = "Clinic name is required")
     @Size(max = 255, message = "Clinic name must not exceed 255 characters")
     private String name;
     
-    @JsonProperty("addressLine")
     @NotBlank(message = "Address is required")
     private String addressLine;
     
-    @JsonProperty("area")
     private String area;
     
-    @JsonProperty("region")
     private String region;
     
-    @JsonProperty("clinicType")
     private String clinicType;
     
-    @JsonProperty("openTime")
     private LocalTime openTime;
     
-    @JsonProperty("closeTime")
     private LocalTime closeTime;
     
-    @JsonProperty("note")
     private String note;
     
-    @JsonProperty("remarks")
     private String remarks;
     
     // Constructors

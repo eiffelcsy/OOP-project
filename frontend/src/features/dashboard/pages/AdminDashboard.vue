@@ -10,40 +10,40 @@ import { toast } from 'vue-sonner'
 
 // Key Metrics Data
 const metrics = ref<SystemMetrics>({
-  totalUsers: 0,
-  activeClinics: 0,
-  systemHealth: 'Loading...',
-  healthStatus: 'good'
+  total_users: 0,
+  active_clinics: 0,
+  system_health: 'Loading...',
+  health_status: 'good'
 })
 
 // System Status Data
 const systemStatus = ref<SystemStatus>({
-  serverUptime: '0%',
-  uptimeDays: 0,
-  databaseConnectivity: 'Connecting...',
-  dbStatus: 'good',
-  lastBackup: 'Checking...',
-  activeConnections: 0
+  server_uptime: '0%',
+  uptime_days: 0,
+  database_connectivity: 'Connecting...',
+  db_status: 'good',
+  last_backup: 'Checking...',
+  active_connections: 0
 })
 
 // System Usage Data
 const systemUsage = ref<SystemUsage>({
-  appointmentsToday: 0,
-  appointmentsThisWeek: 0,
-  appointmentsTrend: '0%',
-  cancellationsToday: 0,
-  cancellationRate: '0%',
-  queueStats: {
-    currentWaiting: 0,
-    averageWaitTime: '0 min',
-    longestWait: '0 min',
-    queueStatus: 'normal'
+  appointments_today: 0,
+  appointments_this_week: 0,
+  appointments_trend: '0%',
+  cancellations_today: 0,
+  cancellation_rate: '0%',
+  queue_stats: {
+    current_waiting: 0,
+    average_wait_time: '0 min',
+    longest_wait: '0 min',
+    queue_status: 'normal'
   },
-  systemLoad: {
+  system_load: {
     cpu: 0,
     memory: 0,
-    diskUsage: 0,
-    networkTraffic: 'Normal'
+    disk_usage: 0,
+    network_traffic: 'Normal'
   }
 })
 
@@ -119,8 +119,8 @@ const fetchStatistics = async () => {
     
     // Update reactive refs with fetched data
     metrics.value = stats.metrics
-    systemStatus.value = stats.systemStatus
-    systemUsage.value = stats.systemUsage
+    systemStatus.value = stats.system_status
+    systemUsage.value = stats.system_usage
     
     // Fetch new registrations (last 24 hours)
     const registrations = await statisticsApi.getNewRegistrations(24)
@@ -190,7 +190,7 @@ onUnmounted(() => {
           <Icon icon="lucide:users" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold mb-1">{{ metrics.totalUsers.toLocaleString() }}</div>
+          <div class="text-2xl font-bold mb-1">{{ metrics.total_users.toLocaleString() }}</div>
           <p class="text-xs text-muted-foreground">+12% from last month</p>
         </CardContent>
       </Card>
@@ -201,7 +201,7 @@ onUnmounted(() => {
           <Icon icon="lucide:building" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold mb-1">{{ metrics.activeClinics }}</div>
+          <div class="text-2xl font-bold mb-1">{{ metrics.active_clinics }}</div>
           <p class="text-xs text-muted-foreground">+2 new this month</p>
         </CardContent>
       </Card>
@@ -212,7 +212,7 @@ onUnmounted(() => {
           <Icon icon="lucide:heart-pulse" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold mb-1">{{ metrics.systemHealth }}</div>
+          <div class="text-2xl font-bold mb-1">{{ metrics.system_health }}</div>
           <p class="text-xs text-muted-foreground">All systems operational</p>
         </CardContent>
       </Card>
@@ -243,8 +243,8 @@ onUnmounted(() => {
                     <span class="text-sm font-medium">Today's Appointments</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold">{{ systemUsage.appointmentsToday }}</div>
-                    <div class="text-xs text-muted-foreground">{{ systemUsage.appointmentsTrend }} vs last week</div>
+                    <div class="text-sm font-bold">{{ systemUsage.appointments_today }}</div>
+                    <div class="text-xs text-muted-foreground">{{ systemUsage.appointments_trend }} vs last week</div>
                   </div>
                 </div>
 
@@ -255,8 +255,8 @@ onUnmounted(() => {
                     <span class="text-sm font-medium">Cancellations Today</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold">{{ systemUsage.cancellationsToday }}</div>
-                    <div class="text-xs text-muted-foreground">{{ systemUsage.cancellationRate }} rate</div>
+                    <div class="text-sm font-bold">{{ systemUsage.cancellations_today }}</div>
+                    <div class="text-xs text-muted-foreground">{{ systemUsage.cancellation_rate }} rate</div>
                   </div>
                 </div>
 
@@ -267,7 +267,7 @@ onUnmounted(() => {
                     <span class="text-sm font-medium">This Week Total</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold">{{ systemUsage.appointmentsThisWeek }}</div>
+                    <div class="text-sm font-bold">{{ systemUsage.appointments_this_week }}</div>
                     <div class="text-xs text-muted-foreground">All clinics combined</div>
                   </div>
                 </div>
@@ -290,8 +290,8 @@ onUnmounted(() => {
                     <span class="text-sm font-medium">Currently Waiting</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold">{{ systemUsage.queueStats.currentWaiting }} patients</div>
-                    <div class="text-xs text-muted-foreground">{{ systemUsage.queueStats.queueStatus }} load</div>
+                    <div class="text-sm font-bold">{{ systemUsage.queue_stats.current_waiting }} patients</div>
+                    <div class="text-xs text-muted-foreground">{{ systemUsage.queue_stats.queue_status }} load</div>
                   </div>
                 </div>
 
@@ -302,8 +302,8 @@ onUnmounted(() => {
                     <span class="text-sm font-medium">Average Wait</span>
                   </div>
                   <div class="text-right">
-                    <div class="text-sm font-bold">{{ systemUsage.queueStats.averageWaitTime }}</div>
-                    <div class="text-xs text-muted-foreground">Longest: {{ systemUsage.queueStats.longestWait }}</div>
+                    <div class="text-sm font-bold">{{ systemUsage.queue_stats.average_wait_time }}</div>
+                    <div class="text-xs text-muted-foreground">Longest: {{ systemUsage.queue_stats.longest_wait }}</div>
                   </div>
                 </div>
               </div>
@@ -326,7 +326,7 @@ onUnmounted(() => {
                   </div>
                   <div class="text-right">
                     <div class="text-sm font-bold">Success</div>
-                    <div class="text-xs text-muted-foreground">{{ systemStatus.lastBackup }}</div>
+                    <div class="text-xs text-muted-foreground">{{ systemStatus.last_backup }}</div>
                   </div>
                 </div>
               </div>
@@ -377,7 +377,7 @@ onUnmounted(() => {
           <Icon icon="lucide:clock-3" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ systemUsage.queueStats.averageWaitTime }}</div>
+          <div class="text-2xl font-bold">{{ systemUsage.queue_stats.average_wait_time }}</div>
           <p class="text-xs text-muted-foreground">Average wait time</p>
         </CardContent>
       </Card>
@@ -388,8 +388,8 @@ onUnmounted(() => {
           <Icon icon="lucide:calendar" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ systemUsage.appointmentsToday }}</div>
-          <p class="text-xs text-muted-foreground">{{ systemUsage.cancellationsToday }} cancellations</p>
+          <div class="text-2xl font-bold">{{ systemUsage.appointments_today }}</div>
+          <p class="text-xs text-muted-foreground">{{ systemUsage.cancellations_today }} cancellations</p>
         </CardContent>
       </Card>
 
@@ -399,7 +399,7 @@ onUnmounted(() => {
           <Icon icon="lucide:monitor" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div class="text-2xl font-bold">{{ systemStatus.activeConnections }}</div>
+          <div class="text-2xl font-bold">{{ systemStatus.active_connections }}</div>
           <p class="text-xs text-muted-foreground">Current users online</p>
         </CardContent>
       </Card>

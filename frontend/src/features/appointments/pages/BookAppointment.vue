@@ -196,9 +196,9 @@ const handleDateSelect = (date: DateValue | undefined) => {
                             <CardTitle class="text-lg">{{ clinic.name }}</CardTitle>
                             <CardDescription>
                                 <div class="space-y-1">
-                                    <p>{{ clinic.clinicType }} • {{ clinic.region }}</p>
+                                    <p>{{ clinic.clinic_type }} • {{ clinic.region }}</p>
                                     <p class="text-sm">{{ clinic.area }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ clinic.addressLine }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ clinic.address_line }}</p>
                                 </div>
                             </CardDescription>
                         </CardHeader>

@@ -25,7 +25,7 @@ const filteredClinics = computed(() => {
     const query = searchQuery.value.toLowerCase()
     filtered = filtered.filter(clinic => 
       clinic.name.toLowerCase().includes(query) ||
-      clinic.addressLine?.toLowerCase().includes(query) ||
+      clinic.address_line?.toLowerCase().includes(query) ||
       clinic.area?.toLowerCase().includes(query) ||
       clinic.region?.toLowerCase().includes(query)
     )
@@ -38,7 +38,7 @@ const filteredClinics = computed(() => {
 
   // Type filter
   if (selectedType.value !== 'All') {
-    filtered = filtered.filter(clinic => clinic.clinicType === selectedType.value)
+    filtered = filtered.filter(clinic => clinic.clinic_type === selectedType.value)
   }
 
   return filtered
@@ -51,7 +51,7 @@ const regions = computed(() => {
 })
 
 const clinicTypes = computed(() => {
-  const uniqueTypes = new Set(clinics.value.map(c => c.clinicType).filter(Boolean))
+  const uniqueTypes = new Set(clinics.value.map(c => c.clinic_type).filter(Boolean))
   return ['All', ...Array.from(uniqueTypes).sort()]
 })
 
@@ -64,7 +64,7 @@ const stats = computed(() => ({
     return acc
   }, {} as Record<string, number>),
   byType: clinics.value.reduce((acc, clinic) => {
-    const type = clinic.clinicType || 'Unknown'
+    const type = clinic.clinic_type || 'Unknown'
     acc[type] = (acc[type] || 0) + 1
     return acc
   }, {} as Record<string, number>)
