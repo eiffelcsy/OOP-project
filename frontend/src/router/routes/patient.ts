@@ -44,7 +44,7 @@ const patientRoutes: RouteRecordRaw[] = [
       {
         path: 'queue',
         name: 'PatientQueueTicket',
-        component: () => import('@/features/patient-queue-ticket/pages/PatientQueueTicket.vue'),
+        component: () => import('@/features/queue/pages/PatientQueueTicket.vue'),
         meta: {
           title: 'My Queue Ticket',
           breadcrumb: 'Queue'

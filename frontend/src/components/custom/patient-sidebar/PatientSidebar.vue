@@ -80,6 +80,14 @@ const handleLogout = async () => {
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            <SidebarMenuItem key="MyQueue">
+                <SidebarMenuButton as-child>
+                  <a href="/patient/queue">
+                    <Icon icon="lucide:ticket" class="size-4" />
+                    <span>My Queue</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             <Collapsible key="Appointments" title="Appointments" default-open class="group/collapsible">
               <SidebarMenuItem>
                 <CollapsibleTrigger as-child>
@@ -110,14 +118,6 @@ const handleLogout = async () => {
                     </SidebarMenuSubItem>
                   </SidebarMenuSub>
                 </CollapsibleContent>
-              </SidebarMenuItem>
-              <SidebarMenuItem key="MyQueue">
-                <SidebarMenuButton as-child>
-                  <a href="/patient/queue">
-                    <Icon icon="lucide:ticket" class="size-4" />
-                    <span>My Queue</span>
-                  </a>
-                </SidebarMenuButton>
               </SidebarMenuItem>
             </Collapsible>
             <SidebarMenuItem key="MedicalRecords">
