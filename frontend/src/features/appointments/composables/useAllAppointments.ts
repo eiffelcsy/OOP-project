@@ -1,65 +1,103 @@
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { useAuth } from '@/features/auth/composables/useAuth'
 
 export function useAllAppointments() {
-  const allAppointments = ref<any[]>([
-    {
-      id: 1,
-      patientName: 'John Tan',
-      doctorId: 101,
-      doctorName: 'Dr. Lee Wei Ming',
-      clinicId: 201,
-      clinicName: 'City Clinic',
-      type: 'General Consultation',
-      doctorSpecialty: 'General Practitioner',
-      clinicType: 'GENERAL',
-      date: '2025-10-20',
-      time: '10:00',
-      status: 'scheduled'
-    },
-    {
-      id: 2,
-      patientName: 'Alicia Lim',
-      doctorId: 102,
-      doctorName: 'Dr. Rajesh Kumar',
-      clinicId: 202,
-      clinicName: 'Dental Care Centre',
-      type: 'Dental Cleaning',
-      doctorSpecialty: 'Dentist',
-      clinicType: 'DENTAL',
-      date: '2025-10-22',
-      time: '09:30',
-      status: 'scheduled'
-    },
-    {
-      id: 3,
-      patientName: 'Marcus Ong',
-      doctorId: 103,
-      doctorName: 'Dr. Fiona Tan',
-      clinicId: 203,
-      clinicName: 'Vision Hub',
-      type: 'Eye Check-up',
-      doctorSpecialty: 'Ophthalmologist',
-      clinicType: 'EYE',
-      date: '2025-10-18',
-      time: '14:00',
-      status: 'completed'
-    }
-  ])
+  const { currentUser, initializeAuth } = useAuth()
 
-  const doctors = ref([
-    { id: 101, name: 'Dr. Lee Wei Ming', specialty: 'General Practitioner' },
-    { id: 102, name: 'Dr. Rajesh Kumar', specialty: 'Dentist' },
-    { id: 103, name: 'Dr. Fiona Tan', specialty: 'Ophthalmologist' }
-  ])
+  const allAppointments = ref<any[]>([])
+  const doctors = ref<any[]>([])
+  const clinics = ref<any[]>([])
 
-  const clinics = ref([
-    { id: 201, name: 'City Clinic', clinicType: 'GENERAL' },
-    { id: 202, name: 'Dental Care Centre', clinicType: 'DENTAL' },
-    { id: 203, name: 'Vision Hub', clinicType: 'EYE' }
-  ])
-
+  // Fetch appointments for the staff's clinic (today + upcoming)
   const fetchAllAppointments = async () => {
-    await new Promise(resolve => setTimeout(resolve, 200))
+    try {
+      if (!currentUser.value?.staff?.clinic_id) return
+      const clinicId = currentUser.value.staff.clinic_id
+
+      // Fetch appointments
+      const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
+      if (!res.ok) throw new Error('Failed to fetch appointments')
+      let data = await res.json()
+
+      // Current time in SGT
+      const nowSGT = new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' })
+      const nowDateSGT = new Date(nowSGT)
+
+      // Filter out past appointments
+      data = data.filter((appt: any) => {
+        if (!appt.start_time) return false
+        const apptSGT = new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+        return apptSGT >= nowDateSGT
+      })
+
+      // Fetch related entities
+      const [patientsRes, profilesRes, doctorsRes, clinicsRes] = await Promise.all([
+        fetch(`http://localhost:8080/api/patient/all`),
+        fetch(`http://localhost:8080/api/admin/users`),
+        fetch(`http://localhost:8080/api/doctors`),
+        fetch(`http://localhost:8080/api/admin/clinics`)
+      ])
+      const patients = await patientsRes.json()
+      const profiles = await profilesRes.json()
+      const doctorsData = await doctorsRes.json()
+      const clinicsData = await clinicsRes.json()
+
+      // Update doctors & clinics reactive arrays
+      doctors.value = doctorsData
+      clinics.value = clinicsData
+
+      // Map appointments to display format
+      allAppointments.value = data.map((appt: any) => {
+        // Convert times to SGT
+        const start = appt.start_time ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' })) : null
+        const end = appt.end_time ? new Date(new Date(appt.end_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' })) : null
+        const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
+
+        // Patient info
+        let patientName = '-'
+        let patientPhone = '-'
+        const patient = patients.find((p: any) => String(p.id) === String(appt.patient_id))
+        if (patient) {
+          patientPhone = patient.phone ?? '-'
+          if (patient.user_id) {
+            const profile = profiles.find((u: any) => String(u.user_id) === String(patient.user_id))
+            if (profile) patientName = profile.full_name ?? '-'
+          }
+        }
+
+        // Doctor info
+        const doctor = doctorsData.find((d: any) => d.id === appt.doctor_id)
+        const doctorName = doctor?.name ?? '-'
+        const doctorSpecialty = doctor?.specialty ?? '-'
+
+        // Clinic info
+        const clinic = clinicsData.find((c: any) => c.id === appt.clinic_id)
+        const clinicName = clinic?.name ?? '-'
+        const clinicType = clinic?.clinic_type ?? '-'
+
+        // Date in SGT
+        const dateStr = start ? start.toISOString().split('T')[0] : '-'
+
+        return {
+          id: appt.id,
+          patientName,
+          patientId: appt.patient_id,
+          patientPhone,
+          doctorId: appt.doctor_id,
+          doctorName,
+          doctorSpecialty,
+          clinicId: appt.clinic_id,
+          clinicName,
+          clinicType,
+          type: appt.treatment_summary ?? 'Consultation',
+          date: dateStr,
+          time: timeStr,
+          status: appt.status
+        }
+      })
+    } catch (error) {
+      console.error('Error fetching appointments:', error)
+    }
   }
 
   const cancelAppointment = async (id: number) => {
@@ -81,10 +119,14 @@ export function useAllAppointments() {
     }
   }
 
-  const formatDate = (date: string) => new Date(date).toLocaleDateString('en-SG', {
-    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
-  })
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
   const formatTime = (time: string) => time
+
+  onMounted(async () => {
+    await initializeAuth()
+    fetchAllAppointments()
+  })
 
   return {
     allAppointments,
