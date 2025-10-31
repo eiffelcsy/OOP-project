@@ -99,9 +99,12 @@ public class UserService {
         // 2. Create Supabase auth user (trigger will create profile + patient if role=patient)
         String userId = createSupabaseAuthUser(request);
         
+        logger.info("Created Supabase auth user: {}, role: {}, phone: {}", userId, request.getRole(), request.getPhone());
+        
         try {
-            // 3. Wait briefly for trigger to complete (profile creation)
-            Thread.sleep(500);
+            // 3. Wait for trigger to complete (profile + patient creation)
+            // Increased wait time and added retry logic for trigger completion
+            Thread.sleep(1000);
             
             // 4. Fetch the profile created by trigger
             Profile profile = profileRepository.findByUserId(userId)
@@ -120,8 +123,9 @@ public class UserService {
             
             switch (request.getRole().toLowerCase()) {
                 case "patient":
-                    // Patient record created by trigger, update with additional fields
-                    patient = updatePatientDetails(userId, request);
+                    // For admin-created users via Admin API, trigger may not fire reliably
+                    // Try to fetch existing patient record (from trigger), otherwise create manually
+                    patient = getOrCreatePatient(userId, request);
                     break;
                 case "staff":
                     staff = createStaff(userId, request);
@@ -254,20 +258,51 @@ public class UserService {
     }
     
     /**
-     * Update patient entity with additional details not set by trigger
-     * Trigger creates patient with user_id and phone only
+     * Get existing patient record (created by trigger) or create one manually
+     * 
+     * This handles two scenarios:
+     * 1. Self-registration: Patient record created automatically by Supabase trigger (signUp)
+     * 2. Admin-created: Trigger may not fire reliably via Admin API, so create manually
+     * 
+     * Implements retry logic to handle trigger timing issues for self-registration
      */
-    private Patient updatePatientDetails(String userId, CreateUserRequest request) {
-        // Fetch patient created by trigger
-        Patient patient = patientRepository.findByUserId(userId)
-                .orElseThrow(() -> new RuntimeException("Patient was not created by trigger for user: " + userId));
+    private Patient getOrCreatePatient(String userId, CreateUserRequest request) {
+        // Try to fetch patient with retries (trigger may take time to commit for self-registration)
+        Patient patient = null;
+        int maxRetries = 3;
+        int retryDelayMs = 500;
         
-        // Update with additional fields
+        for (int i = 0; i < maxRetries; i++) {
+            patient = patientRepository.findByUserId(userId).orElse(null);
+            
+            if (patient != null) {
+                logger.info("Found existing patient record for user {} (likely from trigger)", userId);
+                break; // Found the patient record created by trigger
+            }
+            
+            if (i < maxRetries - 1) {
+                try {
+                    logger.info("Patient record not found yet for user {}, retry {}/{}", userId, i + 1, maxRetries);
+                    Thread.sleep(retryDelayMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted while waiting for patient record creation", e);
+                }
+            }
+        }
+        
+        // If still not found after retries, create manually (Admin API doesn't reliably trigger)
+        if (patient == null) {
+            logger.info("Patient record not created by trigger for user {}, creating manually", userId);
+            patient = new Patient();
+            patient.setUserId(userId);
+        }
+        
+        // Set/update all patient-specific fields
         if (request.getNric() != null) patient.setNric(request.getNric());
+        if (request.getPhone() != null) patient.setPhone(request.getPhone());
         if (request.getDob() != null) patient.setDob(request.getDob());
         if (request.getAddress() != null) patient.setAddress(request.getAddress());
-        // Phone is already set by trigger, but update if provided
-        if (request.getPhone() != null) patient.setPhone(request.getPhone());
         
         return patientRepository.save(patient);
     }
@@ -321,14 +356,15 @@ public class UserService {
         requestBody.put("password", request.getPassword());
         requestBody.put("email_confirm", true); // Auto-confirm email
         
-        // raw_user_meta_data for trigger
+        // raw_user_meta_data for trigger to create profile and patient
         Map<String, String> rawUserMetadata = new HashMap<>();
         rawUserMetadata.put("full_name", request.getFullName());
         rawUserMetadata.put("user_type", request.getRole().toLowerCase());
         
-        // Add phone for patient trigger
+        // Add phone for patient trigger (CRITICAL: trigger needs this to create patient record)
         if ("patient".equals(request.getRole().toLowerCase()) && request.getPhone() != null) {
             rawUserMetadata.put("phone", request.getPhone());
+            logger.info("Creating patient user with phone: {}", request.getPhone());
         }
         
         requestBody.put("raw_user_meta_data", rawUserMetadata);
@@ -337,6 +373,8 @@ public class UserService {
         Map<String, String> userMetadata = new HashMap<>();
         userMetadata.put("full_name", request.getFullName());
         requestBody.put("user_metadata", userMetadata);
+        
+        logger.info("Creating Supabase auth user with role: {}, metadata: {}", request.getRole(), rawUserMetadata);
         
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
         

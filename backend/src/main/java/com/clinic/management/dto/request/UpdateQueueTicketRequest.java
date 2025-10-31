@@ -6,7 +6,6 @@ import java.util.Optional;
 public class UpdateQueueTicketRequest {
     private Long queueId;
     private Long appointmentId;
-    private Long patientId;
     private Integer ticketNumber;
     private Short priority;
     private String ticketStatus;
@@ -19,8 +18,6 @@ public class UpdateQueueTicketRequest {
     public void setQueueId(Long queueId) { this.queueId = queueId; }
     public Optional<Long> getAppointmentId() { return Optional.ofNullable(appointmentId); }
     public void setAppointmentId(Long appointmentId) { this.appointmentId = appointmentId; }
-    public Optional<Long> getPatientId() { return Optional.ofNullable(patientId); }
-    public void setPatientId(Long patientId) { this.patientId = patientId; }
     public Optional<Integer> getTicketNumber() { return Optional.ofNullable(ticketNumber); }
     public void setTicketNumber(Integer ticketNumber) { this.ticketNumber = ticketNumber; }
     public Optional<Short> getPriority() { return Optional.ofNullable(priority); }
@@ -37,7 +34,7 @@ public class UpdateQueueTicketRequest {
     public void setExpectedUpdatedAt(OffsetDateTime expectedUpdatedAt) { this.expectedUpdatedAt = expectedUpdatedAt; }
 
     public boolean hasUpdates() {
-        return queueId != null || appointmentId != null || patientId != null || ticketNumber != null ||
+    return queueId != null || appointmentId != null || ticketNumber != null ||
                 priority != null || ticketStatus != null || calledAt != null || completedAt != null || noShowAt != null;
     }
 }

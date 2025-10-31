@@ -1,6 +1,5 @@
 package com.clinic.management.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
 /**
@@ -8,13 +7,10 @@ import java.util.Map;
  */
 public class AdminStatisticsResponse {
     
-    @JsonProperty("metrics")
     private Map<String, Object> metrics;
     
-    @JsonProperty("systemStatus")
     private Map<String, Object> systemStatus;
     
-    @JsonProperty("systemUsage")
     private Map<String, Object> systemUsage;
     
     public AdminStatisticsResponse() {

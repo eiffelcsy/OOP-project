@@ -14,12 +14,12 @@ const { createClinic, loading, error } = useClinics()
 
 const formData = reactive<Partial<CreateClinicRequest>>({
   name: '',
-  clinicType: '',
+  clinic_type: '',
   region: '',
   area: '',
-  addressLine: '',
-  openTime: '',
-  closeTime: '',
+  address_line: '',
+  open_time: '',
+  close_time: '',
   note: '',
   remarks: ''
 })
@@ -37,8 +37,8 @@ const validateForm = () => {
     formErrors.value.name = 'Clinic name is required'
   }
   
-  if (!formData.clinicType) {
-    formErrors.value.clinicType = 'Clinic type is required'
+  if (!formData.clinic_type) {
+    formErrors.value.clinic_type = 'Clinic type is required'
   }
   
   if (!formData.region) {
@@ -49,8 +49,8 @@ const validateForm = () => {
     formErrors.value.area = 'Area is required'
   }
   
-  if (!formData.addressLine?.trim()) {
-    formErrors.value.addressLine = 'Address is required'
+  if (!formData.address_line?.trim()) {
+    formErrors.value.address_line = 'Address is required'
   }
   
   return Object.keys(formErrors.value).length === 0
@@ -145,14 +145,14 @@ const handleCancel = () => {
                   v-for="type in clinicTypes" 
                   :key="type"
                   type="button"
-                  :variant="formData.clinicType === type ? 'default' : 'outline'" 
+                  :variant="formData.clinic_type === type ? 'default' : 'outline'" 
                   size="sm"
-                  @click="formData.clinicType = type"
+                  @click="formData.clinic_type = type"
                 >
                   {{ type }}
                 </Button>
               </div>
-              <p v-if="formErrors.clinicType" class="text-sm text-destructive">{{ formErrors.clinicType }}</p>
+              <p v-if="formErrors.clinic_type" class="text-sm text-destructive">{{ formErrors.clinic_type }}</p>
             </div>
 
             <!-- Region -->
@@ -209,11 +209,11 @@ const handleCancel = () => {
               <Input 
                 id="address" 
                 placeholder="Full street address"
-                :class="{ 'border-destructive': formErrors.addressLine }"
-                :model-value="formData.addressLine ?? ''"
-                @update:model-value="formData.addressLine = ($event as string) || null"
+                :class="{ 'border-destructive': formErrors.address_line }"
+                :model-value="formData.address_line ?? ''"
+                @update:model-value="formData.address_line = ($event as string) || null"
               />
-              <p v-if="formErrors.addressLine" class="text-sm text-destructive">{{ formErrors.addressLine }}</p>
+              <p v-if="formErrors.address_line" class="text-sm text-destructive">{{ formErrors.address_line }}</p>
             </div>
           </div>
         </CardContent>
@@ -234,8 +234,8 @@ const handleCancel = () => {
                 id="open-time" 
                 type="time"
                 placeholder="09:00"
-                :model-value="formData.openTime ?? ''"
-                @update:model-value="formData.openTime = ($event as string) || null"
+                :model-value="formData.open_time ?? ''"
+                @update:model-value="formData.open_time = ($event as string) || null"
               />
             </div>
 
@@ -246,8 +246,8 @@ const handleCancel = () => {
                 id="close-time" 
                 type="time"
                 placeholder="17:00"
-                :model-value="formData.closeTime ?? ''"
-                @update:model-value="formData.closeTime = ($event as string) || null"
+                :model-value="formData.close_time ?? ''"
+                @update:model-value="formData.close_time = ($event as string) || null"
               />
             </div>
           </div>

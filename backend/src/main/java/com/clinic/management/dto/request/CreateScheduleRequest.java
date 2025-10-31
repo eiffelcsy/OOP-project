@@ -1,6 +1,5 @@
 package com.clinic.management.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -22,33 +21,26 @@ import java.time.LocalTime;
  */
 public class CreateScheduleRequest {
     
-    @JsonProperty("doctorId")
     @NotNull(message = "Doctor ID is required")
     private Long doctorId;
     
-    @JsonProperty("dayOfWeek")
     @NotNull(message = "Day of week is required")
     @Min(value = 1, message = "Day of week must be between 1 (Monday) and 7 (Sunday)")
     @Max(value = 7, message = "Day of week must be between 1 (Monday) and 7 (Sunday)")
     private Integer dayOfWeek;
     
-    @JsonProperty("startTime")
     @NotNull(message = "Start time is required")
     private LocalTime startTime;
     
-    @JsonProperty("endTime")
     @NotNull(message = "End time is required")
     private LocalTime endTime;
     
-    @JsonProperty("slotDurationMinutes")
     @NotNull(message = "Slot duration is required")
     @Min(value = 1, message = "Slot duration must be at least 1 minute")
     private Integer slotDurationMinutes;
     
-    @JsonProperty("validFrom")
     private LocalDate validFrom;
     
-    @JsonProperty("validTo")
     private LocalDate validTo;
     
     // Constructors

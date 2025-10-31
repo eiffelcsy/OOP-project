@@ -12,16 +12,16 @@ export type Doctor = Tables<'doctors'>
 // Backend response type (with camelCase from Jackson default serialization)
 export interface DoctorResponse {
   id: number
-  clinicId: number
+  clinic_id: number
   name: string
   specialty: string | null
   active: boolean | null
-  createdAt: string  // OffsetDateTime from backend
-  updatedAt: string  // OffsetDateTime from backend
+  created_at: string  // OffsetDateTime from backend
+  updated_at: string  // OffsetDateTime from backend
 }
 
 export interface CreateDoctorRequest {
-  clinicId: number
+  clinic_id: number
   name: string
   specialty?: string | null
   active?: boolean
@@ -31,7 +31,7 @@ export interface UpdateDoctorRequest {
   name?: string
   specialty?: string | null
   active?: boolean
-  clinicId?: number
+  clinic_id?: number
 }
 
 /**

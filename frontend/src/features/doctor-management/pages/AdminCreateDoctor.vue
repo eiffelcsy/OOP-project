@@ -29,7 +29,7 @@ const selectedClinicId = ref<number | null>(null)
 const formData = reactive<CreateDoctorRequest>({
   name: '',
   specialty: null,
-  clinicId: 0,
+  clinic_id: 0,
   active: true
 })
 
@@ -68,12 +68,12 @@ const filteredClinics = computed(() => {
 })
 
 const isFormValid = computed(() => {
-  return formData.name.trim() !== '' && formData.clinicId > 0
+  return formData.name.trim() !== '' && formData.clinic_id > 0
 })
 
 const handleSelectClinic = (clinicId: number) => {
   selectedClinicId.value = clinicId
-  formData.clinicId = clinicId
+  formData.clinic_id = clinicId
   showClinicSelector.value = false
   clinicSearchQuery.value = ''
 }

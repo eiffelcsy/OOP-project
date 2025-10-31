@@ -17,20 +17,15 @@ public class QueueTicketService {
     private final QueueTicketRepository queueTicketRepository;
     private final QueueRepository queueRepository;
     private final AppointmentRepository appointmentRepository;
-    private final PatientRepository patientRepository;
-    private final ProfileRepository profileRepository;
+    // Removed unused ProfileRepository
 
     @Autowired
     public QueueTicketService(QueueTicketRepository queueTicketRepository,
                               QueueRepository queueRepository,
-                              AppointmentRepository appointmentRepository,
-                              PatientRepository patientRepository,
-                              ProfileRepository profileRepository) {
+                              AppointmentRepository appointmentRepository) {
         this.queueTicketRepository = queueTicketRepository;
         this.queueRepository = queueRepository;
         this.appointmentRepository = appointmentRepository;
-        this.patientRepository = patientRepository;
-        this.profileRepository = profileRepository;
     }
 
     @Transactional
@@ -47,11 +42,7 @@ public class QueueTicketService {
             t.setAppointment(appt);
         }
 
-        if (req.getPatientId() != null) {
-            Patient patient = patientRepository.findById(req.getPatientId())
-                    .orElseThrow(() -> new ValidationException("Patient not found with id: " + req.getPatientId()));
-            t.setPatient(patient);
-        }
+    // No direct patient on queue ticket; patient is derived via appointment
 
         t.setTicketNumber(req.getTicketNumber());
         t.setPriority(req.getPriority() != null ? req.getPriority() : 0);
@@ -65,7 +56,7 @@ public class QueueTicketService {
 
     @Transactional(readOnly = true)
     public List<QueueTicket> list(Long queueId) {
-        // Use the method that eagerly fetches patient to avoid N+1 queries
+    // Use method that eagerly fetches appointment and patient to avoid N+1 queries
         return queueTicketRepository.findByQueueIdWithPatient(queueId);
     }
 
@@ -98,11 +89,7 @@ public class QueueTicketService {
             t.setAppointment(appt);
         });
 
-        req.getPatientId().ifPresent(pid -> {
-            Patient p = patientRepository.findById(pid)
-                    .orElseThrow(() -> new ValidationException("Patient not found with id: " + pid));
-            t.setPatient(p);
-        });
+    // No direct patient updates on queue ticket; change appointment if needed
 
         req.getTicketNumber().ifPresent(t::setTicketNumber);
         req.getPriority().ifPresent(t::setPriority);

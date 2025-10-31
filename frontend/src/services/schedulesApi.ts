@@ -16,35 +16,35 @@ const API_BASE_URL = _trimmed.endsWith('/api') ? _trimmed : `${_trimmed}/api`
 
 export interface ScheduleResponse {
   id: number
-  doctorId: number
-  dayOfWeek: number // 1-7 (Monday-Sunday)
-  startTime: string // "HH:MM:SS"
-  endTime: string // "HH:MM:SS"
-  slotDurationMinutes: number
-  validFrom: string | null // ISO date string
-  validTo: string | null // ISO date string
-  createdAt: string
-  updatedAt: string
+  doctor_id: number
+  day_of_week: number // 1-7 (Monday-Sunday)
+  start_time: string // "HH:MM:SS"
+  end_time: string // "HH:MM:SS"
+  slot_duration_minutes: number
+  valid_from: string | null // ISO date string
+  valid_to: string | null // ISO date string
+  created_at: string
+  updated_at: string
 }
 
 export interface CreateScheduleRequest {
-  doctorId: number
-  dayOfWeek: number
-  startTime: string // "HH:MM:SS"
-  endTime: string // "HH:MM:SS"
-  slotDurationMinutes: number
-  validFrom?: string | null
-  validTo?: string | null
+  doctor_id: number
+  day_of_week: number
+  start_time: string // "HH:MM:SS"
+  end_time: string // "HH:MM:SS"
+  slot_duration_minutes: number
+  valid_from?: string | null
+  valid_to?: string | null
 }
 
 export interface UpdateScheduleRequest {
-  doctorId?: number
-  dayOfWeek?: number
-  startTime?: string
-  endTime?: string
-  slotDurationMinutes?: number
-  validFrom?: string | null
-  validTo?: string | null
+  doctor_id?: number
+  day_of_week?: number
+  start_time?: string
+  end_time?: string
+  slot_duration_minutes?: number
+  valid_from?: string | null
+  valid_to?: string | null
 }
 
 class SchedulesApiService {

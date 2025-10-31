@@ -1,7 +1,6 @@
 package com.clinic.management.dto.request;
 
 import com.clinic.management.model.enums.QueueStatus;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
@@ -14,12 +13,10 @@ import jakarta.validation.constraints.Positive;
  */
 public class CreateQueueRequest {
     
-    @JsonProperty("clinicId")
     @NotNull(message = "Clinic ID is required")
     @Positive(message = "Clinic ID must be positive")
     private Long clinicId;
     
-    @JsonProperty("queueStatus")
     @NotNull(message = "Queue status is required")
     private QueueStatus queueStatus = QueueStatus.ACTIVE;
     

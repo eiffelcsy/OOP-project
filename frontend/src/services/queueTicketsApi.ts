@@ -4,7 +4,6 @@ export interface QueueTicketResponse {
   id: number
   queue_id: number
   appointment_id: number | null
-  patient_id: number | null
   patient_name?: string | null // Patient's full name from profiles
   ticket_number: number
   priority: number | null // 0=Normal, 1=Fast-Track
@@ -24,7 +23,6 @@ export const queueTicketsApi = {
   async update(id: number, payload: Partial<{
     queue_id: number
     appointment_id: number | null
-    patient_id: number | null
     ticket_number: number
     priority: number | null
     ticket_status: string | null

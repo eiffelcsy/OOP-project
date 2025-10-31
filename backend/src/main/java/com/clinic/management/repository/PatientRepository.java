@@ -17,6 +17,10 @@ import java.util.Optional;
  */
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
+    /**
+     * Find patients by a list of IDs
+     */
+    List<Patient> findByIdIn(List<Long> ids);
     
     /**
      * Find patient by Supabase auth user ID

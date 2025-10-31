@@ -7,14 +7,14 @@ import { apiClient } from '@/lib/api'
 
 // Queue API request/response types
 export interface CreateQueueRequest {
-  clinicId: number
-  queueStatus?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  clinic_id: number
+  queue_status?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
 }
 
 export interface UpdateQueueRequest {
-  clinicId?: number
-  queueStatus?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
-  expectedUpdatedAt?: number // Unix timestamp for optimistic locking
+  clinic_id?: number
+  queue_status?: 'ACTIVE' | 'PAUSED' | 'CLOSED'
+  expected_updated_at?: number // Unix timestamp for optimistic locking
 }
 
 // Note: Backend uses Jackson SNAKE_CASE for JSON; responses are snake_case.
@@ -93,12 +93,8 @@ export const queueApi = {
    * PUT /api/queues/{id}
    */
   async updateQueue(id: number, request: UpdateQueueRequest): Promise<QueueResponse> {
-    // Convert camelCase request fields to snake_case for backend
-    const payload: any = {}
-    if (request.clinicId !== undefined) payload.clinic_id = request.clinicId
-    if (request.queueStatus !== undefined) payload.queue_status = request.queueStatus
-    if (request.expectedUpdatedAt !== undefined) payload.expected_updated_at = request.expectedUpdatedAt
-    return apiClient.put(`/api/queues/${id}`, payload)
+    // Request is already in snake_case, no conversion needed
+    return apiClient.put(`/api/queues/${id}`, request)
   },
 
   /**

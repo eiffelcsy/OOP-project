@@ -14,6 +14,7 @@ import com.clinic.management.model.QueueTicket;
 import com.clinic.management.model.Patient;
 import com.clinic.management.model.Profile;
 import com.clinic.management.repository.ProfileRepository;
+import com.clinic.management.repository.PatientRepository;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
 import com.clinic.management.service.QueueTicketService;
@@ -25,6 +26,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
@@ -58,13 +60,15 @@ public class StaffController {
     private final QueueService queueService;
     private final QueueTicketService queueTicketService;
     private final ProfileRepository profileRepository;
+    private final PatientRepository patientRepository;
 
     @Autowired
-    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository) {
+    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository, PatientRepository patientRepository) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
         this.profileRepository = profileRepository;
+        this.patientRepository = patientRepository;
     }
 
     // =========================
@@ -240,14 +244,24 @@ public class StaffController {
     public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
         List<QueueTicket> tickets = queueTicketService.list(queueId);
         
-        // Collect all user IDs from patients
-        List<String> userIds = tickets.stream()
-                .map(QueueTicket::getPatient)
-                .filter(patient -> patient != null)
-                .map(Patient::getUserId)
-                .filter(userId -> userId != null)
-                .distinct()
-                .collect(Collectors.toList());
+    // Collect patient IDs via appointment.patientId then resolve to user IDs
+    List<Long> patientIds = tickets.stream()
+        .map(QueueTicket::getAppointment)
+        .filter(Objects::nonNull)
+        .map(Appointment::getPatientId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.toList());
+
+    Map<Long, String> patientIdToUserId = patientRepository.findByIdIn(patientIds).stream()
+        .filter(p -> p.getUserId() != null)
+        .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
+
+    List<String> userIds = patientIds.stream()
+        .map(patientIdToUserId::get)
+        .filter(Objects::nonNull)
+        .distinct()
+        .collect(Collectors.toList());
         
         // Fetch all profiles in one query
         Map<String, String> userIdToNameMap = profileRepository.findByUserIdIn(userIds).stream()
@@ -257,10 +271,16 @@ public class StaffController {
         List<QueueTicketResponse> responses = tickets.stream()
                 .map(ticket -> {
                     QueueTicketResponse response = QueueTicketResponse.from(ticket);
-                    // Add patient name if available
-                    if (ticket.getPatient() != null && ticket.getPatient().getUserId() != null) {
-                        String patientName = userIdToNameMap.get(ticket.getPatient().getUserId());
-                        response.setPatientName(patientName != null ? patientName : "Patient #" + ticket.getPatient().getId());
+                    // Enrich patient name via appointment.patientId -> patient.userId -> profiles
+                    if (ticket.getAppointment() != null && ticket.getAppointment().getPatientId() != null) {
+                        Long pid = ticket.getAppointment().getPatientId();
+                        String uid = patientIdToUserId.get(pid);
+                        if (uid != null) {
+                            String patientName = userIdToNameMap.get(uid);
+                            response.setPatientName(patientName != null ? patientName : (pid != null ? "Patient #" + pid : "Walk-in"));
+                        } else {
+                            response.setPatientName(pid != null ? "Patient #" + pid : "Walk-in");
+                        }
                     } else {
                         response.setPatientName("Walk-in");
                     }

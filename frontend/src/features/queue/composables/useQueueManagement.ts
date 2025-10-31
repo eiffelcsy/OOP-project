@@ -36,7 +36,6 @@ export interface QueuePatient {
   checkInTime?: string
   calledTime?: string
   // Additional fields from database
-  patient_id?: number
   appointment_id?: number
   queue_id: number
   ticket_id: number
@@ -110,10 +109,9 @@ const createQueueManagement = () => {
           id: t.id,
           ticket_id: t.id,
           queue_id: t.queue_id,
-          patient_id: t.patient_id ?? undefined,
           appointment_id: t.appointment_id ?? undefined,
           queueNumber: t.ticket_number,
-          name: t.patient_name || (t.patient_id ? `Patient #${t.patient_id}` : 'Walk-in'),
+          name: t.patient_name || 'Walk-in',
           // Display time under patient's name per status rules
           appointmentTime: primaryTime || '-',
           status,
@@ -135,6 +133,34 @@ const createQueueManagement = () => {
     } catch (error) {
       console.error('Failed to load queue tickets:', error)
     }
+  }
+
+  // Resolve patient name from appointment_id via appointments -> patients -> profiles
+  const resolvePatientNameByAppointmentId = async (appointmentId?: number | null): Promise<string> => {
+    if (!appointmentId) return 'Walk-in'
+    const { data: appt, error: apptErr } = await supabase
+      .from('appointments')
+      .select('patient_id')
+      .eq('id', appointmentId)
+      .single()
+    if (apptErr || !appt?.patient_id) return 'Walk-in'
+
+    const { data: patient, error: patErr } = await supabase
+      .from('patients')
+      .select('user_id')
+      .eq('id', appt.patient_id)
+      .single()
+    if (patErr) return `Patient #${appt.patient_id}`
+
+    if (patient?.user_id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', patient.user_id)
+        .single()
+      return profile?.full_name || `Patient #${appt.patient_id}`
+    }
+    return `Patient #${appt.patient_id}`
   }
 
   // Computed properties
@@ -268,8 +294,8 @@ const createQueueManagement = () => {
       
       // Backend CreateQueueRequest explicitly expects camelCase fields via @JsonProperty
       const requestData: CreateQueueRequest = {
-        clinicId: clinicId,
-        queueStatus: 'ACTIVE'
+        clinic_id: clinicId,
+        queue_status: 'ACTIVE'
       }
       
       console.log('Creating queue with request:', JSON.stringify(requestData))
@@ -318,7 +344,7 @@ const createQueueManagement = () => {
       }
 
       const updateRequest = {
-        queueStatus: 'PAUSED' as const
+        queue_status: 'PAUSED' as const
       }
       console.log('Sending update request:', updateRequest)
       
@@ -345,7 +371,7 @@ const createQueueManagement = () => {
       // Update queue status to ACTIVE in backend
       // Backend expects snake_case property names
       const updateRequest = {
-        queueStatus: 'ACTIVE' as const
+        queue_status: 'ACTIVE' as const
       }
       console.log('Sending update request:', updateRequest)
       
@@ -390,7 +416,7 @@ const createQueueManagement = () => {
       }
 
       if (queueState.queueId) {
-        await queueApi.updateQueue(queueState.queueId, { queueStatus: 'CLOSED' })
+        await queueApi.updateQueue(queueState.queueId, { queue_status: 'CLOSED' })
       }
 
       // Clear local tickets and state
@@ -454,33 +480,13 @@ const createQueueManagement = () => {
               return
             }
             
-            // Fetch patient info if needed
-            let patientName = 'Walk-in'
-            if (newTicket.patient_id) {
-              const { data: patient } = await supabase
-                .from('patients')
-                .select('user_id')
-                .eq('id', newTicket.patient_id)
-                .single()
-              
-              if (patient?.user_id) {
-                const { data: profile } = await supabase
-                  .from('profiles')
-                  .select('full_name')
-                  .eq('user_id', patient.user_id)
-                  .single()
-                
-                patientName = profile?.full_name || `Patient #${newTicket.patient_id}`
-              } else {
-                patientName = `Patient #${newTicket.patient_id}`
-              }
-            }
+            // Resolve patient name via appointment
+            const patientName = await resolvePatientNameByAppointmentId(newTicket.appointment_id)
             
             const newPatient: QueuePatient = {
               id: newTicket.id,
               ticket_id: newTicket.id,
               queue_id: newTicket.queue_id,
-              patient_id: newTicket.patient_id ?? undefined,
               appointment_id: newTicket.appointment_id ?? undefined,
               queueNumber: newTicket.ticket_number,
               name: patientName,
@@ -531,34 +537,16 @@ const createQueueManagement = () => {
                 updatedPrimaryTime = new Date(updatedTicket.updated_at).toLocaleTimeString()
               }
 
-              // If patient_id changed, refresh name
+              // If appointment_id changed, refresh name via appointment
               let updatedName = existingPatient.name
-              if (updatedTicket.patient_id !== existingPatient.patient_id) {
-                if (updatedTicket.patient_id) {
-                  const { data: patient } = await supabase
-                    .from('patients')
-                    .select('user_id')
-                    .eq('id', updatedTicket.patient_id)
-                    .single()
-                  if (patient?.user_id) {
-                    const { data: profile } = await supabase
-                      .from('profiles')
-                      .select('full_name')
-                      .eq('user_id', patient.user_id)
-                      .single()
-                    updatedName = profile?.full_name || `Patient #${updatedTicket.patient_id}`
-                  } else {
-                    updatedName = `Patient #${updatedTicket.patient_id}`
-                  }
-                } else {
-                  updatedName = 'Walk-in'
-                }
+              if (updatedTicket.appointment_id !== existingPatient.appointment_id) {
+                updatedName = await resolvePatientNameByAppointmentId(updatedTicket.appointment_id)
               }
 
               const updatedPatient: QueuePatient = {
                 ...existingPatient,
                 name: updatedName,
-                patient_id: updatedTicket.patient_id ?? undefined,
+                appointment_id: updatedTicket.appointment_id ?? existingPatient.appointment_id,
                 queueNumber: updatedTicket.ticket_number,
                 status: newStatus,
                 priority: mapPriority(updatedTicket.priority),
@@ -577,24 +565,7 @@ const createQueueManagement = () => {
             } else {
               // If the ticket moved into this queue (old was different), add it
               if (newQueueId === qid) {
-                let patientName = 'Walk-in'
-                if (updatedTicket.patient_id) {
-                  const { data: patient } = await supabase
-                    .from('patients')
-                    .select('user_id')
-                    .eq('id', updatedTicket.patient_id)
-                    .single()
-                  if (patient?.user_id) {
-                    const { data: profile } = await supabase
-                      .from('profiles')
-                      .select('full_name')
-                      .eq('user_id', patient.user_id)
-                      .single()
-                    patientName = profile?.full_name || `Patient #${updatedTicket.patient_id}`
-                  } else {
-                    patientName = `Patient #${updatedTicket.patient_id}`
-                  }
-                }
+                const patientName = await resolvePatientNameByAppointmentId(updatedTicket.appointment_id)
                 const newStatus2 = mapStatus(updatedTicket.ticket_status)
                 let primaryTime: string | undefined
                 if (newStatus2 === 'Called' && updatedTicket.called_at) {
@@ -610,7 +581,6 @@ const createQueueManagement = () => {
                   id: updatedTicket.id,
                   ticket_id: updatedTicket.id,
                   queue_id: updatedTicket.queue_id,
-                  patient_id: updatedTicket.patient_id ?? undefined,
                   appointment_id: updatedTicket.appointment_id ?? undefined,
                   queueNumber: updatedTicket.ticket_number,
                   name: patientName,

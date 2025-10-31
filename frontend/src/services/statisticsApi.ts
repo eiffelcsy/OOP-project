@@ -5,51 +5,51 @@ import { apiClient } from '@/lib/api'
  * Handles all HTTP requests to the Admin Statistics backend endpoints
  */
 
-// Response types matching backend structure
+// Response types matching backend structure (snake_case)
 export interface SystemMetrics {
-  totalUsers: number
-  activeClinics: number
-  systemHealth: string
-  healthStatus: 'good' | 'warning' | 'critical'
+  total_users: number
+  active_clinics: number
+  system_health: string
+  health_status: 'good' | 'warning' | 'critical'
 }
 
 export interface SystemStatus {
-  serverUptime: string
-  uptimeDays: number
-  databaseConnectivity: string
-  dbStatus: 'good' | 'warning' | 'critical'
-  lastBackup: string
-  activeConnections: number
+  server_uptime: string
+  uptime_days: number
+  database_connectivity: string
+  db_status: 'good' | 'warning' | 'critical'
+  last_backup: string
+  active_connections: number
 }
 
 export interface QueueStats {
-  currentWaiting: number
-  averageWaitTime: string
-  longestWait: string
-  queueStatus: 'normal' | 'busy' | 'critical'
+  current_waiting: number
+  average_wait_time: string
+  longest_wait: string
+  queue_status: 'normal' | 'busy' | 'critical'
 }
 
 export interface SystemLoad {
   cpu: number
   memory: number
-  diskUsage: number
-  networkTraffic: string
+  disk_usage: number
+  network_traffic: string
 }
 
 export interface SystemUsage {
-  appointmentsToday: number
-  appointmentsThisWeek: number
-  appointmentsTrend: string
-  cancellationsToday: number
-  cancellationRate: string
-  queueStats: QueueStats
-  systemLoad: SystemLoad
+  appointments_today: number
+  appointments_this_week: number
+  appointments_trend: string
+  cancellations_today: number
+  cancellation_rate: string
+  queue_stats: QueueStats
+  system_load: SystemLoad
 }
 
 export interface SystemStatistics {
   metrics: SystemMetrics
-  systemStatus: SystemStatus
-  systemUsage: SystemUsage
+  system_status: SystemStatus
+  system_usage: SystemUsage
 }
 
 export interface NewRegistrationsResponse {

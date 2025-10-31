@@ -15,9 +15,9 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     List<QueueTicket> findByQueueId(Long queueId);
     
     /**
-     * Find tickets by queue ID and eagerly fetch patient relationship
-     * This helps avoid N+1 query problem when fetching patient names
+     * Find tickets by queue ID and eagerly fetch appointment and its patient
+     * Avoids N+1 queries when enriching with patient names via appointment
      */
-    @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.patient WHERE qt.queue.id = :queueId ORDER BY qt.ticketNumber ASC")
+    @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE qt.queue.id = :queueId ORDER BY qt.ticketNumber ASC")
     List<QueueTicket> findByQueueIdWithPatient(@Param("queueId") Long queueId);
 }

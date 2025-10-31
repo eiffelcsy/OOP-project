@@ -11,7 +11,6 @@ public class CreateQueueTicketRequest {
     private Long queueId;
 
     private Long appointmentId;
-    private Long patientId;
 
     @NotNull(message = "Ticket number is required")
     @Positive(message = "Ticket number must be positive")
@@ -28,8 +27,6 @@ public class CreateQueueTicketRequest {
     public void setQueueId(Long queueId) { this.queueId = queueId; }
     public Long getAppointmentId() { return appointmentId; }
     public void setAppointmentId(Long appointmentId) { this.appointmentId = appointmentId; }
-    public Long getPatientId() { return patientId; }
-    public void setPatientId(Long patientId) { this.patientId = patientId; }
     public Integer getTicketNumber() { return ticketNumber; }
     public void setTicketNumber(Integer ticketNumber) { this.ticketNumber = ticketNumber; }
     public Short getPriority() { return priority; }
