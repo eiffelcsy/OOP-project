@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAllAppointments } from '../composables/useAllAppointments' // adjust path if needed
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,9 @@ const {
   rescheduleAppointment,
   formatDate,
   formatTime,
-  fetchAllAppointments
+  fetchAllAppointments,
+  rescheduleAvailableSlots,
+  generateDummySlots
 } = useAllAppointments()
 
 // Filters
@@ -33,9 +35,18 @@ const rescheduleDate = ref('')
 const rescheduleTime = ref('')
 const rescheduleDoctorId = ref<number | null>(null)
 
+// Watch doctor selection to regenerate time slots
+watch(rescheduleDoctorId, (newId) => {
+  if (newId) {
+    rescheduleTime.value = ''
+    generateDummySlots()
+  }
+})
+
 // Fetch appointments on mount
 onMounted(async () => {
   await fetchAllAppointments()
+  generateDummySlots()
 })
 
 // Filtered appointments
@@ -49,10 +60,8 @@ const filteredAppointments = computed(() => {
       return matchesPatient && matchesDoctor && matchesClinic && matchesDate
     })
     .sort((a, b) => {
-      // Sort by date descending (newest first)
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime()
       if (dateCompare !== 0) return dateCompare
-      // If dates are equal, sort by time descending
       return b.time.localeCompare(a.time)
     })
 })
@@ -102,13 +111,11 @@ const confirmReschedule = async () => {
 
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 mb-6">
-      <!-- Search bar -->
       <div class="w-64">
         <label class="block text-sm font-medium mb-1">Search</label>
         <Input v-model="searchQuery" placeholder="Search patient..." class="w-full h-10" />
       </div>
 
-      <!-- Doctor filter -->
       <div>
         <label class="block text-sm font-medium mb-1">Doctor</label>
         <select v-model="selectedDoctor" class="h-10 border rounded-md px-2">
@@ -119,7 +126,6 @@ const confirmReschedule = async () => {
         </select>
       </div>
 
-      <!-- Date filter -->
       <div>
         <label class="block text-sm font-medium mb-1">Date</label>
         <input type="date" v-model="selectedDate" class="h-10 border rounded-md px-2" />
@@ -290,6 +296,5 @@ const confirmReschedule = async () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
   </div>
 </template>

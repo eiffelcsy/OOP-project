@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 
 export function useAllAppointments() {
@@ -8,55 +8,49 @@ export function useAllAppointments() {
   const doctors = ref<any[]>([])
   const clinics = ref<any[]>([])
 
-  // Dummy timeslots for rescheduling
+  // Timeslots for rescheduling
   const rescheduleAvailableSlots = ref<{ id: number; slot_start: string; status: string }[]>([])
 
+  // Generate dummy timeslots (24-hour format)
   const generateDummySlots = () => {
     rescheduleAvailableSlots.value = Array.from({ length: 8 }).map((_, idx) => ({
       id: idx + 1,
-      slot_start: `${9 + idx}:00`,
+      slot_start: `${(9 + idx).toString().padStart(2, '0')}:00`,
       status: Math.random() > 0.2 ? 'available' : 'unavailable'
     }))
   }
 
-  // Fetch doctors only for the current staff's clinic
+  // Fetch doctors for a clinic
   const fetchDoctors = async (clinicId: number) => {
     try {
       const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
-      const data = await res.json()
-      doctors.value = data
+      doctors.value = await res.json()
     } catch (err) {
       console.error('Error fetching doctors:', err)
     }
   }
 
-  // Fetch appointments for the staff's clinic (today + upcoming)
+  // Fetch appointments
   const fetchAllAppointments = async () => {
     try {
       if (!currentUser.value?.staff?.clinic_id) return
       const clinicId = currentUser.value.staff.clinic_id
 
-      // Fetch doctors for this clinic
       await fetchDoctors(clinicId)
 
-      // Fetch appointments
       const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch appointments')
       let data = await res.json()
 
-      // Current time in SGT
-      const nowSGT = new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' })
-      const nowDateSGT = new Date(nowSGT)
+      const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
 
-      // Filter out past appointments
       data = data.filter((appt: any) => {
         if (!appt.start_time) return false
         const apptSGT = new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
-        return apptSGT >= nowDateSGT
+        return apptSGT >= nowSGT
       })
 
-      // Fetch patients, profiles, and clinics
       const [patientsRes, profilesRes, clinicsRes] = await Promise.all([
         fetch(`http://localhost:8080/api/patient/all`),
         fetch(`http://localhost:8080/api/admin/users`),
@@ -67,17 +61,12 @@ export function useAllAppointments() {
       const clinicsData = await clinicsRes.json()
       clinics.value = clinicsData
 
-      // Map appointments to display format
       allAppointments.value = data.map((appt: any) => {
         const start = appt.start_time
           ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
           : null
-        const end = appt.end_time
-          ? new Date(new Date(appt.end_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
-          : null
-        const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
+        const timeStr = start ? start.getHours().toString().padStart(2, '0') + ':' + start.getMinutes().toString().padStart(2, '0') : '-'
 
-        // Patient info
         let patientName = '-'
         let patientPhone = '-'
         const patient = patients.find((p: any) => String(p.id) === String(appt.patient_id))
@@ -89,17 +78,14 @@ export function useAllAppointments() {
           }
         }
 
-        // Doctor info (already filtered by clinic)
         const doctor = doctors.value.find((d: any) => d.id === appt.doctor_id)
         const doctorName = doctor?.name ?? '-'
         const doctorSpecialty = doctor?.specialty ?? '-'
 
-        // Clinic info
         const clinic = clinics.value.find((c: any) => c.id === appt.clinic_id)
         const clinicName = clinic?.name ?? '-'
         const clinicType = clinic?.clinic_type ?? '-'
 
-        // Date in SGT
         const dateStr = start ? start.toISOString().split('T')[0] : '-'
 
         return {
@@ -126,9 +112,7 @@ export function useAllAppointments() {
 
   const cancelAppointment = async (id: number) => {
     const appt = allAppointments.value.find(a => a.id === id)
-    if (appt && appt.status !== 'completed') {
-      appt.status = 'cancelled'
-    }
+    if (appt && appt.status !== 'completed') appt.status = 'cancelled'
   }
 
   const rescheduleAppointment = async (id: number, doctorId: number, newDate: string, newTime: string) => {
@@ -150,7 +134,7 @@ export function useAllAppointments() {
   onMounted(async () => {
     await initializeAuth()
     fetchAllAppointments()
-    generateDummySlots() // Generate dummy slots when composable mounts
+    generateDummySlots()
   })
 
   return {
@@ -162,6 +146,7 @@ export function useAllAppointments() {
     formatDate,
     formatTime,
     fetchAllAppointments,
-    rescheduleAvailableSlots
+    rescheduleAvailableSlots,
+    generateDummySlots
   }
 }
