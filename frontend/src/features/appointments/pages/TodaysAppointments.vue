@@ -149,7 +149,7 @@ const getUrgencyColor = (urgency: string) => {
     <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">Total Appointments</CardTitle>
+          <CardTitle class="text-sm font-medium">All Appointments</CardTitle>
           <Icon icon="lucide:calendar" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
