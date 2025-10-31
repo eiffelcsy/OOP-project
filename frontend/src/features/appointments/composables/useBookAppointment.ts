@@ -1,10 +1,13 @@
 import { ref, computed } from 'vue'
 import type { DateValue } from '@internationalized/date'
+import { parseDate } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 import { schedulesApi } from '@/services/schedulesApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
+import { h } from 'vue'
+import { useRouter } from 'vue-router'
 import { ensureSgtOffset, SGT_OFFSET, hasTz, sgtLocalToUtcIso, utcIsoToSgTime } from '@/lib/utils'
 
 // Type aliases from database
@@ -72,221 +75,14 @@ export const useBookAppointment = () => {
   const doctorSearchQuery = ref('')
   const selectedDoctorSpecialty = ref<string>('All')
 
-  // Dummy data for clinics (using database-aligned structure)
-  const allClinics = ref<Clinic[]>([
-    {
-      id: 1,
-      name: 'Singapore General Hospital',
-      clinic_type: 'General',
-      region: 'Central',
-      area: 'Outram Park',
-      address_line: 'Outram Road, Singapore 169608',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 2,
-      name: 'Tan Tock Seng Hospital',
-      clinic_type: 'General',
-      region: 'Central',
-      area: 'Novena',
-      address_line: '11 Jalan Tan Tock Seng, Singapore 308433',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 3,
-      name: 'National University Hospital',
-      clinic_type: 'General',
-      region: 'West',
-      area: 'Kent Ridge',
-      address_line: '5 Lower Kent Ridge Road, Singapore 119074',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 4,
-      name: 'Mount Elizabeth Hospital',
-      clinic_type: 'Specialist',
-      region: 'Central',
-      area: 'Orchard',
-      address_line: '3 Mount Elizabeth, Singapore 228510',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 5,
-      name: 'KK Women\'s and Children\'s Hospital',
-      clinic_type: 'Specialist',
-      region: 'Central',
-      area: 'Outram Park',
-      address_line: '100 Bukit Timah Road, Singapore 229899',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 6,
-      name: 'Changi General Hospital',
-      clinic_type: 'General',
-      region: 'East',
-      area: 'Simei',
-      address_line: '2 Simei Street 3, Singapore 529889',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 7,
-      name: 'Khoo Teck Puat Hospital',
-      clinic_type: 'General',
-      region: 'North',
-      area: 'Yishun',
-      address_line: '90 Yishun Central, Singapore 768828',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    },
-    {
-      id: 8,
-      name: 'Ng Teng Fong General Hospital',
-      clinic_type: 'General',
-      region: 'West',
-      area: 'Jurong East',
-      address_line: '1 Jurong East Street 21, Singapore 609606',
-      source_ref: null,
-      remarks: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      open_time: null,
-      close_time: null,
-      note: null
-    }
-  ])
+  // Clinics will be loaded from the backend. Start empty so no dummy data is shown.
+  const allClinics = ref<Clinic[]>([])
 
-  // Dummy data for doctors (using database-aligned structure)
-  const allDoctors = ref<Doctor[]>([
-    {
-      id: 1,
-      name: 'Dr. Sarah Lim',
-      specialty: 'General Medicine',
-      clinic_id: 1,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      name: 'Dr. Michael Tan',
-      specialty: 'Cardiology',
-      clinic_id: 1,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 3,
-      name: 'Dr. Jennifer Wong',
-      specialty: 'Internal Medicine',
-      clinic_id: 2,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 4,
-      name: 'Dr. David Chen',
-      specialty: 'Emergency Medicine',
-      clinic_id: 2,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 5,
-      name: 'Dr. Rachel Lee',
-      specialty: 'Family Medicine',
-      clinic_id: 3,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 6,
-      name: 'Dr. Andrew Ng',
-      specialty: 'Orthopedics',
-      clinic_id: 4,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 7,
-      name: 'Dr. Michelle Teo',
-      specialty: 'Pediatrics',
-      clinic_id: 5,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 8,
-      name: 'Dr. Kevin Lau',
-      specialty: 'General Surgery',
-      clinic_id: 6,
-      active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  ])
+  // Doctors will be populated from the backend when a clinic is selected. Start empty.
+  const allDoctors = ref<Doctor[]>([])
 
-  // Available time slots (using database-aligned structure)
-  const availableTimeSlots = ref<TimeSlot[]>([
-    { id: 1, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T09:00:00+08:00', slot_end: '2024-01-01T09:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 2, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T09:30:00+08:00', slot_end: '2024-01-01T10:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 3, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T10:00:00+08:00', slot_end: '2024-01-01T10:30:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 4, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T10:30:00+08:00', slot_end: '2024-01-01T11:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 5, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T11:00:00+08:00', slot_end: '2024-01-01T11:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 6, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T11:30:00+08:00', slot_end: '2024-01-01T12:00:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 7, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T14:00:00+08:00', slot_end: '2024-01-01T14:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 8, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T14:30:00+08:00', slot_end: '2024-01-01T15:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 9, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T15:00:00+08:00', slot_end: '2024-01-01T15:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-  { id: 10, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T15:30:00+08:00', slot_end: '2024-01-01T16:00:00+08:00', status: 'scheduled', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 11, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T16:00:00+08:00', slot_end: '2024-01-01T16:30:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
-    { id: 12, doctor_id: 1, clinic_id: 1, slot_start: '2024-01-01T16:30:00+08:00', slot_end: '2024-01-01T17:00:00+08:00', status: 'available', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
-  ])
+  // Time slots will be populated from backend (appointments/time_slots). Start empty.
+  const availableTimeSlots = ref<TimeSlot[]>([])
 
   // Computed slots for the selected doctor/date (array of { start, end, display, booked? })
   const scheduleSlots = ref<Array<{ start: string; end: string; display: string; booked?: boolean }>>([])
@@ -346,9 +142,16 @@ export const useBookAppointment = () => {
               const slotEndUtc = sgtLocalToUtcIso(sgEndRaw)
             if (!slotStartUtc || !slotEndUtc) continue
             // check if any fetched appointment overlaps this slot (compare in UTC)
+            // Only appointments with these statuses should block a slot (grey it out)
+            const blockingStatuses = ['checked_in', 'completed', 'scheduled', 'confirmed']
             const overlap = (fetchedAppointments.value || []).some(a => {
               const aStartRaw = a.start_time ?? a.startTime ?? a.start
               const aEndRaw = a.end_time ?? a.endTime ?? a.end
+              const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+
+              // If the appointment status is present but not in blocking list, ignore it
+              if (status && !blockingStatuses.includes(status)) return false
+
               const aStartUtc = hasTz(aStartRaw) ? sgtLocalToUtcIso(aStartRaw) : sgtLocalToUtcIso(aStartRaw)
               const aEndUtc = hasTz(aEndRaw) ? sgtLocalToUtcIso(aEndRaw) : sgtLocalToUtcIso(aEndRaw)
               if (!aStartUtc || !aEndUtc) return false
@@ -356,7 +159,14 @@ export const useBookAppointment = () => {
               const aEndMs = new Date(aEndUtc).getTime()
               const sMs = new Date(slotStartUtc).getTime()
               const eMs = new Date(slotEndUtc).getTime()
-              return aStartMs < eMs && aEndMs > sMs
+              const isOverlap = aStartMs < eMs && aEndMs > sMs
+              if (isOverlap) {
+                // Helpful debug: why slot is greyed out — log the full appointment object
+                try {
+                  console.info('Slot greyed out due to appointment', a)
+                } catch (_) {}
+              }
+              return isOverlap
             })
             if (!overlap) {
               dateHasFree = true
@@ -525,6 +335,7 @@ export const useBookAppointment = () => {
   })
 
   // Actions
+  const router = useRouter()
   const selectClinic = (clinic: Clinic) => {
     // If clicking the same clinic, deselect it
     if (bookingData.value.clinic?.id === clinic.id) {
@@ -544,18 +355,46 @@ export const useBookAppointment = () => {
     })
   }
 
-  const selectDoctor = (doctor: Doctor) => {
+  const selectDoctor = async (doctor: Doctor) => {
     bookingData.value.doctor = doctor
 
-    // After selecting a doctor, fetch their schedules from Supabase and log them.
-    // We do not wire UI yet; this is for debugging/development per request.
+    // After selecting a doctor, fetch their schedules and appointments,
+    // then compute and load available slots for a selected or the next
+    // available date so the UI can immediately show timings.
     if (doctor?.id != null) {
-      fetchSchedulesFromSupabase(doctor.id).then(() => {
-        // If a date is already selected, compute slots for that date
-        if (bookingData.value.date) {
-          loadSlotsForDate(doctor.id, bookingData.value.date).catch(err => console.warn('loadSlotsForDate failed:', err))
+      try {
+        const doctorId = doctor.id
+
+        // Fetch schedules (back-end or Supabase). This also populates fetchedSchedules.value
+        await fetchSchedulesFromSupabase(doctorId)
+
+        // Fetch appointments for this doctor so we can mark booked slots
+        await fetchAppointmentsForDoctor(doctorId)
+
+        // If user hasn't selected a date yet, pick the first available date
+        // computed from fetchedSchedules and appointments so timings appear immediately.
+        if (!bookingData.value.date) {
+          const first = availableDatesArray.value && availableDatesArray.value.length > 0 ? availableDatesArray.value[0] : null
+          if (first) {
+            // availableDatesArray contains 'YYYY-MM-DD' strings. Convert to a
+            // DateValue (CalendarDate) so the Calendar and confirmation template
+            // can safely call methods like `toDate(...)`.
+            try {
+              bookingData.value.date = parseDate(String(first)) as any
+            } catch (e) {
+              // fallback to assigning the raw string if parse fails (defensive)
+              bookingData.value.date = first as any
+            }
+          }
         }
-      }).catch(err => console.warn('fetchSchedulesFromSupabase failed:', err))
+
+        // If a date is available/selected, compute per-date slots and annotate booked flags
+        if (bookingData.value.date) {
+          await loadSlotsForDate(doctorId, bookingData.value.date)
+        }
+      } catch (err) {
+        console.warn('selectDoctor flow failed:', err)
+      }
     }
   }
 
@@ -688,10 +527,21 @@ export const useBookAppointment = () => {
           for (const a of appts) {
             const aStartRaw = a.start_time ?? a.startTime ?? a.start
             const aEndRaw = a.end_time ?? a.endTime ?? a.end
+            const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+
+            // Only consider appointments with blocking statuses
+            const blockingStatuses = ['checked_in', 'completed', 'scheduled', 'confirmed']
+            if (status && !blockingStatuses.includes(status)) continue
+
             const aStart = new Date(aStartRaw).getTime()
             const aEnd = new Date(aEndRaw).getTime()
             if (isNaN(aStart) || isNaN(aEnd)) continue
-            if (aStart < e && aEnd > s) return true
+            if (aStart < e && aEnd > s) {
+              try {
+                console.info('Slot greyed out due to appointment', a)
+              } catch (_) {}
+              return true
+            }
           }
         } catch (e) {
           // ignore
@@ -1422,9 +1272,97 @@ export const useBookAppointment = () => {
       try { json = bodyText ? JSON.parse(bodyText) : null } catch { json = null }
 
       if (status === 201 || (res.ok && (json || {}).id)) {
-  toast.success('Your appointment has been successfully scheduled', {
-  description: 'A confirmation has been created and will appear in your appointments list.',
-  })
+        toast.success('Your appointment has been successfully scheduled', {
+          description: 'A confirmation has been created and will appear in your appointments list.',
+        })
+        try {
+          const emailQueued = (res.headers.get('X-Email-Queued') || '').toString()
+          if (emailQueued === 'true') {
+            // Show a closable toast telling the user the email was sent and
+            // navigate to the patient's appointments page after 3 seconds.
+            // If the user closes the toast (clicks the action 'x'), cancel the redirect.
+            let redirectTimer: number | null = null
+
+
+            // onGoAction: user clicked the explicit button to navigate immediately
+            const onGoAction = () => {
+              try {
+                if (redirectTimer) {
+                  clearTimeout(redirectTimer)
+                  redirectTimer = null
+                }
+                router.push({ name: 'PatientAppointments' })
+              } catch (navErr) {
+                try { router.push('/patient/appointments') } catch (_) {}
+              }
+            }
+
+            // Create a custom toast showing both a 'Go' button and an 'x' close
+            // so users can either navigate immediately or cancel the auto-redirect.
+            const toastId = toast.custom((t: any) => {
+              return h('div', { class: 'flex items-center gap-4' }, [
+                h('div', { class: 'flex-1' }, [
+                  h('div', { class: 'font-medium' }, 'A confirmation email has been sent to your email address.'),
+                  h('div', { class: 'text-sm text-muted-foreground' }, 'You will be redirected to My Appointments shortly.')
+                ]),
+                h('button', {
+                  class: 'px-3 py-1 rounded-md bg-primary text-white text-sm',
+                  onClick: () => {
+                    try {
+                      if (redirectTimer) {
+                        clearTimeout(redirectTimer)
+                        redirectTimer = null
+                      }
+                      // Include created appointment id in query so appointments page can highlight it
+                      try {
+                        const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
+                        if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+                        else router.push({ name: 'PatientAppointments' })
+                      } catch (navErr) {
+                        try { router.push('/patient/appointments') } catch (_) {}
+                      }
+                    } catch (navErr) {
+                      try { router.push('/patient/appointments') } catch (_) {}
+                    }
+                    // dismiss toast if API available
+                    try { (toast as any).dismiss?.(t.id) } catch (_) {}
+                  }
+                }, 'Go to My Appointments'),
+                h('button', {
+                  class: 'ml-2 text-sm text-muted-foreground',
+                  onClick: () => {
+                    try {
+                      if (redirectTimer) {
+                        clearTimeout(redirectTimer)
+                        redirectTimer = null
+                      }
+                    } catch (_) {}
+                    try { (toast as any).dismiss?.(t.id) } catch (_) {}
+                  }
+                }, 'x')
+              ])
+            }, { duration: 0 })
+
+            // Redirect after 3 seconds to the patient's appointments page if user did not act
+            redirectTimer = window.setTimeout(() => {
+              try {
+                const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
+                if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+                else router.push({ name: 'PatientAppointments' })
+              } catch (navErr) {
+                try { router.push('/patient/appointments') } catch (_) {}
+              }
+              redirectTimer = null
+              // dismiss toast when navigation happens
+              try { (toast as any).dismiss?.(toastId) } catch (_) {}
+            }, 3000)
+
+          } else if (emailQueued === 'false') {
+            toast('No confirmation email is configured for this account.')
+          }
+        } catch (e) {
+          // ignore header parsing errors
+        }
         console.log('Appointment created:', json)
         return { success: true, status, created: json }
       }

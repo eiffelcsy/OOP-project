@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useViewAppointments } from '../composables/useViewAppointments'
 import { useBookAppointment } from '../composables/useBookAppointment'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -67,6 +68,34 @@ const toIterableArray = (maybeRef: any) => {
 
 const availableWeekdaysArray = computed(() => toIterableArray(availableWeekdays))
 const availableDatesArray = computed(() => toIterableArray(availableDates))
+
+// Highlighting recently created appointment (via route query: ?highlight=<id>)
+const route = useRoute()
+const router = useRouter()
+const highlightedId = ref<string | null>(null)
+const highlightActive = ref(false)
+
+const applyHighlightFromQuery = () => {
+  try {
+    const q = route.query?.highlight as string | undefined
+    if (q) {
+      highlightedId.value = String(q)
+      highlightActive.value = true
+      // remove highlight after 5s
+      setTimeout(() => {
+        highlightActive.value = false
+        // optionally remove the query param so refresh doesn't re-highlight
+        try {
+          const newQuery = { ...route.query }
+          delete (newQuery as any).highlight
+          router.replace({ query: newQuery })
+        } catch (_) {}
+      }, 5000)
+    }
+  } catch (e) {
+    console.warn('applyHighlightFromQuery failed', e)
+  }
+}
 
 // Wrap handlers so both composables stay in sync
 const handleDateSelect = async (date: DateValue | undefined) => {
@@ -253,7 +282,10 @@ const isSlotBooked = (slot: any) => {
 // handleDateSelect is defined above to keep book and view composables in sync
 
 // Explicitly trigger fetch and add page-level log to ensure we see console output when page mounts
-fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatientAppointments() completed')).catch(err => console.error('ViewAppointments: fetch failed', err))
+fetchPatientAppointments().then(() => {
+  console.log('ViewAppointments: fetchPatientAppointments() completed')
+  applyHighlightFromQuery()
+}).catch(err => console.error('ViewAppointments: fetch failed', err))
 </script>
 
 <template>
@@ -298,7 +330,7 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
   <p class="text-sm text-muted-foreground mb-2">Upcoming appointments include statuses: <strong>Scheduled</strong>, <strong>Confirmed</strong> and <strong>Checked-in</strong>.</p>
 
         <div v-for="appointment in filteredScheduledAppointments" :key="appointment.id">
-          <Card>
+          <Card :class="(appointment.id && highlightedId && String(appointment.id) === String(highlightedId) && highlightActive) ? 'ring-2 ring-sky-200 bg-sky-50' : ''">
             <CardHeader>
               <div class="flex justify-between items-start">
                 <div>
@@ -403,6 +435,7 @@ fetchPatientAppointments().then(() => console.log('ViewAppointments: fetchPatien
         <Card 
           v-for="appointment in filteredPastAppointments" 
           :key="appointment.id"
+          :class="(appointment.id && highlightedId && String(appointment.id) === String(highlightedId) && highlightActive) ? 'ring-2 ring-sky-200 bg-sky-50' : ''"
         >
           <CardHeader>
             <div class="flex justify-between items-start">

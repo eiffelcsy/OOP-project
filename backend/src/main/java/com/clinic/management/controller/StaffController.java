@@ -88,10 +88,11 @@ public class StaffController {
 
     // # ScheduleWalkIn
     @PostMapping("/appointments")
-    public Appointment addAppointment(@RequestBody Appointment appointment) {
-        // Expect appointment.startTime and appointment.endTime to be provided (ISO
-        // timestamptz)
-        return appointmentService.addAppointment(appointment);
+    public ResponseEntity<Appointment> addAppointment(@RequestBody Appointment appointment) {
+        // Expect appointment.startTime and appointment.endTime to be provided (ISO timestamptz)
+        Appointment saved = appointmentService.addAppointment(appointment);
+        boolean queued = appointmentService.isEmailConfigured();
+        return ResponseEntity.status(HttpStatus.CREATED).header("X-Email-Queued", String.valueOf(queued)).body(saved);
     }
 
     // # ManagementAppointments - Reschedule

@@ -4,6 +4,13 @@ import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Schedule;
 import com.clinic.management.repository.AppointmentRepository;
 import com.clinic.management.repository.ScheduleRepository;
+import com.clinic.management.repository.PatientRepository;
+import com.clinic.management.repository.ProfileRepository;
+import com.clinic.management.model.Patient;
+import com.clinic.management.model.Profile;
+import com.clinic.management.service.ClinicService;
+import com.clinic.management.service.DoctorService;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,11 +32,23 @@ public class AppointmentService {
 
     private final AppointmentRepository repository;
     private final ScheduleRepository scheduleRepository;
+    private final PatientRepository patientRepository;
+    private final ProfileRepository profileRepository;
+    private final EmailService emailService;
+    private final ClinicService clinicService;
+    private final DoctorService doctorService;
     private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
 
-    public AppointmentService(AppointmentRepository repository, ScheduleRepository scheduleRepository) {
+    public AppointmentService(AppointmentRepository repository, ScheduleRepository scheduleRepository,
+                              PatientRepository patientRepository, ProfileRepository profileRepository,
+                              EmailService emailService, ClinicService clinicService, DoctorService doctorService) {
         this.repository = repository;
         this.scheduleRepository = scheduleRepository;
+        this.patientRepository = patientRepository;
+        this.profileRepository = profileRepository;
+        this.emailService = emailService;
+        this.clinicService = clinicService;
+        this.doctorService = doctorService;
     }
 
     @Transactional(readOnly = true)
@@ -145,12 +164,67 @@ public class AppointmentService {
 
         // Set status and timestamps at creation time (use clinic timezone)
         OffsetDateTime now = ZonedDateTime.now(clinicZone).toOffsetDateTime();
-    appointment.setStatus("scheduled");
+        appointment.setStatus("scheduled");
         // If createdAt/updatedAt are not provided, set them to current time
         appointment.setCreatedAt(appointment.getCreatedAt() == null ? now : appointment.getCreatedAt());
         appointment.setUpdatedAt(now);
 
-        return repository.save(appointment);
+        Appointment saved = repository.save(appointment);
+
+        // Attempt to send notification email to patient (if we can resolve an email address)
+        try {
+            if (saved.getPatientId() != null) {
+                Optional<Patient> pOpt = patientRepository.findById(saved.getPatientId());
+                if (pOpt.isPresent()) {
+                    Patient p = pOpt.get();
+                    String userId = p.getUserId();
+                    if (userId != null) {
+                        Optional<Profile> prof = profileRepository.findByUserId(userId);
+                        if (prof.isPresent() && prof.get().getEmail() != null && !prof.get().getEmail().isBlank()) {
+                            String to = prof.get().getEmail();
+                            String name = prof.get().getFullName();
+                            // Send email asynchronously in a best-effort manner
+                            try {
+                                // Enrich with clinic and doctor names when available
+                                String clinicName = null;
+                                String doctorName = null;
+                                try {
+                                    if (saved.getClinicId() != null) {
+                                        clinicName = clinicService.getClinicById(saved.getClinicId()).map(c -> c.getName()).orElse(null);
+                                    }
+                                } catch (Exception _e) {}
+                                try {
+                                    if (saved.getDoctorId() != null) {
+                                        doctorName = doctorService.getDoctorById(saved.getDoctorId()).getName();
+                                    }
+                                } catch (Exception _e) {}
+
+                                emailService.sendAppointmentScheduledEmail(saved, to, name, clinicName, doctorName);
+                            } catch (Exception e) {
+                                log.warn("Failed to send appointment email for appointment id={}", saved.getId(), e);
+                            }
+                        } else {
+                            log.debug("No profile/email found for patient userId={}", userId);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error while attempting to send appointment notification email for appointment id={}", saved.getId(), e);
+        }
+
+        return saved;
+    }
+
+    /**
+     * Return whether EmailService is configured (useful for controllers to signal client)
+     */
+    public boolean isEmailConfigured() {
+        try {
+            return emailService != null && emailService.isConfigured();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Transactional

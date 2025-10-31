@@ -515,9 +515,22 @@ export const useViewAppointments = () => {
       })
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        console.warn('Reschedule API returned non-OK', res.status, txt)
-        toast.error('Failed to reschedule appointment. Please try again.')
+        // Try to surface backend error message to the user for easier debugging
+        let body = ''
+        try {
+          const ct = res.headers.get('content-type') || ''
+          if (ct.includes('application/json')) {
+            const j = await res.json().catch(() => null)
+            body = j && (j.message || j.error || JSON.stringify(j)) ? (j.message || j.error || JSON.stringify(j)) : JSON.stringify(j)
+          } else {
+            body = await res.text().catch(() => '')
+          }
+        } catch (e) {
+          body = '<unable to read response body>'
+        }
+
+        console.warn('Reschedule API returned non-OK', res.status, body)
+        toast.error('Failed to reschedule appointment', { description: String(body).slice(0, 300) || 'Please try again.' })
         return false
       }
 

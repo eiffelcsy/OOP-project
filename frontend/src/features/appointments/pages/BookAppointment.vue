@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useBookAppointment } from '../composables/useBookAppointment'
 import { TIME_ZONE } from '@/lib/utils'
 // Removed Supabase debug code
@@ -44,6 +45,18 @@ const {
 // doctor search & debug helpers handled via composable
 
 const isBookingConfirmed = ref(false)
+const createdAppointmentId = ref<number | string | null>(null)
+const router = useRouter()
+
+const goToAppointments = () => {
+    try {
+        const id = createdAppointmentId.value ?? ''
+        if (id) router.push({ name: 'PatientAppointments', query: { highlight: String(id) } })
+        else router.push({ name: 'PatientAppointments' })
+    } catch (e) {
+        try { router.push('/patient/appointments') } catch(_){}
+    }
+}
 
 const handleConfirmBooking = async () => {
     try {
@@ -55,6 +68,11 @@ const handleConfirmBooking = async () => {
         const ok = typeof result === 'boolean' ? result : (result && result.success === true)
         if (ok) {
             isBookingConfirmed.value = true
+            // store created appointment id (if backend returned it)
+            try {
+                const id = result?.created?.id ?? result?.created?.appointment?.id ?? result?.appointment?.id ?? null
+                if (id) createdAppointmentId.value = id
+            } catch (_) {}
         } else {
             // not successful — make sure user sees feedback in console
             console.warn('Appointment confirmation failed or returned false', result)
@@ -372,10 +390,16 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 </svg>
                             </div>
                             <h3 class="text-lg font-semibold mb-2">Appointment Confirmed!</h3>
-                                <p class="text-muted-foreground">
-                                Your appointment has been successfully scheduled. You will receive a confirmation email
-                                shortly.
-                            </p>
+                                        <p class="text-muted-foreground">
+                                        Your appointment has been successfully scheduled. You will receive a confirmation email
+                                        shortly.
+                                    </p>
+                                    <div class="mt-4 flex justify-center gap-2">
+                                        <Button size="md" class="px-6 flex items-center gap-2" @click="goToAppointments">
+                                            <Icon icon="lucide:chevrons-right" class="w-4 h-4" />
+                                            Go to My Appointments
+                                        </Button>
+                                    </div>
                         </div>
                     </CardContent>
                 </Card>
