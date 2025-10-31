@@ -8,11 +8,26 @@ export function useAllAppointments() {
   const doctors = ref<any[]>([])
   const clinics = ref<any[]>([])
 
+  // Fetch doctors only for the current staff's clinic
+  const fetchDoctors = async (clinicId: number) => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
+      if (!res.ok) throw new Error('Failed to fetch doctors')
+      const data = await res.json()
+      doctors.value = data
+    } catch (err) {
+      console.error('Error fetching doctors:', err)
+    }
+  }
+
   // Fetch appointments for the staff's clinic (today + upcoming)
   const fetchAllAppointments = async () => {
     try {
       if (!currentUser.value?.staff?.clinic_id) return
       const clinicId = currentUser.value.staff.clinic_id
+
+      // Fetch doctors for this clinic
+      await fetchDoctors(clinicId)
 
       // Fetch appointments
       const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
@@ -30,27 +45,25 @@ export function useAllAppointments() {
         return apptSGT >= nowDateSGT
       })
 
-      // Fetch related entities
-      const [patientsRes, profilesRes, doctorsRes, clinicsRes] = await Promise.all([
+      // Fetch patients, profiles, and clinics
+      const [patientsRes, profilesRes, clinicsRes] = await Promise.all([
         fetch(`http://localhost:8080/api/patient/all`),
         fetch(`http://localhost:8080/api/admin/users`),
-        fetch(`http://localhost:8080/api/doctors`),
         fetch(`http://localhost:8080/api/admin/clinics`)
       ])
       const patients = await patientsRes.json()
       const profiles = await profilesRes.json()
-      const doctorsData = await doctorsRes.json()
       const clinicsData = await clinicsRes.json()
-
-      // Update doctors & clinics reactive arrays
-      doctors.value = doctorsData
       clinics.value = clinicsData
 
       // Map appointments to display format
       allAppointments.value = data.map((appt: any) => {
-        // Convert times to SGT
-        const start = appt.start_time ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' })) : null
-        const end = appt.end_time ? new Date(new Date(appt.end_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' })) : null
+        const start = appt.start_time
+          ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+          : null
+        const end = appt.end_time
+          ? new Date(new Date(appt.end_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+          : null
         const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
 
         // Patient info
@@ -65,13 +78,13 @@ export function useAllAppointments() {
           }
         }
 
-        // Doctor info
-        const doctor = doctorsData.find((d: any) => d.id === appt.doctor_id)
+        // Doctor info (already filtered by clinic)
+        const doctor = doctors.value.find((d: any) => d.id === appt.doctor_id)
         const doctorName = doctor?.name ?? '-'
         const doctorSpecialty = doctor?.specialty ?? '-'
 
         // Clinic info
-        const clinic = clinicsData.find((c: any) => c.id === appt.clinic_id)
+        const clinic = clinics.value.find((c: any) => c.id === appt.clinic_id)
         const clinicName = clinic?.name ?? '-'
         const clinicType = clinic?.clinic_type ?? '-'
 
