@@ -22,9 +22,6 @@ public class QueueTicket {
     @JoinColumn(name = "appointment_id")
     private Appointment appointment;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "patient_id")
-    private Patient patient;
 
     @Column(name = "ticket_number", nullable = false)
     private Integer ticketNumber;
@@ -71,8 +68,7 @@ public class QueueTicket {
     public Appointment getAppointment() { return appointment; }
     public void setAppointment(Appointment appointment) { this.appointment = appointment; }
 
-    public Patient getPatient() { return patient; }
-    public void setPatient(Patient patient) { this.patient = patient; }
+    // Removed direct patient relation; derive via appointment.getPatient()
 
     public Integer getTicketNumber() { return ticketNumber; }
     public void setTicketNumber(Integer ticketNumber) { this.ticketNumber = ticketNumber; }
