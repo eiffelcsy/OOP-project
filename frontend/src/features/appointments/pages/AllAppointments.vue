@@ -192,24 +192,17 @@ const confirmReschedule = async () => {
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
               <div v-for="doctor in doctors.filter(d => d.active)" :key="doctor.id"
-                class="group relative cursor-pointer rounded-lg border-2 p-4 transition-all hover:shadow-md" :class="rescheduleDoctorId === doctor.id
-                  ? 'border-primary bg-primary/5 shadow-sm'
-                  : 'border-border hover:border-primary/50'" @click="rescheduleDoctorId = doctor.id; rescheduleTime = ''">
+                class="relative cursor-pointer rounded-lg border-2 p-4"
+                :class="rescheduleDoctorId === doctor.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'"
+                @click="rescheduleDoctorId = doctor.id; rescheduleTime = ''">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                      <span class="font-semibold text-base truncate">{{ doctor.name }}</span>
-                      <Badge v-if="rescheduleDoctorId === doctor.id" variant="default" class="text-xs shrink-0">
-                        Selected
-                      </Badge>
-                    </div>
+                    <span class="font-semibold text-base truncate">{{ doctor.name }}</span>
                     <p class="text-sm text-muted-foreground">{{ doctor.specialty }}</p>
                   </div>
                   <div class="shrink-0">
-                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors"
-                      :class="rescheduleDoctorId === doctor.id
-                        ? 'border-primary bg-primary'
-                        : 'border-muted-foreground/30'">
+                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+                      :class="rescheduleDoctorId === doctor.id ? 'border-primary bg-primary' : 'border-muted-foreground/30'">
                       <div v-if="rescheduleDoctorId === doctor.id" class="w-2 h-2 rounded-full bg-primary-foreground">
                       </div>
                     </div>
@@ -250,11 +243,9 @@ const confirmReschedule = async () => {
 
               <div
                 class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
-                <Button
-                  v-for="slot in Array.from({ length: 8 }).map((_, idx) => ({ id: idx + 1, slot_start: `${9 + idx}:00`, status: Math.random() > 0.2 ? 'available' : 'unavailable' }))"
-                  :key="slot.id" :variant="rescheduleTime === slot.slot_start ? 'default' : 'outline'"
-                  class="h-11 font-medium transition-all"
-                  :class="slot.status !== 'available' ? 'opacity-40 cursor-not-allowed' : 'hover:scale-105'"
+                <Button v-for="slot in rescheduleAvailableSlots" :key="slot.id"
+                  :variant="rescheduleTime === slot.slot_start ? 'default' : 'outline'" class="h-11 font-medium"
+                  :class="slot.status !== 'available' ? 'opacity-40 cursor-not-allowed' : ''"
                   :disabled="slot.status !== 'available'" @click="rescheduleTime = slot.slot_start">
                   {{ slot.slot_start }}
                 </Button>
@@ -285,13 +276,13 @@ const confirmReschedule = async () => {
           </div>
         </div>
 
-        <DialogFooter class="mt-6 pt-4 border-t flex-row gap-3 sm:gap-2">
-          <Button variant="outline" @click="showReschedule = false" class="flex-1 sm:flex-none">
+        <DialogFooter class="mt-6 pt-4 border-t flex-row gap-2 sm:gap-2 justify-end">
+          <Button variant="outline" @click="showReschedule = false">
             Cancel
           </Button>
           <Button :disabled="!rescheduleDoctorId || !rescheduleDate || !rescheduleTime" @click="confirmReschedule"
-            class="flex-1 sm:flex-none">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            class="flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
             Confirm Appointment
@@ -299,8 +290,6 @@ const confirmReschedule = async () => {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-
-
 
   </div>
 </template>

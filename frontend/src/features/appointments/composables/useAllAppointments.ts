@@ -8,6 +8,17 @@ export function useAllAppointments() {
   const doctors = ref<any[]>([])
   const clinics = ref<any[]>([])
 
+  // Dummy timeslots for rescheduling
+  const rescheduleAvailableSlots = ref<{ id: number; slot_start: string; status: string }[]>([])
+
+  const generateDummySlots = () => {
+    rescheduleAvailableSlots.value = Array.from({ length: 8 }).map((_, idx) => ({
+      id: idx + 1,
+      slot_start: `${9 + idx}:00`,
+      status: Math.random() > 0.2 ? 'available' : 'unavailable'
+    }))
+  }
+
   // Fetch doctors only for the current staff's clinic
   const fetchDoctors = async (clinicId: number) => {
     try {
@@ -139,6 +150,7 @@ export function useAllAppointments() {
   onMounted(async () => {
     await initializeAuth()
     fetchAllAppointments()
+    generateDummySlots() // Generate dummy slots when composable mounts
   })
 
   return {
@@ -149,6 +161,7 @@ export function useAllAppointments() {
     rescheduleAppointment,
     formatDate,
     formatTime,
-    fetchAllAppointments
+    fetchAllAppointments,
+    rescheduleAvailableSlots
   }
 }
