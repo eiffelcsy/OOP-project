@@ -111,6 +111,14 @@ const handleLogout = async () => {
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>
+              <SidebarMenuItem key="MyQueue">
+                <SidebarMenuButton as-child>
+                  <a href="/patient/queue">
+                    <Icon icon="lucide:ticket" class="size-4" />
+                    <span>My Queue</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </Collapsible>
             <SidebarMenuItem key="MedicalRecords">
               <SidebarMenuButton asChild>
