@@ -98,7 +98,7 @@ const confirmReschedule = async () => {
 
 <template>
   <div class="p-8 space-y-6">
-    <h1 class="text-3xl font-bold">All Appointments</h1>
+    <h1 class="text-3xl font-bold">All Upcoming Appointments</h1>
 
     <!-- Filters -->
     <div class="flex flex-wrap gap-4 mb-6">
@@ -119,17 +119,6 @@ const confirmReschedule = async () => {
           <option value="all">All Doctors</option>
           <option v-for="doc in doctors" :key="doc.id" :value="doc.id">
             {{ doc.name }} ({{ doc.specialty }})
-          </option>
-        </select>
-      </div>
-
-      <!-- Clinic filter -->
-      <div>
-        <label class="block text-sm font-medium mb-1">Clinic</label>
-        <select v-model="selectedClinic" class="h-10 border rounded-md px-2">
-          <option value="all">All Clinics</option>
-          <option v-for="c in clinics" :key="c.id" :value="c.id">
-            {{ c.name }} <span v-if="c.clinicType">({{ c.clinicType }})</span>
           </option>
         </select>
       </div>
