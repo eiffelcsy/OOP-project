@@ -2,6 +2,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { clinicsApi } from '@/services/clinicsApi'
+import { doctorsApi } from '@/services/doctorsApi'
+import { appointmentsApi } from '@/services/appointmentsApi'
+import { patientsApi } from '@/services/patientsApi'
+import { schedulesApi } from '@/services/schedulesApi'
 
 const { currentUser, initializeAuth } = useAuth()
 
@@ -56,23 +61,21 @@ export const useScheduleWalkIn = () => {
 
   const fetchClinic = async (clinicId: number) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/clinics/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch clinic')
-      const data = await res.json()
+      const data = await clinicsApi.getClinicById(clinicId)
 
       // Update staffClinic fields while keeping the object structure
       staffClinic.value.id = data.id
       staffClinic.value.name = data.name
-      staffClinic.value.clinic_type = data.clinic_type
-      staffClinic.value.region = data.region
-      staffClinic.value.area = data.area
-      staffClinic.value.address_line = data.address_line
-      staffClinic.value.source_ref = data.source_ref
-      staffClinic.value.remarks = data.remarks
+      staffClinic.value.clinic_type = data.clinic_type || 'General'
+      staffClinic.value.region = data.region || ''
+      staffClinic.value.area = data.area || ''
+      staffClinic.value.address_line = data.address_line || ''
+      staffClinic.value.source_ref = null // source_ref not in API response
+      staffClinic.value.remarks = data.remarks || null
       staffClinic.value.created_at = data.created_at || new Date().toISOString()
       staffClinic.value.updated_at = data.updated_at || new Date().toISOString()
-      staffClinic.value.open_time = data.open_time
-      staffClinic.value.close_time = data.close_time
+      staffClinic.value.open_time = data.open_time || null
+      staffClinic.value.close_time = data.close_time || null
     } catch (err) {
       console.error(err)
     }
@@ -80,13 +83,11 @@ export const useScheduleWalkIn = () => {
 
   const fetchDoctors = async (clinicId: number) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch doctors')
-      const data: Doctor[] = await res.json()
+      const data = await doctorsApi.getDoctorsByClinicId(clinicId)
       availableDoctors.value = data.map((doc, idx) => ({
         ...doc,
         color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][idx % 5]
-      }))
+      })) as any
     } catch (err) {
       console.error(err)
     }
@@ -94,9 +95,7 @@ export const useScheduleWalkIn = () => {
 
   const fetchClinicAppointments = async (clinicId: number) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch appointments')
-      clinicAppointments.value = await res.json()
+      clinicAppointments.value = await appointmentsApi.getClinicAppointments(clinicId) as any
     } catch (err) {
       console.error(err)
     }
@@ -126,9 +125,7 @@ export const useScheduleWalkIn = () => {
     const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0]
     const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay()
 
-    const res = await fetch(`http://localhost:8080/api/admin/doctors/${doctorId}/schedules`)
-    if (!res.ok) throw new Error('Failed to fetch schedules')
-    const schedules = await res.json()
+    const schedules = await schedulesApi.getSchedulesByDoctorId(doctorId)
 
     const validSchedules = schedules.filter((sch: any) => {
       const validFrom = new Date(sch.valid_from)
@@ -259,9 +256,7 @@ export const useScheduleWalkIn = () => {
       }
 
       // Fetch patient ID by NRIC
-      const patientRes = await fetch('http://localhost:8080/api/patient/all')
-      if (!patientRes.ok) throw new Error('Failed to fetch patients')
-      const patients = await patientRes.json()
+      const patients = await patientsApi.getAllPatients()
       const patient = patients.find(
         (p: any) => p.nric.trim().toUpperCase() === bookingData.value.patient?.nric.trim().toUpperCase()
       )
@@ -272,21 +267,16 @@ export const useScheduleWalkIn = () => {
       const startTime = new Date(bookingData.value.timeSlot.slot_start).toISOString()
       const slotDurationMinutes = (new Date(bookingData.value.timeSlot.slot_end).getTime() - new Date(bookingData.value.timeSlot.slot_start).getTime()) / 60000
       const endTime = new Date(new Date(startTime).getTime() + slotDurationMinutes * 60 * 1000).toISOString()
-      const nowUtc = new Date().toISOString()
 
       // Build appointment payload
       const appointmentPayload = {
-        // required by backend
         patient_id: patientId,
         doctor_id: bookingData.value.doctor.id,
         clinic_id: staffClinic.value.id,
         time_slot_id: null,
         start_time: startTime,
         end_time: endTime,
-        status: 'scheduled',
-        treatment_summary: null,
-        created_at: nowUtc,
-        updated_at: nowUtc
+        treatment_summary: null
       }
       console.log('Appointment payload:', appointmentPayload)
 
@@ -297,32 +287,8 @@ export const useScheduleWalkIn = () => {
         idempotencyKeyRef.value = (crypto && (crypto as any).randomUUID) ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
       }
 
-      // Attach Authorization header if available (staff/admin token)
-      const { getAccessToken } = useAuth()
-      let token: string | null = null
-      try {
-        token = await getAccessToken?.()
-      } catch { token = null }
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Idempotency-Key': idempotencyKeyRef.value,
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-
-      // POST to backend
-      const res = await fetch('http://localhost:8080/api/appointments', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(appointmentPayload)
-      })
-
-      if (!res.ok) {
-        let errText = await res.text().catch(() => '')
-        throw new Error(errText || 'Failed to schedule appointment')
-      }
-
-      const appointment = await res.json()
+      // POST to backend using appointmentsApi
+      const appointment = await appointmentsApi.createAppointment(appointmentPayload, idempotencyKeyRef.value)
 
       return {
         success: true,

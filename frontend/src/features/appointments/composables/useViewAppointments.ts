@@ -5,6 +5,7 @@ import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 import { ensureSgtOffset, SGT_OFFSET } from '@/lib/utils'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { appointmentsApi } from '@/services/appointmentsApi'
 import { toast } from 'vue-sonner'
 
 // Type aliases from database
@@ -141,7 +142,7 @@ export const useViewAppointments = () => {
       appointments.value = []
       console.log('fetchPatientAppointments: currentUser=', JSON.parse(JSON.stringify(currentUser.value)))
       // Log Supabase URL so we can confirm which project we're hitting
-      try { console.log('Supabase URL:', (import.meta.env.VITE_SUPABASE_URL ?? 'MISSING')) } catch (e) { /* ignore */ }
+      try { console.log('Supabase URL:', ((import.meta.env as any).VITE_SUPABASE_URL ?? 'MISSING')) } catch (e) { /* ignore */ }
 
       // Resolve patient id: prefer currentUser.patient.id; if not present, try fetching patients row by user_id
       let pId: number | null = null
@@ -182,47 +183,31 @@ export const useViewAppointments = () => {
 
       // FIRST: call backend endpoint which queries the DB server-side (safer and avoids RLS issues)
       try {
-        const env = (import.meta.env as any)
-        const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-        const endpoint = `${apiBase.replace(/\/+$/, '')}/patient/appointments`
-        const token = await getAccessToken()
-        console.log('Calling backend endpoint', endpoint, 'with token?', !!token)
-
-        const r = await fetch(endpoint, {
-          headers: {
-            Accept: 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
+        console.log('Calling backend to fetch patient appointments')
+        const backendData = await appointmentsApi.getPatientAppointments()
+        console.log('Backend returned', (backendData ?? []).length, 'appointments:', backendData)
+        
+        if (backendData && (backendData ?? []).length > 0) {
+          // Use backend rows directly
+          appointments.value = (backendData as any[]).map(r => {
+            try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
+          }).filter(Boolean) as Appointment[]
+          console.log('Loaded appointments from backend, count=', appointments.value.length)
+          // Debug: log status counts to help troubleshoot missing statuses
+          try {
+            const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
+              const s = a.status || 'unknown'
+              m[s] = (m[s] || 0) + 1
+              return m
+            }, {})
+            console.log('Appointment status counts (backend):', counts)
+          } catch (e) {
+            console.warn('Failed to compute appointment status counts:', e)
           }
-        })
-
-        if (r.ok) {
-          const backendData = await r.json()
-          console.log('Backend returned', (backendData ?? []).length, 'appointments:', backendData)
-          if (backendData && (backendData ?? []).length > 0) {
-            // Use backend rows directly
-            appointments.value = (backendData as any[]).map(r => {
-              try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
-            }).filter(Boolean) as Appointment[]
-            console.log('Loaded appointments from backend, count=', appointments.value.length)
-            // Debug: log status counts to help troubleshoot missing statuses
-            try {
-              const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
-                const s = a.status || 'unknown'
-                m[s] = (m[s] || 0) + 1
-                return m
-              }, {})
-              console.log('Appointment status counts (backend):', counts)
-            } catch (e) {
-              console.warn('Failed to compute appointment status counts:', e)
-            }
-            return
-          }
-        } else {
-          const txt = await r.text().catch(() => '')
-          console.warn('Backend /patient/appointments returned non-OK', r.status, txt)
+          return
         }
       } catch (backendErr) {
-        console.warn('Backend appointments endpoint failed:', backendErr)
+        console.warn('Backend appointments endpoint failed, will fall back to Supabase:', backendErr)
       }
 
       // FALLBACK: Query Supabase directly if backend yields nothing
@@ -498,63 +483,47 @@ export const useViewAppointments = () => {
         return false
       }
 
-      // Call backend PUT /api/appointments/{id}?newStartTime=...&newEndTime=...
-      const env = (import.meta.env as any)
-      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-      const endpoint = `${apiBase.replace(/\/+$/, '')}/appointments/${appointmentToReschedule.value.id}?newStartTime=${encodeURIComponent(startIso)}&newEndTime=${encodeURIComponent(endIso)}`
-      const token = await getAccessToken()
-
-      console.log('Calling reschedule API', endpoint)
-      const res = await fetch(endpoint, {
-        method: 'PUT',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      })
-
-      if (!res.ok) {
-        // Try to surface backend error message to the user for easier debugging
-        let body = ''
-        try {
-          const ct = res.headers.get('content-type') || ''
-          if (ct.includes('application/json')) {
-            const j = await res.json().catch(() => null)
-            body = j && (j.message || j.error || JSON.stringify(j)) ? (j.message || j.error || JSON.stringify(j)) : JSON.stringify(j)
-          } else {
-            body = await res.text().catch(() => '')
-          }
-        } catch (e) {
-          body = '<unable to read response body>'
-        }
-
-        console.warn('Reschedule API returned non-OK', res.status, body)
-        toast.error('Failed to reschedule appointment', { description: String(body).slice(0, 300) || 'Please try again.' })
-        return false
-      }
-
-      // Success — refresh appointments from backend for canonical state
+      console.log('Calling reschedule API for appointment', appointmentToReschedule.value.id)
+      
       try {
+        await appointmentsApi.updateAppointment(
+          Number(appointmentToReschedule.value.id),
+          startIso,
+          endIso
+        )
+        
+        // Success — refresh appointments from backend for canonical state
         await fetchPatientAppointments()
         toast.success('Appointment rescheduled')
-      } catch (e) {
-        // fallback to optimistic local update
-        const appointmentIndex = appointments.value.findIndex(
-          app => app.id === appointmentToReschedule.value!.id
-        )
-        if (appointmentIndex !== -1) {
-          appointments.value[appointmentIndex] = {
-            ...appointments.value[appointmentIndex],
-            date: selectedDate.value.toDate(getLocalTimeZone()),
-            time: typeof selectedTimeSlot.value === 'string' ? String(selectedTimeSlot.value) : (selectedTimeSlot.value.time ?? (selectedTimeSlot.value as any).display ?? '')
+        closeRescheduleDialog()
+        return true
+      } catch (error: any) {
+        console.warn('Reschedule API failed:', error)
+        toast.error('Failed to reschedule appointment', { 
+          description: error.message || 'Please try again.' 
+        })
+        
+        // Try optimistic local update as fallback
+        try {
+          const appointmentIndex = appointments.value.findIndex(
+            app => app.id === appointmentToReschedule.value!.id
+          )
+          if (appointmentIndex !== -1) {
+            appointments.value[appointmentIndex] = {
+              ...appointments.value[appointmentIndex],
+              date: selectedDate.value.toDate(getLocalTimeZone()),
+              time: typeof selectedTimeSlot.value === 'string' ? String(selectedTimeSlot.value) : (selectedTimeSlot.value.time ?? (selectedTimeSlot.value as any).display ?? '')
+            }
+            toast.success('Appointment rescheduled (local update)')
+            closeRescheduleDialog()
+            return true
           }
-          toast.success('Appointment rescheduled (local update)')
+        } catch (e) {
+          // ignore fallback errors
         }
+        
+        return false
       }
-
-      closeRescheduleDialog()
-      return true
     } catch (error) {
       console.error('Reschedule failed:', error)
       return false
@@ -567,32 +536,14 @@ export const useViewAppointments = () => {
     }
 
     try {
-      // Call backend API to cancel the appointment so DB is updated server-side
-      const env = (import.meta.env as any)
-      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-      const endpoint = `${apiBase.replace(/\/+$/, '')}/appointments/${appointmentToCancel.value.id}`
-      const token = await getAccessToken()
-
-      console.log('Cancelling appointment via API', endpoint)
-
-      const res = await fetch(endpoint, {
-        method: 'DELETE',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      })
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '')
-        console.warn('Cancel API returned non-OK', res.status, txt)
-        throw new Error(`Failed to cancel appointment: ${res.status}`)
-      }
+      console.log('Cancelling appointment via API', appointmentToCancel.value.id)
+      
+      await appointmentsApi.cancelAppointment(Number(appointmentToCancel.value.id))
 
       // Refetch appointments from backend to keep UI authoritative
       try {
         await fetchPatientAppointments()
+        toast.success('Appointment cancelled')
       } catch (e) {
         // If refetch fails, fall back to optimistic local update
         const appointmentIndex = appointments.value.findIndex(
@@ -604,12 +555,17 @@ export const useViewAppointments = () => {
             status: 'cancelled'
           }
         }
+        toast.success('Appointment cancelled (local update)')
       }
 
       closeCancelDialog()
       return true
-    } catch (error) {
+    } catch (error: any) {
       console.error('Cancel failed:', error)
+      toast.error('Failed to cancel appointment', {
+        description: error.message || 'Please try again.'
+      })
+      
       // As a fallback, try marking locally (without persisting) so UI reflects the action
       try {
         const appointmentIndex = appointments.value.findIndex(

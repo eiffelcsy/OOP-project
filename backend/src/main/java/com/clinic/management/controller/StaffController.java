@@ -8,13 +8,18 @@ import com.clinic.management.dto.request.UpdateQueueRequest;
 import com.clinic.management.dto.response.ListResult;
 import com.clinic.management.dto.response.QueueResponse;
 import com.clinic.management.dto.response.QueueTicketResponse;
+import com.clinic.management.dto.response.StaffAppointmentResponse;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Queue;
 import com.clinic.management.model.QueueTicket;
 import com.clinic.management.model.Patient;
 import com.clinic.management.model.Profile;
+import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Clinic;
 import com.clinic.management.repository.ProfileRepository;
 import com.clinic.management.repository.PatientRepository;
+import com.clinic.management.repository.DoctorRepository;
+import com.clinic.management.repository.ClinicRepository;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
 import com.clinic.management.service.QueueTicketService;
@@ -28,12 +33,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+import java.time.LocalDate;
+import com.clinic.management.config.TimezoneConfig;
 
 /**
- * REST Controller for Staff, Appointment, and Queue management
- * Provides endpoints for appointment and queue CRUD operations
+ * REST Controller for Staff, Appointment, Queue, and Patient management
+ * Provides endpoints for staff-facing operations
  * 
  * Base path: /api
  * 
@@ -49,6 +58,16 @@ import java.time.OffsetDateTime;
  * - GET /api/queues - List queues (with filters)
  * - PUT /api/queues/{id} - Update queue
  * - DELETE /api/queues/{id} - Delete queue
+ * 
+ * Patient Endpoints (Staff Access):
+ * - GET /api/staff/patients - Get all patients
+ * - GET /api/staff/patients/{id} - Get patient by ID
+ * 
+ * Queue Ticket Endpoints:
+ * - POST /api/queue-tickets - Create queue ticket
+ * - GET /api/staff/queues/{queueId}/tickets - List queue tickets
+ * - PUT /api/queue-tickets/{id} - Update queue ticket
+ * - DELETE /api/queue-tickets/{id} - Delete queue ticket
  */
 @RestController
 @RequestMapping("/api")
@@ -61,14 +80,18 @@ public class StaffController {
     private final QueueTicketService queueTicketService;
     private final ProfileRepository profileRepository;
     private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
+    private final ClinicRepository clinicRepository;
 
     @Autowired
-    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository, PatientRepository patientRepository) {
+    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository, PatientRepository patientRepository, DoctorRepository doctorRepository, ClinicRepository clinicRepository) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
         this.profileRepository = profileRepository;
         this.patientRepository = patientRepository;
+        this.doctorRepository = doctorRepository;
+        this.clinicRepository = clinicRepository;
     }
 
     // =========================
@@ -82,6 +105,104 @@ public class StaffController {
             @RequestParam(required = false) Long clinicId,
             @RequestParam(required = false) String status) {
         return appointmentService.getAppointments(doctorId, clinicId, status);
+    }
+
+    /**
+     * Get today's appointments for a clinic with enriched data
+     * This endpoint returns appointments with patient names, doctor names, clinic info, etc.
+     * Filters appointments to only show those scheduled for today (in Asia/Singapore timezone)
+     * 
+     * GET /api/staff/appointments/today/{clinicId}
+     *  
+     * @param clinicId Clinic ID
+     * @return List of enriched appointments for today
+     */
+    @GetMapping("/staff/appointments/today/{clinicId}")
+    public ResponseEntity<List<StaffAppointmentResponse>> getTodaysAppointments(@PathVariable Long clinicId) {
+        // Get today's date in clinic timezone (Asia/Singapore)
+        ZonedDateTime nowInClinicZone = ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE);
+        LocalDate today = nowInClinicZone.toLocalDate();
+        
+        // Fetch all appointments for the clinic
+        List<Appointment> allAppointments = appointmentService.getAppointments(null, clinicId, null);
+        
+        // Filter to today's appointments (comparing dates in clinic timezone)
+        List<Appointment> todaysAppointments = allAppointments.stream()
+            .filter(appt -> {
+                if (appt.getStartTime() == null) return false;
+                ZonedDateTime apptInClinicZone = appt.getStartTime().atZoneSameInstant(TimezoneConfig.CLINIC_ZONE);
+                LocalDate apptDate = apptInClinicZone.toLocalDate();
+                return apptDate.equals(today);
+            })
+            .collect(Collectors.toList());
+        
+        // Collect all unique IDs we need to fetch
+        List<Long> patientIds = todaysAppointments.stream()
+            .map(Appointment::getPatientId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Long> doctorIds = todaysAppointments.stream()
+            .map(Appointment::getDoctorId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Long> clinicIds = todaysAppointments.stream()
+            .map(Appointment::getClinicId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        // Fetch all related entities in bulk
+        List<Patient> patients = patientIds.isEmpty() ? List.of() : patientRepository.findByIdIn(patientIds);
+        List<Doctor> doctors = doctorIds.isEmpty() ? List.of() : doctorRepository.findAllById(doctorIds);
+        List<Clinic> clinics = clinicIds.isEmpty() ? List.of() : clinicRepository.findAllById(clinicIds);
+        
+        // Build patient ID -> user ID mapping
+        Map<Long, String> patientIdToUserId = patients.stream()
+            .filter(p -> p.getUserId() != null)
+            .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
+        
+        // Fetch profiles for all user IDs
+        List<String> userIds = patients.stream()
+            .map(Patient::getUserId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Profile> profiles = userIds.isEmpty() ? List.of() : profileRepository.findByUserIdIn(userIds);
+        
+        // Build lookup maps for efficient access
+        Map<Long, Patient> patientMap = patients.stream()
+            .collect(Collectors.toMap(Patient::getId, p -> p));
+        
+        Map<String, Profile> profileMap = profiles.stream()
+            .collect(Collectors.toMap(Profile::getUserId, p -> p));
+        
+        Map<Long, Doctor> doctorMap = doctors.stream()
+            .collect(Collectors.toMap(Doctor::getDoctorId, d -> d));
+        
+        Map<Long, Clinic> clinicMap = clinics.stream()
+            .collect(Collectors.toMap(Clinic::getId, c -> c));
+        
+        // Build enriched responses
+        List<StaffAppointmentResponse> responses = todaysAppointments.stream()
+            .map(appt -> {
+                Patient patient = patientMap.get(appt.getPatientId());
+                Profile profile = null;
+                if (patient != null && patient.getUserId() != null) {
+                    profile = profileMap.get(patient.getUserId());
+                }
+                Doctor doctor = doctorMap.get(appt.getDoctorId());
+                Clinic clinic = clinicMap.get(appt.getClinicId());
+                
+                return StaffAppointmentResponse.from(appt, patient, profile, doctor, clinic);
+            })
+            .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(responses);
     }
 
     // Get appointments for a specific clinic
@@ -220,6 +341,38 @@ public class StaffController {
     public ResponseEntity<Void> deleteQueue(@PathVariable Long id) {
         queueService.deleteQueue(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================
+    // PATIENT ENDPOINTS (Staff Access)
+    // =========================
+
+    /**
+     * Get all patients
+     * GET /api/staff/patients
+     * 
+     * Staff-facing endpoint to list all patients in the system
+     * Used for appointment scheduling and patient lookup
+     */
+    @GetMapping("/staff/patients")
+    public List<Patient> getAllPatients() {
+        return patientRepository.findAll();
+    }
+
+    /**
+     * Get patient by ID
+     * GET /api/staff/patients/{id}
+     * 
+     * Staff-facing endpoint to get detailed patient information
+     * 
+     * @param id Patient ID
+     * @return Patient details if found
+     */
+    @GetMapping("/staff/patients/{id}")
+    public ResponseEntity<Patient> getPatientById(@PathVariable Long id) {
+        return patientRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // =========================

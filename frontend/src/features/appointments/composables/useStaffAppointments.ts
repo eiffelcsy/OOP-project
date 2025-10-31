@@ -2,6 +2,8 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { doctorsApi } from '@/services/doctorsApi'
+import { appointmentsApi } from '@/services/appointmentsApi'
 
 const { currentUser, initializeAuth } = useAuth()
 
@@ -73,14 +75,11 @@ export const useStaffAppointments = () => {
   const fetchDoctors = async (clinicId: number) => {
     try {
       console.log('Fetching doctors for clinic ID:', clinicId)
-      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
-      if (!res.ok) throw new Error('Failed to fetch doctors')
-
-      const data: Tables<'doctors'>[] = await res.json()
+      const data = await doctorsApi.getDoctorsByClinicId(clinicId)
       doctors.value = data.map((doc, index) => ({
         ...doc,
         color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5],
-      }))
+      })) as any
     } catch (error) {
       console.error('Error fetching doctors:', error)
     }
@@ -115,79 +114,26 @@ export const useStaffAppointments = () => {
 
   const fetchTodaysAppointments = async (clinicId: number) => {
     try {
-      // Fetch appointments
-      const res = await fetch(`http://localhost:8080/api/staff/appointments/clinic/${clinicId}`)
-      if (!res.ok) throw new Error("Failed to fetch appointments")
+      // Fetch today's appointments with all enriched data from the backend
+      const data = await appointmentsApi.getTodaysClinicAppointments(clinicId)
 
-      // only today's appointments
-      let data = await res.json()
-
-      // Compute today's date in Asia/Singapore timezone so appointments are filtered by SGT day
-      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }) // e.g. "2025-10-18"
-      data = data.filter((appt: any) => {
-        if (!appt.start_time) return false
-        const apptDate = new Date(appt.start_time).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
-        return apptDate === today
-      })
-
-      // Fetch all patients, profiles, doctors, clinics in parallel
-      const [patientsRes, profilesRes, doctorsRes, clinicsRes] = await Promise.all([
-        fetch(`http://localhost:8080/api/patient/all`),
-        fetch(`http://localhost:8080/api/admin/users`),
-        fetch(`http://localhost:8080/api/doctors`),
-        fetch(`http://localhost:8080/api/admin/clinics`)
-      ])
-
-      const patients = await patientsRes.json()
-      const profiles = await profilesRes.json()
-      const doctors = await doctorsRes.json()
-      const clinics = await clinicsRes.json()
-
-      // Map appointments to display format
-      todaysAppointments.value = data.map((appt: any) => {
-        // --- Time formatting ---
-        const start = appt.start_time ? new Date(appt.start_time) : null
-        const end = appt.end_time ? new Date(appt.end_time) : null
+      // Map to the StaffAppointment interface expected by the UI
+      todaysAppointments.value = data.map((appt) => {
+        // Parse timestamps for formatting
+        const start = appt.startTime ? new Date(appt.startTime) : null
         const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
-        const durationStr = start && end ? `${Math.round((end.getTime() - start.getTime()) / 60000)} min` : '-'
-
-        // --- Patient info ---
-        let patientName = '-'
-        let patientPhone = '-'
-
-        // Step 1: Find patient record
-        const patient = patients.find((p: any) => String(p.id) === String(appt.patient_id))
-        if (patient) {
-          patientPhone = patient.phone ?? '-'
-
-          // Step 2: Find profile by user_id from patient
-          if (patient.user_id) {
-            const profile = profiles.find(
-              (u: any) => String(u.user_id) === String(patient.user_id)
-            )
-            if (profile) patientName = profile.full_name ?? '-'
-          }
-        }
-
-        // --- Doctor info ---
-        const doctor = doctors.find((d: any) => d.id === appt.doctor_id)
-        const doctorName = doctor?.name ?? '-'
-
-        // --- Clinic info ---
-        const clinic = clinics.find((c: any) => c.id === appt.clinic_id)
-        const clinicType = clinic?.clinic_type ?? '-'
 
         return {
-          id: appt.id ?? 0,
-          patientId: appt.patient_id ?? 0,
-          patientName: patientName,
-          patientPhone: patientPhone,
-          doctorId: appt.doctor_id ?? 0,
-          doctorName: doctorName,
-          type: clinicType,
+          id: appt.id,
+          patientId: appt.patientId,
+          patientName: appt.patientName,
+          patientPhone: appt.patientPhone,
+          doctorId: appt.doctorId,
+          doctorName: appt.doctorName,
+          type: appt.clinicType,
           time: timeStr,
-          duration: durationStr,
-          status: appt.status ?? '-'
+          duration: appt.durationMinutes ?? 0, // Duration in minutes from backend
+          status: appt.status as AppointmentStatus
         }
       })
     } catch (error) {
