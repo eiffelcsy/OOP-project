@@ -131,17 +131,17 @@ export const useScheduleWalkIn = () => {
     const schedules = await res.json()
 
     const validSchedules = schedules.filter((sch: any) => {
-      const validFrom = new Date(sch.validFrom)
-      const validTo = new Date(sch.validTo)
+      const validFrom = new Date(sch.valid_from)
+      const validTo = new Date(sch.valid_to)
       const selected = new Date(selectedDate.toString())
-      return sch.dayOfWeek === dayOfWeek && selected >= validFrom && selected <= validTo
+      return sch.day_of_week === dayOfWeek && selected >= validFrom && selected <= validTo
     })
 
     const slots: TimeSlot[] = []
     let slotIndex = 1
 
     validSchedules.forEach((schedule: any) => {
-      const slotDuration = schedule.slotDurationMinutes
+      const slotDuration = schedule.slot_duration_minutes
 
       const toUtcDate = (timeStr: string) => {
         const [hours, minutes, seconds] = timeStr.split(':').map(Number)
@@ -150,8 +150,8 @@ export const useScheduleWalkIn = () => {
         return d
       }
 
-      let current = toUtcDate(schedule.startTime)
-      const endTime = toUtcDate(schedule.endTime)
+      let current = toUtcDate(schedule.start_time)
+      const endTime = toUtcDate(schedule.end_time)
 
       while (current < endTime) {
         const slotEnd = new Date(current)
@@ -174,6 +174,7 @@ export const useScheduleWalkIn = () => {
 
     return slots
   }
+
 
   watch(
     [() => bookingData.value.doctor, () => bookingData.value.date],
@@ -238,7 +239,7 @@ export const useScheduleWalkIn = () => {
 
   // Updates the patient info in bookingData.
   const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
-    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: ''}
+    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: '' }
     Object.assign(bookingData.value.patient, patientData)
   }
 
