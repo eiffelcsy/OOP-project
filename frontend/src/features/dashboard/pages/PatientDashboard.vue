@@ -57,26 +57,27 @@ const recentRecords = ref([
 // Dummy queue ticket data
 const dummyQueueTicketData = ref([
     { appointment_id: 101, patient_id: 201, ticket_number: 0, 
-        priority: 1, ticket_status: 'No Show', room_name: "Room 1" },
+        priority: 1, ticket_status: 'No Show', doctor_name: 'John Doe'},
     { appointment_id: 102, patient_id: 202, ticket_number: 1, 
-        priority: 0, ticket_status: 'Completed', room_name: null },
+        priority: 0, ticket_status: 'Completed', doctor_name: 'Jane Smith'},
     { appointment_id: 103, patient_id: 203, ticket_number: 2, 
-        priority: 0, ticket_status: 'Called', room_name: null },
+        priority: 0, ticket_status: 'Called', doctor_name: 'Emily Chen'},
     { appointment_id: 104, patient_id: 204, ticket_number: 3,
-        priority: 1, ticket_status: 'Checked-in', room_name: null },
+        priority: 1, ticket_status: 'Checked-in', doctor_name: 'Sarah Smith'},
     { appointment_id: 105, patient_id: 205, ticket_number: 4, 
-        priority: 0, ticket_status: 'Checked-in', room_name: null },
+        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Sarah Smith'},
     { appointment_id: 106, patient_id: 206, ticket_number: 5,
-        priority: 0, ticket_status: 'Checked-in', room_name: null },
+        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Emily Chen'},
     { appointment_id: 107, patient_id: 207, ticket_number: 6, 
-        priority: 0, ticket_status: 'Checked-in', room_name: null },
+        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Emily Chen'},
     { appointment_id: 108, patient_id: 208, ticket_number: 7, 
-        priority: 1, ticket_status: 'Called', room_name: "Room 2" },
+        priority: 1, ticket_status: 'Called', doctor_name: 'Jane Smith'},
     { appointment_id: 109, patient_id: 209, ticket_number: 8, 
-        priority: 0, ticket_status: 'Checked-in', room_name: null },
+        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Jane Smith'},
     { appointment_id: 110, patient_id: patientId, ticket_number: 9, 
-        priority: 1, ticket_status: 'Checked-in', room_name: null } // current user
+        priority: 1, ticket_status: 'Called', doctor_name: 'Sarah Smith'} // current user
 ])
+
 
 // Grouping Queue Tickets
 const currentServing = dummyQueueTicketData.value.filter(q => q.ticket_status === "Called")
@@ -232,7 +233,7 @@ onMounted(() => {
                         class="text-green-600 font-medium"
                         >
                         You are being served now.
-                        Proceed to <span class="font-semibold">{{ myTicket.room_name || 'your assigned room' }}</span>.
+                        Proceed to <span class="font-semibold">{{ 'Dr. ' + myTicket.doctor_name || 'your assigned doctor' }}</span>.
                         </p>
 
                         <p
