@@ -280,6 +280,7 @@ export const useScheduleWalkIn = () => {
         patient_id: patientId,
         doctor_id: bookingData.value.doctor.id,
         clinic_id: staffClinic.value.id,
+        time_slot_id: null,
         start_time: startTime,
         end_time: endTime,
         status: 'scheduled',
@@ -287,6 +288,8 @@ export const useScheduleWalkIn = () => {
         created_at: nowUtc,
         updated_at: nowUtc
       }
+      console.log('Appointment payload:', appointmentPayload)
+
 
       // Add Idempotency-Key to prevent duplicate bookings
       const idempotencyKeyRef = (bookingData as any)._idempotencyKey ||= ref<string | null>(null)
