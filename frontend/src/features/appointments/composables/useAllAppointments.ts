@@ -10,19 +10,22 @@ export function useAllAppointments() {
   const doctors = ref<any[]>([])
   const clinics = ref<any[]>([])
   const availableSlots = ref<Tables<'time_slots'>[]>([])
-
-  // Timeslots specifically for rescheduling
   const rescheduleAvailableSlots = ref<Tables<'time_slots'>[]>([])
 
-  // Booking data for watcher
   const bookingData = ref<{ doctor: any; date: DateValue | null }>({ doctor: null, date: null })
 
-  // --- Fetch doctors for a clinic ---
+  // --- Fetch doctors ---
   const fetchDoctors = async (clinicId: number) => {
     try {
       const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
       doctors.value = await res.json()
+
+      // ✅ Set default doctor if none is selected
+      if (!bookingData.value.doctor && doctors.value.length > 0) {
+        bookingData.value = { doctor: doctors.value[0], date: bookingData.value.date }
+      }
+
     } catch (err) {
       console.error('Error fetching doctors:', err)
     }
@@ -108,7 +111,28 @@ export function useAllAppointments() {
     }
   }
 
-  // --- Generate time slots for rescheduling ---
+  // --- Cancel appointment ---
+  const cancelAppointment = async (appointmentId: number) => {
+    try {
+      const appointment = allAppointments.value.find(apt => apt.id === appointmentId)
+      if (!appointment) return false
+
+      const res = await fetch(`http://localhost:8080/api/appointments/${appointmentId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!res.ok) throw new Error('Failed to cancel appointment')
+      appointment.status = 'cancelled'
+      return true
+    } catch (error) {
+      console.error('Cancel appointment failed:', error)
+      return false
+    }
+  }
+
+  // --- Generate timeslots ---
   const generateTimeSlots = async (doctorId: number, selectedDate: DateValue | string) => {
     if (!doctorId || !selectedDate) return []
 
@@ -120,7 +144,6 @@ export function useAllAppointments() {
     if (!res.ok) throw new Error('Failed to fetch schedules')
     const schedules = await res.json()
 
-    // Filter schedules valid for that day
     const validSchedules = schedules.filter((sch: any) => {
       const validFrom = new Date(sch.valid_from)
       const validTo = new Date(sch.valid_to)
@@ -133,10 +156,9 @@ export function useAllAppointments() {
     validSchedules.forEach((schedule: any) => {
       const slotDuration = schedule.slot_duration_minutes
 
-      // --- Use start_time / end_time from schedule ---
       const toSGTDate = (timeStr: string) => {
         const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-        const d = new Date(selectedDateStr) // start from selected date
+        const d = new Date(selectedDateStr)
         d.setHours(hours + 8, minutes, seconds || 0, 0) // add +8 for SGT
         return d
       }
@@ -163,14 +185,13 @@ export function useAllAppointments() {
       }
     })
 
-    rescheduleAvailableSlots.value = slots
     return slots
   }
 
-  // --- Watch for bookingData changes to regenerate slots ---
+  // --- Watch bookingData for reactive timeslot generation ---
   watch(
-    [() => bookingData.value.doctor, () => bookingData.value.date],
-    async ([doctor, date]) => {
+    bookingData,
+    async ({ doctor, date }) => {
       if (!doctor || !date) {
         rescheduleAvailableSlots.value = []
         return
@@ -187,62 +208,27 @@ export function useAllAppointments() {
       )
 
       rescheduleAvailableSlots.value = generatedSlots.map((slot) => {
-        const slotStart = new Date(slot.slot_start)
-        const slotEnd = new Date(slot.slot_end)
+        const slotStart = new Date(`${selectedDateStr}T${slot.slot_start}:00`)
+        const slotEnd = new Date(`${selectedDateStr}T${slot.slot_end}:00`)
+
         const isBooked = bookedAppointments.some((appt) => {
-          const [hours, minutes] = appt.time.split(':').map(Number)
           const apptStart = new Date(`${appt.date}T${appt.time}:00`)
           const apptEnd = new Date(apptStart)
-          apptEnd.setMinutes(apptEnd.getMinutes() + 30) // approximate duration
+          apptEnd.setMinutes(apptEnd.getMinutes() + 30)
           return slotStart < apptEnd && slotEnd > apptStart
         })
 
-        return {
-          ...slot,
-          status: isBooked ? 'scheduled' : 'available'
-        }
+        return { ...slot, status: isBooked ? 'scheduled' : 'available' }
       })
     },
-    { immediate: true }
+    { deep: true, immediate: true }
   )
 
-  // --- Cancel appointment ---
-  const cancelAppointment = async (appointmentId: number) => {
-    try {
-      const appointment = allAppointments.value.find(apt => apt.id === appointmentId)
-      if (!appointment) return false
 
-      const res = await fetch(`http://localhost:8080/api/appointments/${appointmentId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' }
-      })
-
-      if (!res.ok) throw new Error('Failed to cancel appointment')
-      appointment.status = 'cancelled'
-      return true
-    } catch (error) {
-      console.error('Cancel appointment failed:', error)
-      return false
-    }
+  // --- Date change helper ---
+  const onDateChange = (newDate: DateValue) => {
+    bookingData.value = { doctor: bookingData.value.doctor, date: newDate }
   }
-
-  // --- Reschedule appointment ---
-  const rescheduleAppointment = async (id: number, doctorId: number, newDate: string, newTime: string) => {
-    const appt = allAppointments.value.find(a => a.id === id)
-    const doctor = doctors.value.find(d => d.id === doctorId)
-    if (appt && doctor && appt.status !== 'completed') {
-      appt.doctorId = doctorId
-      appt.doctorName = doctor.name
-      appt.date = newDate
-      appt.time = newTime
-      appt.status = 'rescheduled'
-    }
-  }
-
-  const formatDate = (date: string) =>
-    new Date(date).toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-  const formatTime = (time: string) => time
 
   onMounted(async () => {
     await initializeAuth()
@@ -257,10 +243,7 @@ export function useAllAppointments() {
     rescheduleAvailableSlots,
     fetchAllAppointments,
     cancelAppointment,
-    rescheduleAppointment,
-    formatDate,
-    formatTime,
     bookingData,
-    generateTimeSlots
+    onDateChange
   }
 }

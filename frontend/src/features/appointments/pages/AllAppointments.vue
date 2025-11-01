@@ -12,14 +12,11 @@ import { Icon } from '@iconify/vue'
 const {
   allAppointments,
   doctors,
-  clinics,
   cancelAppointment,
   rescheduleAppointment,
-  formatDate,
-  formatTime,
   fetchAllAppointments,
   rescheduleAvailableSlots,
-  generateTimeSlots,
+  bookingData // <-- use this for reactive timeslot generation
 } = useAllAppointments()
 
 // Filters
@@ -31,22 +28,25 @@ const selectedDate = ref('')
 // Reschedule modal
 const showReschedule = ref(false)
 const rescheduleAppointmentId = ref<number | null>(null)
-const rescheduleDate = ref('')
 const rescheduleTime = ref('')
 const rescheduleDoctorId = ref<number | null>(null)
+const rescheduleDate = ref('')
 
-// Watch doctor selection to regenerate time slots
-watch(rescheduleDoctorId, (newId) => {
-  if (newId) {
+// Sync local doctor/date refs to composable bookingData
+watch([rescheduleDoctorId, rescheduleDate], ([doctorId, date]) => {
+  if (doctorId && date) {
+    const doctor = doctors.value.find(d => d.id === doctorId) ?? null
+    bookingData.value = { doctor, date }
     rescheduleTime.value = ''
-    generateTimeSlots(newId, rescheduleDate.value)
+  } else {
+    bookingData.value = { doctor: null, date: null }
+    rescheduleTime.value = ''
   }
 })
 
 // Fetch appointments on mount
 onMounted(async () => {
   await fetchAllAppointments()
-  generateTimeSlots(rescheduleDoctorId.value, rescheduleDate.value)
 })
 
 // Filtered appointments
