@@ -1,18 +1,9 @@
+import { apiClient } from '@/lib/api'
+
 /**
  * Schedules API Service
  * Handles all schedule-related API calls to the backend
  */
-
-// Normalize Vite-provided base URL. Users may set VITE_API_BASE_URL to include
-// a trailing '/api' or not; handle both cases so callers don't accidentally
-// produce requests like 'http://host:port/api/api/...'. Also strip trailing
-// slashes for a consistent join.
-const _rawApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
-const _trimmed = (_rawApiBase as string).replace(/\/+$/, '')
-// If the provided base ends with '/api' assume it already contains the API
-// prefix and do not add another '/api' when building endpoints. Otherwise
-// add '/api' as the canonical API prefix used by the backend.
-const API_BASE_URL = _trimmed.endsWith('/api') ? _trimmed : `${_trimmed}/api`
 
 export interface ScheduleResponse {
   id: number
@@ -47,83 +38,40 @@ export interface UpdateScheduleRequest {
   valid_to?: string | null
 }
 
-class SchedulesApiService {
+/**
+ * Schedules API client
+ */
+export const schedulesApi = {
   /**
    * Get all schedules for a specific doctor
+   * GET /api/admin/doctors/{doctorId}/schedules
    */
   async getSchedulesByDoctorId(doctorId: number): Promise<ScheduleResponse[]> {
-    const url = `${API_BASE_URL.replace(/\/+$/, '')}/admin/doctors/${doctorId}/schedules`
-    console.log('SchedulesApiService.getSchedulesByDoctorId requesting', url)
-
-    // Avoid sending a Content-Type header on GET requests to reduce CORS preflight
-    const response = await fetch(url, { method: 'GET' })
-
-    if (!response.ok) {
-      // Try to read response body for better diagnostics
-      let body = ''
-      try {
-        body = await response.text()
-      } catch (e) {
-        body = `<unable to read response body: ${String(e)}>`
-      }
-      const msg = `Failed to fetch schedules: HTTP ${response.status} ${response.statusText} - ${body} (url: ${url})`
-      throw new Error(msg)
-    }
-
-    return response.json()
-  }
+    return apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
+  },
 
   /**
    * Create a new schedule
+   * POST /api/admin/schedules
    */
   async createSchedule(data: CreateScheduleRequest): Promise<ScheduleResponse> {
-    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to create schedule: ${errorText || response.statusText}`)
-    }
-
-    return response.json()
-  }
+    return apiClient.post('/api/admin/schedules', data)
+  },
 
   /**
    * Update an existing schedule
+   * PUT /api/admin/schedules/{id}
    */
   async updateSchedule(id: number, data: UpdateScheduleRequest): Promise<ScheduleResponse> {
-    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to update schedule: ${errorText || response.statusText}`)
-    }
-
-    return response.json()
-  }
+    return apiClient.put(`/api/admin/schedules/${id}`, data)
+  },
 
   /**
    * Delete a schedule
+   * DELETE /api/admin/schedules/{id}
    */
   async deleteSchedule(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/admin/schedules/${id}`, { method: 'DELETE' })
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete schedule: ${response.statusText}`)
-    }
+    return apiClient.delete(`/api/admin/schedules/${id}`)
   }
 }
-
-export const schedulesApi = new SchedulesApiService()
 

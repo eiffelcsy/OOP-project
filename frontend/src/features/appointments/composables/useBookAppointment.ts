@@ -4,6 +4,9 @@ import { parseDate } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 import { schedulesApi } from '@/services/schedulesApi'
+import { doctorsApi } from '@/services/doctorsApi'
+import { clinicsApi } from '@/services/clinicsApi'
+import { appointmentsApi } from '@/services/appointmentsApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
 import { h } from 'vue'
@@ -605,26 +608,13 @@ export const useBookAppointment = () => {
             let appts: any[] = []
 
             try {
-              const env = (import.meta.env as any)
-              const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-              const endpoint = `${apiBase.replace(/\/+$/, '')}/staff/appointments?doctorId=${doctorId}`
-              console.log('Backend-first: querying appointments endpoint', endpoint)
-              const r = await fetch(endpoint, { headers: { Accept: 'application/json' } })
-
-              if (r.ok) {
-                const data = await r.json()
-                appts = (data ?? []) as any[]
-                console.log(`Backend returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
-              } else {
-                const txt = await r.text().catch(() => '')
-                console.warn('Backend returned non-OK for appointments', r.status, txt)
-              }
+              console.log('Backend-first: querying appointments for doctor', doctorId)
+              appts = await appointmentsApi.getDoctorAppointments(doctorId)
+              console.log(`Backend returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
             } catch (backendErr) {
               console.warn('Backend appointments query failed, will fall back to Supabase:', backendErr)
-            }
-
-            // If backend gave nothing, fallback to Supabase client-side query
-            if (!appts || appts.length === 0) {
+              
+              // If backend gave nothing, fallback to Supabase client-side query
               try {
                 const apptQ = await supabase
                   .from('appointments')
@@ -692,20 +682,11 @@ export const useBookAppointment = () => {
       let appts: any[] = []
 
       try {
-        const env = (import.meta.env as any)
-        const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-        const endpoint = `${apiBase.replace(/\/+$/, '')}/staff/appointments?doctorId=${doctorId}`
-        const r = await fetch(endpoint, { headers: { Accept: 'application/json' } })
-        if (r.ok) {
-          const data = await r.json()
-          appts = (data ?? []) as any[]
-        }
+        appts = await appointmentsApi.getDoctorAppointments(doctorId)
       } catch (backendErr) {
         // fallback to Supabase if backend fails
         console.warn('fetchAppointmentsForDoctor: backend query failed, falling back to Supabase', backendErr)
-      }
-
-      if (!appts || appts.length === 0) {
+        
         try {
           const apptQ = await supabase
             .from('appointments')
@@ -764,29 +745,18 @@ export const useBookAppointment = () => {
   // Fetch doctors via backend API (preferred).
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
-      const env = (import.meta.env as any)
-      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-      const endpoint = `${apiBase.replace(/\/+$/, '')}/doctors/clinic/${clinicId}`
-
-      console.log('fetchDoctorsFromBackend: requesting', endpoint)
-      const res = await fetch(endpoint, { headers: { Accept: 'application/json' } })
-      if (!res.ok) {
-        console.warn('fetchDoctorsFromBackend: backend responded with', res.status)
-        return [] as Doctor[]
-      }
-
-      const data = await res.json()
-      const doctorsFromApi = (data ?? []) as Doctor[]
+      console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
+      const doctorsFromApi = await doctorsApi.getDoctorsByClinicId(clinicId)
       console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
 
       if (doctorsFromApi.length > 0) {
         // Merge into local list
-        allDoctors.value = allDoctors.value.filter(d => d.clinic_id !== clinicId).concat(doctorsFromApi)
-        return doctorsFromApi
+        allDoctors.value = allDoctors.value.filter(d => d.clinic_id !== clinicId).concat(doctorsFromApi as Doctor[])
+        return doctorsFromApi as Doctor[]
       }
 
-  // If backend returned empty array, return empty array
-  return [] as Doctor[]
+      // If backend returned empty array, return empty array
+      return [] as Doctor[]
     } catch (err) {
       console.error('fetchDoctorsFromBackend error for clinic', clinicId, err)
       return [] as Doctor[]
@@ -998,35 +968,10 @@ export const useBookAppointment = () => {
   // New: load clinics from backend API
   const loadClinics = async () => {
     try {
-      // Resolve API base from Vite env (works in dev and production)
-      const env = (import.meta.env as any)
-      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-      const endpoint = `${apiBase.replace(/\/+$/, '')}/patient/clinics`
-
-      console.log('loadClinics: requesting endpoint', endpoint)
-      const res = await fetch(endpoint, { headers: { Accept: 'application/json' } })
-      if (!res.ok) {
-        // capture response body for easier debugging
-        let bodyText = ''
-        try {
-          bodyText = await res.text()
-        } catch (e) {
-          bodyText = `<unable to read response body: ${String(e)}>`
-        }
-        console.error(`loadClinics: backend responded with HTTP ${res.status}`, { endpoint, status: res.status, body: bodyText })
-        throw new Error(`HTTP ${res.status}: ${bodyText.slice(0, 1000)}`)
-      }
-
-      const contentType = (res.headers.get('content-type') || '')
-      if (!contentType.includes('application/json')) {
-        // Received HTML or other unexpected response (commonly index.html from dev server)
-        const text = await res.text()
-        console.error('loadClinics: Expected JSON from clinics endpoint but got non-JSON response', { endpoint, contentType, sample: text.slice(0, 2000) })
-        throw new Error('Invalid JSON response from clinics endpoint')
-      }
-
-      const data: Clinic[] = await res.json()
+      console.log('loadClinics: requesting clinics from backend')
+      const data = await clinicsApi.getAllClinics()
       console.log('Loaded clinics from backend:', data)
+      
       // Map backend fields to the expected client shape if necessary
       allClinics.value = data.map(c => {
         const raw = c as any
@@ -1048,13 +993,13 @@ export const useBookAppointment = () => {
           remarks: raw.remarks ?? null,
           created_at: safeDate(raw.created_at),
           updated_at: safeDate(raw.updated_at),
-          open_time: null,
-          close_time: null,
+          open_time: raw.open_time ?? null,
+          close_time: raw.close_time ?? null,
           note: raw.note ?? null
         } as Clinic)
       })
     } catch (error) {
-      console.error('Failed to load clinics from backend, using dummy data. Error:', error)
+      console.error('Failed to load clinics from backend. Error:', error)
     }
   }
 
@@ -1185,34 +1130,18 @@ export const useBookAppointment = () => {
         console.error('Preflight validation error', e)
       }
 
-      // Resolve API base
-      const env = (import.meta.env as any)
-      const apiBase = (env.VITE_API_BASE_URL as string) || (window as any).API_BASE_URL || '/api'
-      const endpoint = `${apiBase.replace(/\/+$/, '')}/appointments`
-
-      const payload = {
-        clinicId: bookingData.value.clinic.id,
-        doctorId: bookingData.value.doctor.id,
-        patientId: undefined as number | undefined, // replaced below from auth
-        // include both representations: clinic-local (SGT) and UTC (Z)
-        startTime: startSgt,           // primary: '2025-10-27T09:30:00+08:00'
-        endTime: endSgt,
-        startTimeUtc: startUtc,       // compatibility: '2025-10-27T01:30:00.000Z'
-        endTimeUtc: endUtc,
-        treatmentSummary: null
-      }
-
       // Resolve patient id from auth state if available
+      let patientId: number | undefined = undefined
       try {
         // Prefer explicit patient relation id when available; otherwise fall back to profile.id (if that maps to patient id in your schema)
         const p = currentUser.value?.patient?.id ?? currentUser.value?.profile?.id ?? null
-        if (p) payload.patientId = p
+        if (p) patientId = p
       } catch (e) {
-        payload.patientId = undefined
+        patientId = undefined
       }
 
       // If still no patient id, attempt to get from access token / session as last resort
-      if (!payload.patientId) {
+      if (!patientId) {
         // Not logged in as patient — show friendly toast and abort
         toast.error('Unable to identify patient', {
           description: 'Please login as a patient before booking an appointment.',
@@ -1232,136 +1161,92 @@ export const useBookAppointment = () => {
         }
       }
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-      // include idempotency key as header; backend should honor it
-      if (idempotencyKeyRef.value) headers['Idempotency-Key'] = idempotencyKeyRef.value
-      // if backend expects auth bearer token, attach it
-      try {
-        const token = await getAccessToken()
-        if (token) headers['Authorization'] = `Bearer ${token}`
-      } catch (e) {
-        // ignore
+      const payload = {
+        patient_id: patientId,
+        doctor_id: bookingData.value.doctor.id,
+        clinic_id: bookingData.value.clinic.id,
+        // Use SGT timestamps as primary format
+        start_time: startSgt,
+        end_time: endSgt,
+        treatment_summary: null
       }
 
-      console.log('Posting appointment to backend:', endpoint, payload)
-      // Some backends (Postgres controllers, server frameworks) expect snake_case column names.
-      // Include both camelCase and snake_case keys to be compatible while the backend is confirmed.
-      const requestBody = {
-        ...payload,
-        idempotencyKey: idempotencyKeyRef.value,
-        // snake_case aliases
-        clinic_id: payload.clinicId,
-        doctor_id: payload.doctorId,
-        patient_id: payload.patientId,
-        start_time: payload.startTime,
-        end_time: payload.endTime,
-      }
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      })
-
-      const status = res.status
-      let bodyText = ''
-      try { bodyText = await res.text() } catch {}
-
-      // Try parse JSON if available
+      console.log('Posting appointment to backend:', payload)
+      
       let json: any = null
-      try { json = bodyText ? JSON.parse(bodyText) : null } catch { json = null }
+      let status = 0
+      
+      try {
+        json = await appointmentsApi.createAppointment(payload, idempotencyKeyRef.value)
+        status = 201 // Success
+      } catch (error: any) {
+        // Parse error message to extract status and response
+        const errorMsg = error.message || String(error)
+        
+        // Try to determine status from error message
+        if (errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
+          status = 409
+        } else if (errorMsg.includes('422')) {
+          status = 422
+        } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
+          status = error.message.includes('401') ? 401 : 403
+        } else {
+          status = 500
+        }
+        
+        // Try to parse JSON from error message
+        try {
+          const jsonMatch = errorMsg.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            json = JSON.parse(jsonMatch[0])
+          }
+        } catch (e) {
+          json = { message: errorMsg }
+        }
+      }
 
-      if (status === 201 || (res.ok && (json || {}).id)) {
+      if (status === 201 || (json && json.id)) {
         toast.success('Your appointment has been successfully scheduled', {
           description: 'A confirmation has been created and will appear in your appointments list.',
         })
+        // Simplified success flow: navigate to appointments page after a short delay
         try {
-          const emailQueued = (res.headers.get('X-Email-Queued') || '').toString()
-          if (emailQueued === 'true') {
-            // Show a closable toast telling the user the email was sent and
-            // navigate to the patient's appointments page after 3 seconds.
-            // If the user closes the toast (clicks the action 'x'), cancel the redirect.
-            let redirectTimer: number | null = null
-
-
-            // onGoAction: user clicked the explicit button to navigate immediately
-            const onGoAction = () => {
-              try {
-                if (redirectTimer) {
-                  clearTimeout(redirectTimer)
-                  redirectTimer = null
+          const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
+          
+          // Show a custom toast with navigation option
+          const toastId = toast.custom((t: any) => {
+            return h('div', { class: 'flex items-center gap-4' }, [
+              h('div', { class: 'flex-1' }, [
+                h('div', { class: 'font-medium' }, 'Appointment booked successfully!'),
+                h('div', { class: 'text-sm text-muted-foreground' }, 'Redirecting to My Appointments...')
+              ]),
+              h('button', {
+                class: 'px-3 py-1 rounded-md bg-primary text-white text-sm',
+                onClick: () => {
+                  try {
+                    if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+                    else router.push({ name: 'PatientAppointments' })
+                  } catch (navErr) {
+                    try { router.push('/patient/appointments') } catch (_) {}
+                  }
+                  try { (toast as any).dismiss?.(t.id) } catch (_) {}
                 }
-                router.push({ name: 'PatientAppointments' })
-              } catch (navErr) {
-                try { router.push('/patient/appointments') } catch (_) {}
-              }
+              }, 'Go Now')
+            ])
+          }, { duration: 3000 })
+
+          // Auto-redirect after 3 seconds
+          setTimeout(() => {
+            try {
+              if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+              else router.push({ name: 'PatientAppointments' })
+            } catch (navErr) {
+              try { router.push('/patient/appointments') } catch (_) {}
             }
-
-            // Create a custom toast showing both a 'Go' button and an 'x' close
-            // so users can either navigate immediately or cancel the auto-redirect.
-            const toastId = toast.custom((t: any) => {
-              return h('div', { class: 'flex items-center gap-4' }, [
-                h('div', { class: 'flex-1' }, [
-                  h('div', { class: 'font-medium' }, 'A confirmation email has been sent to your email address.'),
-                  h('div', { class: 'text-sm text-muted-foreground' }, 'You will be redirected to My Appointments shortly.')
-                ]),
-                h('button', {
-                  class: 'px-3 py-1 rounded-md bg-primary text-white text-sm',
-                  onClick: () => {
-                    try {
-                      if (redirectTimer) {
-                        clearTimeout(redirectTimer)
-                        redirectTimer = null
-                      }
-                      // Include created appointment id in query so appointments page can highlight it
-                      try {
-                        const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
-                        if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
-                        else router.push({ name: 'PatientAppointments' })
-                      } catch (navErr) {
-                        try { router.push('/patient/appointments') } catch (_) {}
-                      }
-                    } catch (navErr) {
-                      try { router.push('/patient/appointments') } catch (_) {}
-                    }
-                    // dismiss toast if API available
-                    try { (toast as any).dismiss?.(t.id) } catch (_) {}
-                  }
-                }, 'Go to My Appointments'),
-                h('button', {
-                  class: 'ml-2 text-sm text-muted-foreground',
-                  onClick: () => {
-                    try {
-                      if (redirectTimer) {
-                        clearTimeout(redirectTimer)
-                        redirectTimer = null
-                      }
-                    } catch (_) {}
-                    try { (toast as any).dismiss?.(t.id) } catch (_) {}
-                  }
-                }, 'x')
-              ])
-            }, { duration: 0 })
-
-            // Redirect after 3 seconds to the patient's appointments page if user did not act
-            redirectTimer = window.setTimeout(() => {
-              try {
-                const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
-                if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
-                else router.push({ name: 'PatientAppointments' })
-              } catch (navErr) {
-                try { router.push('/patient/appointments') } catch (_) {}
-              }
-              redirectTimer = null
-              // dismiss toast when navigation happens
-              try { (toast as any).dismiss?.(toastId) } catch (_) {}
-            }, 3000)
-
-          } else if (emailQueued === 'false') {
-            toast('No confirmation email is configured for this account.')
-          }
+            try { (toast as any).dismiss?.(toastId) } catch (_) {}
+          }, 3000)
         } catch (e) {
-          // ignore header parsing errors
+          // ignore navigation errors
         }
         console.log('Appointment created:', json)
         return { success: true, status, created: json }
@@ -1369,7 +1254,7 @@ export const useBookAppointment = () => {
 
       if (status === 409) {
         // Conflict — appointment already exists for that doctor/start_time
-  const conflictMsg = (json && (json.message || json.error)) ? (json.message || json.error) : 'The selected time slot is already scheduled.'
+        const conflictMsg = (json && (json.message || json.error)) ? (json.message || json.error) : 'The selected time slot is already scheduled.'
         toast.error('Time slot unavailable', {
           description: conflictMsg
         })
@@ -1378,7 +1263,7 @@ export const useBookAppointment = () => {
       }
 
       // other non-success responses
-      const serverMsg = (json && (json.message || json.error)) ? (json.message || json.error) : bodyText || `HTTP ${status}`
+      const serverMsg = (json && (json.message || json.error)) ? (json.message || json.error) : `HTTP ${status}`
       console.error('Backend returned error creating appointment', status, serverMsg)
       toast.error('Failed to book appointment', {
         description: String(serverMsg).slice(0, 200)
