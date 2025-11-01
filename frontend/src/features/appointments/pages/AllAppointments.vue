@@ -70,14 +70,9 @@ const filteredAppointments = computed(() => {
 const handleCancel = async (appointmentId: number) => {
   const appt = allAppointments.value.find(a => a.id === appointmentId)
   if (!appt) return
-  if (appt.status === 'completed') {
-    alert("Completed appointments cannot be cancelled.")
-    return
-  }
   const confirmed = confirm(`Are you sure you want to cancel the appointment for ${appt.patientName}?`)
   if (confirmed) {
     await cancelAppointment(appointmentId)
-    alert("Appointment cancelled successfully.")
   }
 }
 

@@ -110,9 +110,40 @@ export function useAllAppointments() {
     }
   }
 
-  const cancelAppointment = async (id: number) => {
-    const appt = allAppointments.value.find(a => a.id === id)
-    if (appt && appt.status !== 'completed') appt.status = 'cancelled'
+  const cancelAppointment = async (appointmentId: number) => {
+    try {
+      const appointment = allAppointments.value.find(apt => apt.id === appointmentId)
+      if (!appointment) return false
+
+      // Call the DELETE endpoint
+      const res = await fetch(`http://localhost:8080/api/appointments/${appointmentId}`, {
+        method: 'DELETE',
+        credentials: 'include', // include cookies/session if your backend uses authentication
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (res.status === 403) {
+        alert('You are not authorized to cancel this appointment.')
+        return false
+      }
+
+      if (!res.ok) {
+        throw new Error('Failed to cancel appointment on server')
+      }
+
+      if (res.status === 200) {
+        // Update local state
+        appointment.status = 'cancelled'
+        alert('Appointment cancelled successfully.')
+        return true
+      }
+    } catch (error) {
+      console.error('Cancel appointment failed:', error)
+      alert('Failed to cancel appointment. Please try again.')
+      return false
+    }
   }
 
   const rescheduleAppointment = async (id: number, doctorId: number, newDate: string, newTime: string) => {

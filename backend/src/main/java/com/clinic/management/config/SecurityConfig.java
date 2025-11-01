@@ -33,7 +33,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 // Allow unauthenticated access to public health and public-facing endpoints used by the SPA
-                .requestMatchers("/api/public/**", "/api/health", "/api/admin/**", "/api/staff/**", "/api/patient/**", "/api/doctors/**").permitAll()  // Temporarily allow these endpoints in development
+                .requestMatchers("/api/public/**", "/api/health", "/api/admin/**", "/api/staff/**", "/api/patient/**", "/api/doctors/**", "/api/appointments/**").permitAll()  // Temporarily allow these endpoints in development
                 // .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
                 // .requestMatchers("/api/patient/**").hasAnyRole("ADMIN", "PATIENT")
