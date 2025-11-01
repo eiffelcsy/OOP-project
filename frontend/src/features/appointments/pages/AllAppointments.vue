@@ -19,7 +19,7 @@ const {
   formatTime,
   fetchAllAppointments,
   rescheduleAvailableSlots,
-  generateDummySlots
+  generateTimeSlots,
 } = useAllAppointments()
 
 // Filters
@@ -39,14 +39,14 @@ const rescheduleDoctorId = ref<number | null>(null)
 watch(rescheduleDoctorId, (newId) => {
   if (newId) {
     rescheduleTime.value = ''
-    generateDummySlots()
+    generateTimeSlots(newId, rescheduleDate.value)
   }
 })
 
 // Fetch appointments on mount
 onMounted(async () => {
   await fetchAllAppointments()
-  generateDummySlots()
+  generateTimeSlots(rescheduleDoctorId.value, rescheduleDate.value)
 })
 
 // Filtered appointments
