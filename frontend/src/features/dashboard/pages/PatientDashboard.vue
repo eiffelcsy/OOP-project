@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import { appointmentsApi } from '@/services/appointmentsApi'
@@ -68,6 +69,31 @@ const formatTime = (dateStr: string) => {
     })
 }
 
+// Get status badge variant
+const getStatusVariant = (status: string) => {
+    const statusLower = status.toLowerCase()
+    switch (statusLower) {
+        case 'completed':
+            return 'default'
+        case 'cancelled':
+            return 'destructive'
+        case 'no_show':
+        case 'no show':
+            return 'secondary'
+        default:
+            return 'outline'
+    }
+}
+
+// Get status display text
+const getStatusText = (status: string) => {
+    const statusLower = status.toLowerCase()
+    if (statusLower === 'no_show' || statusLower === 'no show') {
+        return 'No Show'
+    }
+    return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 // Computed: Upcoming appointments (scheduled, confirmed, checked-in)
 const upcomingAppointments = computed(() => {
     const now = new Date()
@@ -80,6 +106,18 @@ const upcomingAppointments = computed(() => {
         })
         .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
         .slice(0, 3) // Show only first 3
+})
+
+// Computed: Recent (past) appointments
+const recentAppointments = computed(() => {
+    const now = new Date()
+    return appointments.value
+        .filter(apt => {
+            const aptDate = new Date(apt.start_time)
+            return aptDate < now // Past appointments only
+        })
+        .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()) // Most recent first
+        .slice(0, 5) // Show only last 5
 })
 
 // Computed: Next appointment
@@ -231,7 +269,16 @@ watch(() => currentUser.value, async (newUser) => {
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card class="md:col-span-2">
                 <CardHeader class="border-b">
-                    <CardTitle>Recent Appointments</CardTitle>
+                    <CardTitle class="flex items-center justify-between">
+                        <span>Recent Appointments</span>
+                            <RouterLink to="/patient/appointments">
+                                <Button variant="link" size="sm" class="h-4">
+
+                                <span>View All</span>
+                                <Icon icon="lucide:arrow-right" class="size-3" />
+                                </Button>
+                            </RouterLink>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <template v-if="loadingAppointments">
@@ -239,22 +286,27 @@ watch(() => currentUser.value, async (newUser) => {
                             Loading appointments...
                         </div>
                     </template>
-                    <template v-else-if="upcomingAppointments.length === 0">
+                    <template v-else-if="recentAppointments.length === 0">
                         <div class="py-8 text-center">
                             <Icon icon="lucide:calendar-x" class="size-8 mx-auto mb-2 text-muted-foreground" />
-                            <p class="text-sm text-muted-foreground">No upcoming appointments</p>
+                            <p class="text-sm text-muted-foreground">No past appointments</p>
                         </div>
                     </template>
                     <template v-else>
-                        <div v-for="appointment in upcomingAppointments" :key="appointment.id"
+                        <div v-for="appointment in recentAppointments" :key="appointment.id"
                             class="flex items-center justify-between py-3 border-b last:border-0">
-                            <div>
+                            <div class="flex-1">
                                 <p class="font-medium">{{ appointment.doctor_name || 'Doctor' }}</p>
                                 <p class="text-sm text-muted-foreground">{{ appointment.treatment_summary || 'Consultation' }}</p>
                             </div>
-                            <div class="text-right">
-                                <p class="font-medium">{{ formatDate(appointment.start_time) }}</p>
-                                <p class="text-sm text-muted-foreground">{{ formatTime(appointment.start_time) }}</p>
+                            <div class="text-right flex items-center gap-3">
+                                <div>
+                                    <p class="font-medium">{{ formatDate(appointment.start_time) }}</p>
+                                    <p class="text-sm text-muted-foreground">{{ formatTime(appointment.start_time) }}</p>
+                                </div>
+                                <Badge :variant="getStatusVariant(appointment.status)" class="hidden md:block">
+                                    {{ getStatusText(appointment.status) }}
+                                </Badge>
                             </div>
                         </div>
                     </template>

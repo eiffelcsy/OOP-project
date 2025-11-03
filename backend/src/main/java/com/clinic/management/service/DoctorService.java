@@ -2,6 +2,7 @@ package com.clinic.management.service;
 
 import com.clinic.management.dto.request.CreateDoctorRequest;
 import com.clinic.management.dto.request.UpdateDoctorRequest;
+import com.clinic.management.dto.response.DoctorResponse;
 import com.clinic.management.exception.CustomExceptions.*;
 import com.clinic.management.model.Doctor;
 import com.clinic.management.repository.DoctorRepository;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class DoctorService {
@@ -37,6 +39,18 @@ public class DoctorService {
     @Transactional(readOnly = true)
     public List<Doctor> getDoctorsByClinicId(Long clinicId) {
         return repository.findByClinicId(clinicId);
+    }
+
+    /**
+     * Get doctors by clinicId as DoctorResponse DTOs
+     * @param clinicId Clinic ID
+     * @return List of DoctorResponse DTOs for the specified clinic
+     */
+    @Transactional(readOnly = true)
+    public List<DoctorResponse> getDoctorResponsesByClinicId(Long clinicId) {
+        return repository.findByClinicId(clinicId).stream()
+                .map(DoctorResponse::from)
+                .collect(Collectors.toList());
     }
 
     /**
