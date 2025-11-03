@@ -7,7 +7,6 @@ import com.clinic.management.dto.request.CreateUserRequest;
 import com.clinic.management.dto.request.UpdateDoctorRequest;
 import com.clinic.management.dto.request.UpdateScheduleRequest;
 import com.clinic.management.dto.request.UpdateUserRequest;
-import com.clinic.management.dto.response.AdminStatisticsResponse;
 import com.clinic.management.dto.response.DoctorResponse;
 import com.clinic.management.dto.response.ScheduleResponse;
 import com.clinic.management.dto.response.UserResponse;
@@ -221,6 +220,20 @@ public class AdminController {
     }
 
     // ================================ DOCTOR MANAGEMENT ENDPOINTS ================================
+
+    /**
+     * GET /api/admin/doctors
+     * Fetch all doctors
+     * @return List of all doctors as DoctorResponse DTOs
+     */
+    @GetMapping("/doctors")
+    public ResponseEntity<List<DoctorResponse>> getAllDoctors() {
+        List<Doctor> doctors = doctorService.getAllDoctors();
+        List<DoctorResponse> responses = doctors.stream()
+            .map(DoctorResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
 
     /**
      * GET /api/admin/doctors/clinic/{clinicId}

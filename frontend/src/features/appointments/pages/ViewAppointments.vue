@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Separator } from '@/components/ui/separator'
 import { CalendarDate, parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Icon } from '@iconify/vue'
 
@@ -261,16 +263,17 @@ const isSlotBooked = (slot: any) => {
 
     // If we have an appointment being rescheduled, allow selecting the same exact times
     if (appointmentToReschedule && appointmentToReschedule.value) {
-      const appt = appointmentToReschedule.value
-      const apptStart = appt.start_time ?? appt.startTime ?? appt.start ?? appt.time
-      const apptEnd = appt.end_time ?? appt.endTime ?? appt.end
-      // Compare normalized time strings (slot.slot_start may include date or +08 offset)
-      const normalize = (s: any) => s ? String(s).replace(/[:\-T+ ]/g, '') : ''
-      const s1 = normalize(slot.slot_start || slot.start || slot.display)
-      const s2 = normalize(slot.slot_end || slot.end)
-      const a1 = normalize(apptStart)
-      const a2 = normalize(apptEnd)
-      if (a1 && a2 && s1 && s2 && a1 === s1 && a2 === s2) return false
+      const appt = appointmentToReschedule.value as any
+      // appt.time is already formatted as "HH:MM - HH:MM"
+      const apptTime = appt.time || ''
+      
+      // Format slot time in the same way
+      const slotTime = slot.slot_start && slot.slot_end
+        ? `${new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}`
+        : ''
+      
+      // If times match, allow selection (not booked for this user)
+      if (apptTime && slotTime && apptTime === slotTime) return false
     }
 
     return true
@@ -281,11 +284,19 @@ const isSlotBooked = (slot: any) => {
 
 // handleDateSelect is defined above to keep book and view composables in sync
 
-// Explicitly trigger fetch and add page-level log to ensure we see console output when page mounts
-fetchPatientAppointments().then(() => {
-  console.log('ViewAppointments: fetchPatientAppointments() completed')
-  applyHighlightFromQuery()
-}).catch(err => console.error('ViewAppointments: fetch failed', err))
+// Explicitly trigger fetch on mount
+onMounted(async () => {
+  console.log('ViewAppointments: component mounted, fetching appointments...')
+  try {
+    await fetchPatientAppointments()
+    console.log('ViewAppointments: fetchPatientAppointments() completed')
+    console.log('ViewAppointments: scheduledAppointments count=', scheduledAppointments.value.length)
+    console.log('ViewAppointments: pastAppointments count=', pastAppointments.value.length)
+    applyHighlightFromQuery()
+  } catch (err) {
+    console.error('ViewAppointments: fetch failed', err)
+  }
+})
 </script>
 
 <template>
@@ -312,29 +323,46 @@ fetchPatientAppointments().then(() => {
         <div class="mb-4 flex items-center gap-4">
           <div class="text-sm text-muted-foreground">Filter by status:</div>
           <div class="flex gap-2 items-center">
-            <Badge variant="outline" class="cursor-pointer" :class="upcomingStatusFilter === 'all' ? 'bg-gray-100' : ''" @click="upcomingStatusFilter = 'all'">All</Badge>
-            <Badge v-for="status in upcomingStatuses" :key="status" variant="outline" class="cursor-pointer" :class="upcomingStatusFilter === status ? 'bg-gray-100' : ''" @click="upcomingStatusFilter = status">{{ prettyStatus(status) }}</Badge>
+            <Button 
+              variant="outline" 
+              size="sm"
+              :class="upcomingStatusFilter === 'all' ? 'bg-primary text-primary-foreground' : ''" 
+              @click="upcomingStatusFilter = 'all'"
+            >
+              All
+            </Button>
+            <Button 
+              v-for="status in upcomingStatuses" 
+              :key="status" 
+              variant="outline" 
+              size="sm"
+              :class="upcomingStatusFilter === status ? 'bg-primary text-primary-foreground' : ''" 
+              @click="upcomingStatusFilter = status"
+            >
+              {{ prettyStatus(status) }}
+            </Button>
             <Button variant="ghost" size="sm" class="ml-2" @click="upcomingStatusFilter = 'all'">Clear</Button>
           </div>
           <!-- Sort control placed on same line as status filter -->
           <div class="ml-auto flex items-center gap-2">
             <label class="text-sm text-muted-foreground">Sort:</label>
-            <select v-model="upcomingSortOrder" class="text-sm rounded border px-2 py-1">
-              <option value="asc">Oldest first</option>
-              <option value="desc">Newest first</option>
-            </select>
+            <Select v-model="upcomingSortOrder">
+              <SelectTrigger class="w-[150px]">
+                <SelectValue placeholder="Select sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Oldest first</SelectItem>
+                <SelectItem value="desc">Newest first</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-
-  <!-- Explanatory line -->
-  <p class="text-sm text-muted-foreground mb-2">Upcoming appointments include statuses: <strong>Scheduled</strong>, <strong>Confirmed</strong> and <strong>Checked-in</strong>.</p>
-
         <div v-for="appointment in filteredScheduledAppointments" :key="appointment.id">
           <Card :class="(appointment.id && highlightedId && String(appointment.id) === String(highlightedId) && highlightActive) ? 'ring-2 ring-sky-200 bg-sky-50' : ''">
             <CardHeader>
               <div class="flex justify-between items-start">
                 <div>
-                  <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
+                  <CardTitle class="text-lg">{{ appointment.clinicName }}</CardTitle>
                   <CardDescription>
                     {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
                   </CardDescription>
@@ -350,7 +378,7 @@ fetchPatientAppointments().then(() => {
               </div>
             </CardHeader>
             <CardContent>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div class="space-y-2">
                   <div class="flex items-center gap-2 text-sm">
                     <Icon icon="lucide:calendar" class="w-4 h-4 text-muted-foreground" />
@@ -366,7 +394,6 @@ fetchPatientAppointments().then(() => {
                     <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
                     <div>
                       <div>{{ appointment.address }}</div>
-                      <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
                     </div>
                   </div>
                 </div>
@@ -399,6 +426,8 @@ fetchPatientAppointments().then(() => {
       </div>
     </div>
 
+    <Separator class="my-8" />
+    
     <!-- Past Appointments -->
     <div>
       <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
@@ -416,21 +445,39 @@ fetchPatientAppointments().then(() => {
         <div class="mb-4 flex items-center gap-4">
           <div class="text-sm text-muted-foreground">Filter by status:</div>
           <div class="flex gap-2 items-center">
-            <Badge variant="outline" class="cursor-pointer" :class="pastStatusFilter === 'all' ? 'bg-gray-100' : ''" @click="pastStatusFilter = 'all'">All</Badge>
-            <Badge v-for="status in pastStatuses" :key="status" variant="outline" class="cursor-pointer" :class="pastStatusFilter === status ? 'bg-gray-100' : ''" @click="pastStatusFilter = status">{{ prettyStatus(status) }}</Badge>
+            <Button 
+              variant="outline" 
+              size="sm"
+              :class="pastStatusFilter === 'all' ? 'bg-primary text-primary-foreground' : ''" 
+              @click="pastStatusFilter = 'all'"
+            >
+              All
+            </Button>
+            <Button 
+              v-for="status in pastStatuses" 
+              :key="status" 
+              variant="outline" 
+              size="sm"
+              :class="pastStatusFilter === status ? 'bg-primary text-primary-foreground' : ''" 
+              @click="pastStatusFilter = status"
+            >
+              {{ prettyStatus(status) }}
+            </Button>
             <Button variant="ghost" size="sm" class="ml-2" @click="pastStatusFilter = 'all'">Clear</Button>
           </div>
           <div class="ml-auto flex items-center gap-2">
             <label class="text-sm text-muted-foreground">Sort:</label>
-            <select v-model="pastSortOrder" class="text-sm rounded border px-2 py-1">
-              <option value="asc">Oldest first</option>
-              <option value="desc">Newest first</option>
-            </select>
+            <Select v-model="pastSortOrder">
+              <SelectTrigger class="w-[150px]">
+                <SelectValue placeholder="Select sort order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Oldest first</SelectItem>
+                <SelectItem value="desc">Newest first</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-
-  <!-- Explanatory line -->
-  <p class="text-sm text-muted-foreground mb-2">Past appointments include statuses: <strong>Completed</strong>, <strong>Cancelled</strong> and <strong>No-show</strong>.</p>
 
         <Card 
           v-for="appointment in filteredPastAppointments" 
@@ -440,7 +487,7 @@ fetchPatientAppointments().then(() => {
           <CardHeader>
             <div class="flex justify-between items-start">
               <div>
-                <CardTitle class="text-lg">{{ appointment.clinicName }} <span class="text-sm text-muted-foreground">{{ appointment.clinicType }}</span></CardTitle>
+                <CardTitle class="text-lg">{{ appointment.clinicName }}</CardTitle>
                 <CardDescription>
                   {{ appointment.doctorName }} • {{ appointment.doctorSpecialty || appointment.specialization }}
                 </CardDescription>
@@ -472,7 +519,6 @@ fetchPatientAppointments().then(() => {
                   <Icon icon="lucide:map-pin" class="w-4 h-4 text-muted-foreground mt-0.5" />
                   <div>
                     <div>{{ appointment.address }}</div>
-                    <div class="text-xs text-muted-foreground">Clinic type: {{ appointment.clinicType || 'N/A' }}</div>
                   </div>
                 </div>
               </div>

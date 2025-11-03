@@ -746,7 +746,10 @@ export const useBookAppointment = () => {
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
       console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
-      const doctorsFromApi = await doctorsApi.getDoctorsByClinicId(clinicId)
+      // Use patient endpoint for appointment booking
+      const response = await fetch(`http://localhost:8080/api/patient/doctors/clinic/${clinicId}`)
+      if (!response.ok) throw new Error('Failed to fetch doctors')
+      const doctorsFromApi = await response.json()
       console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
 
       if (doctorsFromApi.length > 0) {

@@ -7,7 +7,6 @@ import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.service.ClinicService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,7 +22,6 @@ import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.DoctorService;
 import com.clinic.management.dto.response.AppointmentResponse;
 import com.clinic.management.model.Doctor;
-import com.clinic.management.model.Clinic;
 import java.util.Optional;
 
 
@@ -59,6 +57,20 @@ public class PatientController {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * GET /api/patient/doctors/clinic/{clinicId}
+     * Fetch doctors by clinic ID for appointment booking
+     * @param clinicId Clinic ID
+     * @return List of doctors for the specified clinic
+     */
+    @GetMapping("/doctors/clinic/{clinicId}")
+    public ResponseEntity<List<com.clinic.management.dto.response.DoctorResponse>> getDoctorsByClinic(@PathVariable Long clinicId) {
+        List<Doctor> doctors = doctorService.getDoctorsByClinicId(clinicId);
+        List<com.clinic.management.dto.response.DoctorResponse> responses = doctors.stream()
+            .map(com.clinic.management.dto.response.DoctorResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
 
     
     /**

@@ -17,7 +17,7 @@ export function useAllAppointments() {
   // --- Fetch doctors ---
   const fetchDoctors = async (clinicId: number) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/admin/doctors/clinic/${clinicId}`)
+      const res = await fetch(`http://localhost:8080/api/staff/doctors/clinic/${clinicId}`)
       if (!res.ok) throw new Error('Failed to fetch doctors')
       doctors.value = await res.json()
 

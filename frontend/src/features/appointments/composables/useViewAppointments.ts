@@ -68,10 +68,15 @@ export const useViewAppointments = () => {
 
   // Helper: map DB row to ViewAppointment/UI Appointment
   const mapRowToView = (row: any) => {
+  console.log('mapRowToView: raw row data=', JSON.stringify(row, null, 2))
+  
   // row fields: id, patient_id, doctor_id, clinic_id, status, created_at, updated_at, time_slot_id, treatment_summary
   // Prefer explicit appointment start time when available for accurate sorting/display.
   const preferredTime = row.start_time ?? row.slot_start ?? row.end_time ?? row.created_at
   const date = preferredTime ? new Date(preferredTime) : new Date()
+  
+  console.log('mapRowToView: preferredTime=', preferredTime, 'parsed date=', date)
+  
     // best-effort mapping; some fields may be null
   const clinicName = (row as any).clinic_name || row.clinics?.name || 'Clinic'
   const clinicType = (row as any).clinic_type || row.clinics?.clinic_type || row.clinics?.clinicType || ''
@@ -110,7 +115,7 @@ export const useViewAppointments = () => {
 
     const statusCanon = normalizeStatus(normalized) as Appointment['status']
 
-    return {
+    const mapped = {
       id: row.id.toString(),
       clinicName,
       doctorName,
@@ -133,6 +138,9 @@ export const useViewAppointments = () => {
       created_at: row.created_at ?? '',
       updated_at: row.updated_at ?? ''
     } as unknown as Appointment
+    
+    console.log('mapRowToView: mapped appointment=', mapped)
+    return mapped
   }
 
   // Fetch appointments for current patient from Supabase
@@ -316,8 +324,27 @@ export const useViewAppointments = () => {
     const now = new Date()
     // Upcoming: include scheduled, confirmed and checked-in appointments with start >= now
     const list = appointments.value
-      .filter(appointment => (appointment.status === 'scheduled' || appointment.status === 'confirmed' || appointment.status === 'checked-in') && appointment.date >= now)
+      .filter(appointment => {
+        const isUpcomingStatus = appointment.status === 'scheduled' || appointment.status === 'confirmed' || appointment.status === 'checked-in'
+        const isFutureDate = appointment.date >= now
+        
+        // Debug logging to help diagnose filtering issues
+        if (!isUpcomingStatus || !isFutureDate) {
+          console.log('Filtered out of upcoming:', {
+            id: appointment.id,
+            status: appointment.status,
+            date: appointment.date,
+            isUpcomingStatus,
+            isFutureDate,
+            now
+          })
+        }
+        
+        return isUpcomingStatus && isFutureDate
+      })
 
+    console.log('scheduledAppointments computed: total appointments=', appointments.value.length, 'filtered upcoming=', list.length)
+    
     return list.sort((a, b) => {
       return upcomingSortOrder.value === 'asc'
         ? a.date.getTime() - b.date.getTime()
@@ -327,9 +354,33 @@ export const useViewAppointments = () => {
 
   const pastAppointments = computed(() => {
     const now = new Date()
-    // Past: include completed, cancelled and no-show (formerly called "missed")
+    // Past: include appointments that are either:
+    // 1. Have terminal status (completed, cancelled, no-show), OR
+    // 2. Have active status (scheduled, confirmed, checked-in) but date is in the past
     const list = appointments.value
-      .filter(appointment => ['completed', 'cancelled', 'no-show'].includes(appointment.status))
+      .filter(appointment => {
+        const hasTerminalStatus = ['completed', 'cancelled', 'no-show'].includes(appointment.status)
+        const hasActiveStatus = ['scheduled', 'confirmed', 'checked-in'].includes(appointment.status)
+        const isPastDate = appointment.date < now
+        
+        const shouldInclude = hasTerminalStatus || (hasActiveStatus && isPastDate)
+        
+        // Debug logging
+        if (shouldInclude) {
+          console.log('Included in past appointments:', {
+            id: appointment.id,
+            status: appointment.status,
+            date: appointment.date,
+            hasTerminalStatus,
+            hasActiveStatus,
+            isPastDate
+          })
+        }
+        
+        return shouldInclude
+      })
+
+    console.log('pastAppointments computed: total appointments=', appointments.value.length, 'filtered past=', list.length)
 
     return list.sort((a, b) => {
       return pastSortOrder.value === 'asc'

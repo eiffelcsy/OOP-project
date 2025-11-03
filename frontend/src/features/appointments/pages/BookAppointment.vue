@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Calendar } from '@/components/ui/calendar'
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { CalendarDate, parseDate, today, getLocalTimeZone, type DateValue } from '@internationalized/date'
 import { Icon } from '@iconify/vue'
 
@@ -123,6 +124,30 @@ const handleDateSelect = (date: DateValue | undefined) => {
         selectDate(date)
     }
 }
+
+// Pagination for clinics
+const clinicsPerPage = 9
+const currentClinicPage = ref(1)
+
+const paginatedClinics = computed(() => {
+    const start = (currentClinicPage.value - 1) * clinicsPerPage
+    const end = start + clinicsPerPage
+    return filteredClinics.value.slice(start, end)
+})
+
+const totalClinicPages = computed(() => Math.ceil(filteredClinics.value.length / clinicsPerPage))
+
+// Pagination for doctors
+const doctorsPerPage = 9
+const currentDoctorPage = ref(1)
+
+const paginatedDoctors = computed(() => {
+    const start = (currentDoctorPage.value - 1) * doctorsPerPage
+    const end = start + doctorsPerPage
+    return availableDoctors.value.slice(start, end)
+})
+
+const totalDoctorPages = computed(() => Math.ceil(availableDoctors.value.length / doctorsPerPage))
 </script>
 
 <template>
@@ -156,6 +181,16 @@ const handleDateSelect = (date: DateValue | undefined) => {
             </Stepper>
         </div>
 
+        <!-- Navigation Buttons -->
+        <div class="grid grid-cols-2 gap-4 mb-6" v-if="!isBookingConfirmed">
+            <Button variant="outline" @click="previousStep" :disabled="isFirstStep">
+                Previous
+            </Button>
+            <Button @click="nextStep" :disabled="!canProceedToNextStep || isLastStep">
+                Next
+            </Button>
+        </div>
+
         <!-- Step Content -->
         <div class="min-h-[500px] flex h-full w-full">
             <!-- Step 1: Select Clinic -->
@@ -171,7 +206,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                         <!-- Search -->
                         <div class="space-y-2">
                             <Label for="clinic-search">Search clinics</Label>
-                            <div class="relative w-full max-w-sm items-center">
+                            <div class="relative w-full items-center">
                                 <Input id="clinic-search" v-model="clinicSearchQuery"
                                 placeholder="Search by name, location, or address..." class="mt-1" />
                                 <Icon icon="lucide:search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -206,7 +241,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
 
                 <!-- Clinic Results -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Card v-for="clinic in filteredClinics" :key="clinic.id"
+                    <Card v-for="clinic in paginatedClinics" :key="clinic.id"
                         class="cursor-pointer transition-colors hover:bg-muted/50"
                         :class="{ 'ring-2 ring-primary': bookingData.clinic?.id === clinic.id }"
                         @click="selectClinic(clinic)">
@@ -226,43 +261,61 @@ const handleDateSelect = (date: DateValue | undefined) => {
                 <div v-if="filteredClinics.length === 0" class="text-center py-8">
                     <p class="text-muted-foreground">No clinics found matching your criteria.</p>
                 </div>
+
+                <!-- Pagination for Clinics -->
+                <div v-if="filteredClinics.length > clinicsPerPage" class="flex justify-center mt-6">
+                    <Pagination :total="filteredClinics.length" :items-per-page="clinicsPerPage" 
+                        :sibling-count="1" :show-edges="true" :default-page="1" v-model:page="currentClinicPage">
+                        <PaginationContent v-slot="{ items }">
+                            <PaginationPrevious />
+                            <template v-for="(item, index) in items" :key="index">
+                                <PaginationItem v-if="item.type === 'page'" :value="item.value" :is-active="item.value === currentClinicPage">
+                                    {{ item.value }}
+                                </PaginationItem>
+                                <PaginationEllipsis v-else />
+                            </template>
+                            <PaginationNext />
+                        </PaginationContent>
+                    </Pagination>
+                </div>
             </div>
 
             <!-- Step 2: Choose Doctor -->
             <div v-if="currentStep === 2" class="space-y-6 w-full">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Choose Doctor</CardTitle>
+                        <CardTitle class="text-lg">Choose Doctor</CardTitle>
                         <CardDescription>
                             Select a doctor from {{ bookingData.clinic?.name }}
                         </CardDescription>
                     </CardHeader>
+                    <CardContent class="space-y-6">
+                        <!-- Search and Filters -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <Label for="doctor-search">Search doctors</Label>
+                                <div class="relative w-full items-center">
+                                    <Input id="doctor-search" v-model="doctorSearchQuery" 
+                                        placeholder="Search by name or specialty..." class="mt-1" />
+                                    <Icon icon="lucide:search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                </div>
+                            </div>
+                            <div>
+                                <Label>Specialty</Label>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <Button v-for="spec in distinctDoctorSpecialties" :key="spec"
+                                        :variant="selectedDoctorSpecialty === spec ? 'default' : 'outline'" size="sm"
+                                        @click="selectedDoctorSpecialty = spec">
+                                        {{ spec === 'All' ? 'All' : spec }}
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
                 </Card>
 
-                <!-- Doctor Search & Specialty Filter -->
-                <div class="space-y-4">
-                    <div class="w-full max-w-sm">
-                        <Label for="doctor-search">Search doctors</Label>
-                        <div class="relative mt-1">
-                            <Input id="doctor-search" v-model="doctorSearchQuery" placeholder="Search by name or specialty..." />
-                            <Icon icon="lucide:search" class="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        </div>
-                    </div>
-
-                    <div>
-                        <Label>Specialty</Label>
-                        <div class="flex flex-wrap gap-2 mt-2">
-                            <Button v-for="spec in distinctDoctorSpecialties" :key="spec"
-                                :variant="selectedDoctorSpecialty === spec ? 'default' : 'outline'" size="sm"
-                                @click="selectedDoctorSpecialty = spec">
-                                {{ spec === 'All' ? 'All' : spec }}
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <Card v-for="doctor in availableDoctors" :key="doctor.id"
+                    <Card v-for="doctor in paginatedDoctors" :key="doctor.id"
                         class="cursor-pointer transition-colors hover:bg-muted/50"
                         :class="{ 'ring-2 ring-primary': bookingData.doctor?.id === doctor.id }"
                         @click="selectDoctor(doctor)">
@@ -279,6 +332,23 @@ const handleDateSelect = (date: DateValue | undefined) => {
 
                 <div v-if="availableDoctors.length === 0" class="text-center py-8">
                     <p class="text-muted-foreground">No doctors available at this clinic.</p>
+                </div>
+
+                <!-- Pagination for Doctors -->
+                <div v-if="availableDoctors.length > doctorsPerPage" class="flex justify-center mt-6">
+                    <Pagination :total="availableDoctors.length" :items-per-page="doctorsPerPage" 
+                        :sibling-count="1" :show-edges="true" :default-page="1" v-model:page="currentDoctorPage">
+                        <PaginationContent v-slot="{ items }">
+                            <PaginationPrevious />
+                            <template v-for="(item, index) in items" :key="index">
+                                <PaginationItem v-if="item.type === 'page'" :value="item.value" :is-active="item.value === currentDoctorPage">
+                                    {{ item.value }}
+                                </PaginationItem>
+                                <PaginationEllipsis v-else />
+                            </template>
+                            <PaginationNext />
+                        </PaginationContent>
+                    </Pagination>
                 </div>
             </div>
 
@@ -326,7 +396,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 <Button v-for="slot in availableSlots" :key="slot.id"
                                     :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
                                     :disabled="slot.booked === true"
-                                    @click="selectTimeSlot(slot)">
+                                    @click="selectTimeSlot(slot as any)">
                                     {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
                                 </Button>
                             </div>
@@ -353,7 +423,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                 <div>
                                     <Label class="text-sm font-medium">Clinic</Label>
                                     <p class="text-sm text-muted-foreground mt-1">{{ bookingData.clinic?.name }}</p>
-                                    <p class="text-xs text-muted-foreground">{{ bookingData.clinic?.addressLine }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ bookingData.clinic?.address_line }}</p>
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Doctor</Label>
@@ -395,7 +465,7 @@ const handleDateSelect = (date: DateValue | undefined) => {
                                         shortly.
                                     </p>
                                     <div class="mt-4 flex justify-center gap-2">
-                                        <Button size="md" class="px-6 flex items-center gap-2" @click="goToAppointments">
+                                        <Button size="lg" class="px-6 flex items-center gap-2" @click="goToAppointments">
                                             <Icon icon="lucide:chevrons-right" class="w-4 h-4" />
                                             Go to My Appointments
                                         </Button>
@@ -404,16 +474,6 @@ const handleDateSelect = (date: DateValue | undefined) => {
                     </CardContent>
                 </Card>
             </div>
-        </div>
-
-        <!-- Navigation Buttons -->
-        <div class="flex justify-between mt-8" v-if="!isBookingConfirmed">
-            <Button variant="outline" @click="previousStep" :disabled="isFirstStep">
-                Previous
-            </Button>
-            <Button @click="nextStep" :disabled="!canProceedToNextStep || isLastStep">
-                Next
-            </Button>
         </div>
     </div>
 </template>

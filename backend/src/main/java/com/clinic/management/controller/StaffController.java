@@ -33,7 +33,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
@@ -341,6 +340,25 @@ public class StaffController {
     public ResponseEntity<Void> deleteQueue(@PathVariable Long id) {
         queueService.deleteQueue(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================
+    // DOCTOR ENDPOINTS (Staff Access)
+    // =========================
+
+    /**
+     * GET /api/staff/doctors/clinic/{clinicId}
+     * Fetch doctors by clinic ID for walk-in scheduling
+     * @param clinicId Clinic ID
+     * @return List of doctors for the specified clinic
+     */
+    @GetMapping("/staff/doctors/clinic/{clinicId}")
+    public ResponseEntity<List<com.clinic.management.dto.response.DoctorResponse>> getDoctorsByClinic(@PathVariable Long clinicId) {
+        List<Doctor> doctors = doctorRepository.findByClinicId(clinicId);
+        List<com.clinic.management.dto.response.DoctorResponse> responses = doctors.stream()
+            .map(com.clinic.management.dto.response.DoctorResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
     }
 
     // =========================
