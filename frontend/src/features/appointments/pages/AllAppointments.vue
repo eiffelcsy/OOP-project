@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Icon } from '@iconify/vue'
 
-
 // Composable
 const {
   allAppointments,
@@ -18,7 +17,9 @@ const {
   fetchAllAppointments,
   rescheduleAvailableSlots,
   bookingData, // timeslot generation
-  canModifyAppointment // 24h in advance check
+  canModifyAppointment, // 24h in advance check
+  getTimeRemaining,
+  isLessThan24Hours
 } = useAllAppointments()
 
 // Filters
@@ -112,6 +113,15 @@ const confirmReschedule = async () => {
   showReschedule.value = false
   alert("Appointment rescheduled successfully.")
 }
+
+// Add this function to your script section
+const getButtonTooltip = (appointmentDate: string, appointmentTime: string, action: 'cancel' | 'reschedule') => {
+  if (!canModifyAppointment(appointmentDate, appointmentTime)) {
+    const timeRemaining = getTimeRemaining(appointmentDate, appointmentTime)
+    return `Cannot ${action} - only ${timeRemaining} until appointment (requires 24h notice)`
+  }
+  return `${action.charAt(0).toUpperCase() + action.slice(1)} appointment`
+}
 </script>
 
 <template>
@@ -119,7 +129,7 @@ const confirmReschedule = async () => {
   <div class="p-8 space-y-6">
     <h1 class="text-3xl font-bold">All Upcoming Appointments</h1>
 
-    <!-- Filters -->
+    <!-- Filters (unchanged) -->
     <div class="flex flex-wrap gap-4 mb-6">
       <div class="w-64">
         <label class="block text-sm font-medium mb-1">Search</label>
@@ -152,34 +162,45 @@ const confirmReschedule = async () => {
     <div v-for="appt in filteredAppointments" :key="appt.id">
       <Card class="mb-4">
         <CardHeader class="flex justify-between items-center">
-          <div>
+          <div class="flex-1">
             <CardTitle>{{ appt.patientName }} - {{ appt.type }}</CardTitle>
             <p class="text-sm text-muted-foreground">
               {{ appt.date }} at {{ appt.time }} • Dr. {{ appt.doctorName }} ({{ appt.doctorSpecialty || '' }}) • {{
                 appt.clinicName }} <span v-if="appt.clinicType">({{ appt.clinicType }})</span>
             </p>
-            <Badge :class="{
-              'bg-gray-100 text-gray-800': appt.status === 'scheduled',
-              'bg-gray-200 text-gray-800': appt.status === 'checked-in',
-              'bg-gray-400 text-white': appt.status === 'completed',
-              'bg-red-200 text-red-800': appt.status === 'no-show',
-              'bg-yellow-200 text-yellow-800': appt.status === 'cancelled',
-              'bg-blue-200 text-blue-800': appt.status === 'rescheduled'
-            }">
-              {{ appt.status.replace('-', ' ').toUpperCase() }}
-            </Badge>
+
+            <!-- Status and time remaining (only show timer for appointments within 24h) -->
+            <div class="flex items-center gap-4 mt-2">
+              <Badge :class="{
+                'bg-gray-100 text-gray-800': appt.status === 'scheduled',
+                'bg-gray-200 text-gray-800': appt.status === 'checked-in',
+                'bg-gray-400 text-white': appt.status === 'completed',
+                'bg-red-200 text-red-800': appt.status === 'no-show',
+                'bg-yellow-200 text-yellow-800': appt.status === 'cancelled',
+                'bg-blue-200 text-blue-800': appt.status === 'rescheduled'
+              }">
+                {{ appt.status.replace('-', ' ').toUpperCase() }}
+              </Badge>
+
+              <!-- Only show countdown for appointments within 24 hours -->
+              <div
+                v-if="isLessThan24Hours(appt.date, appt.time) && appt.status !== 'completed' && appt.status !== 'cancelled'"
+                class="flex items-center gap-1 text-sm text-amber-600 font-medium">
+                <Icon icon="lucide:clock" class="w-4 h-4" />
+                <span>{{ getTimeRemaining(appt.date, appt.time) }} until appointment</span>
+              </div>
+            </div>
           </div>
+
           <div class="flex gap-2">
             <Button v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" @click="handleCancel(appt.id)"
               :disabled="!canModifyAppointment(appt.date, appt.time)"
-              :title="!canModifyAppointment(appt.date, appt.time) ? 'Cannot cancel within 24 hours of appointment' : ''"
-              variant="destructive" size="sm">
+              :title="getButtonTooltip(appt.date, appt.time, 'cancel')" variant="destructive" size="sm">
               Cancel
             </Button>
             <Button v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" @click="openReschedule(appt.id)"
               :disabled="!canModifyAppointment(appt.date, appt.time)"
-              :title="!canModifyAppointment(appt.date, appt.time) ? 'Cannot reschedule within 24 hours of appointment' : ''"
-              variant="outline" size="sm">
+              :title="getButtonTooltip(appt.date, appt.time, 'reschedule')" variant="outline" size="sm">
               Reschedule
             </Button>
           </div>

@@ -51,7 +51,7 @@ export function useAllAppointments() {
     date: null
   })
 
-  // Utility function to check if appointment can be modified (24 hours in advance)
+  // Returns true if there's more than or equal to 24 hours remaining -> can modify
   const canModifyAppointment = (appointmentDate: string, appointmentTime: string): boolean => {
     try {
       // Create appointment datetime in SGT
@@ -68,6 +68,55 @@ export function useAllAppointments() {
       return timeDifferenceHours >= 24
     } catch (err) {
       console.error('Error checking appointment modification eligibility:', err)
+      return false
+    }
+  }
+
+  // Utility function to get time remaining until appointment
+  const getTimeRemaining = (appointmentDate: string, appointmentTime: string): string => {
+    try {
+      // Create appointment datetime in SGT
+      const appointmentDateTimeSGT = new Date(`${appointmentDate}T${appointmentTime}:00+08:00`)
+
+      // Get current datetime in SGT
+      const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+
+      // Calculate difference in milliseconds
+      const timeDifferenceMs = appointmentDateTimeSGT.getTime() - nowSGT.getTime()
+
+      if (timeDifferenceMs <= 0) {
+        return 'Appointment time has passed'
+      }
+
+      // Convert to days, hours, minutes
+      const days = Math.floor(timeDifferenceMs / (1000 * 60 * 60 * 24))
+      const hours = Math.floor((timeDifferenceMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+      const minutes = Math.floor((timeDifferenceMs % (1000 * 60 * 60)) / (1000 * 60))
+
+      if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`
+      } else if (hours > 0) {
+        return `${hours}h ${minutes}m`
+      } else {
+        return `${minutes}m`
+      }
+    } catch (err) {
+      console.error('Error calculating time remaining:', err)
+      return 'Error calculating time'
+    }
+  }
+
+  // Checks if the appointment is WITHIN 24 hours -> used to show/hide the countdown timer
+  const isLessThan24Hours = (appointmentDate: string, appointmentTime: string): boolean => {
+    try {
+      const appointmentDateTimeSGT = new Date(`${appointmentDate}T${appointmentTime}:00+08:00`)
+      const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+      const timeDifferenceMs = appointmentDateTimeSGT.getTime() - nowSGT.getTime()
+      const timeDifferenceHours = timeDifferenceMs / (1000 * 60 * 60)
+
+      return timeDifferenceHours < 24
+    } catch (err) {
+      console.error('Error checking 24-hour window:', err)
       return false
     }
   }
@@ -455,6 +504,8 @@ export function useAllAppointments() {
     cancelAppointment,
     bookingData,
     onDateChange,
-    canModifyAppointment
+    canModifyAppointment,
+    isLessThan24Hours,
+    getTimeRemaining
   }
 }
