@@ -18,8 +18,7 @@ const {
   rescheduleAvailableSlots,
   bookingData, // timeslot generation
   canModifyAppointment, // 24h in advance check
-  getTimeRemaining,
-  isLessThan24Hours
+  getTimeRemaining
 } = useAllAppointments()
 
 // Filters
@@ -169,7 +168,7 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
                 appt.clinicName }} <span v-if="appt.clinicType">({{ appt.clinicType }})</span>
             </p>
 
-            <!-- Status and time remaining (only show timer for appointments within 24h) -->
+            <!-- Status and time remaining (only show timer when cannot modify) -->
             <div class="flex items-center gap-4 mt-2">
               <Badge :class="{
                 'bg-gray-100 text-gray-800': appt.status === 'scheduled',
@@ -182,9 +181,9 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
                 {{ appt.status.replace('-', ' ').toUpperCase() }}
               </Badge>
 
-              <!-- Only show countdown for appointments within 24 hours -->
+              <!-- Only show countdown when buttons are disabled (within 24 hours) -->
               <div
-                v-if="isLessThan24Hours(appt.date, appt.time) && appt.status !== 'completed' && appt.status !== 'cancelled'"
+                v-if="!canModifyAppointment(appt.date, appt.time) && appt.status !== 'completed' && appt.status !== 'cancelled'"
                 class="flex items-center gap-1 text-sm text-amber-600 font-medium">
                 <Icon icon="lucide:clock" class="w-4 h-4" />
                 <span>{{ getTimeRemaining(appt.date, appt.time) }} until appointment</span>
