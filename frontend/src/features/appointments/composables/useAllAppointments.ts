@@ -85,7 +85,18 @@ export function useAllAppointments() {
         throw new Error(`HTTP ${response.status}: ${await response.text()}`)
       }
 
-      return await response.json()
+      // Handle empty responses (common for DELETE operations)
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return null // Return null for empty responses
+      }
+
+      // Only parse JSON if there's content
+      const contentType = response.headers.get('content-type')
+      if (contentType && contentType.includes('application/json')) {
+        return await response.json()
+      }
+
+      return await response.text()
     } catch (err) {
       console.error('API call failed:', err)
       throw err
@@ -209,21 +220,35 @@ export function useAllAppointments() {
     try {
       error.value = null
 
-      const appointment = allAppointments.value.find(apt => apt.id === appointmentId)
-      if (!appointment) {
+      const appointmentIndex = allAppointments.value.findIndex(apt => apt.id === appointmentId)
+      if (appointmentIndex === -1) {
         throw new Error('Appointment not found')
       }
 
+      const appointment = allAppointments.value[appointmentIndex]
+
+      // Check if appointment can be cancelled (24 hours in advance)
+      if (!canModifyAppointment(appointment.date, appointment.time)) {
+        error.value = 'Appointments can only be cancelled at least 24 hours in advance'
+        return false
+      }
+
+      // This might return null (empty response), but that's OK for DELETE
       await fetchWithErrorHandling(`http://localhost:8080/api/appointments/${appointmentId}`, {
         method: 'DELETE'
       })
 
-      // Update local state
-      appointment.status = 'cancelled'
+      // Update local state for real-time UI
+      allAppointments.value[appointmentIndex] = {
+        ...appointment,
+        status: 'cancelled'
+      }
+
+      console.log('Appointment cancelled successfully')
       return true
     } catch (err) {
       console.error('Cancel appointment failed:', err)
-      error.value = 'Failed to cancel appointment'
+      error.value = 'Failed to cancel appointment: ' + (err instanceof Error ? err.message : 'Unknown error')
       return false
     }
   }

@@ -76,11 +76,13 @@ const handleCancel = async (appointmentId: number) => {
   const confirmed = confirm(`Are you sure you want to cancel the appointment for ${appt.patientName}?`)
   if (confirmed) {
     const success = await cancelAppointment(appointmentId)
-    if (!success) {
+    if (success) {
+      // Success - UI should update automatically
+      console.log('Appointment cancelled successfully')
+    } else {
       // Show error message from composable
-      alert('Failed to cancel appointment')
+      alert('Failed to cancel appointment: ' + (error.value || 'Unknown error'))
     }
-    // No need to refresh - UI updates in real-time
   }
 }
 
