@@ -84,7 +84,9 @@ public class StaffController {
     private final ClinicRepository clinicRepository;
 
     @Autowired
-    public StaffController(AppointmentService appointmentService, QueueService queueService, QueueTicketService queueTicketService, ProfileRepository profileRepository, PatientRepository patientRepository, DoctorRepository doctorRepository, ClinicRepository clinicRepository) {
+    public StaffController(AppointmentService appointmentService, QueueService queueService,
+            QueueTicketService queueTicketService, ProfileRepository profileRepository,
+            PatientRepository patientRepository, DoctorRepository doctorRepository, ClinicRepository clinicRepository) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
@@ -109,11 +111,13 @@ public class StaffController {
 
     /**
      * Get today's appointments for a clinic with enriched data
-     * This endpoint returns appointments with patient names, doctor names, clinic info, etc.
-     * Filters appointments to only show those scheduled for today (in Asia/Singapore timezone)
+     * This endpoint returns appointments with patient names, doctor names, clinic
+     * info, etc.
+     * Filters appointments to only show those scheduled for today (in
+     * Asia/Singapore timezone)
      * 
      * GET /api/staff/appointments/today/{clinicId}
-     *  
+     * 
      * @param clinicId Clinic ID
      * @return List of enriched appointments for today
      */
@@ -122,86 +126,87 @@ public class StaffController {
         // Get today's date in clinic timezone (Asia/Singapore)
         ZonedDateTime nowInClinicZone = ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE);
         LocalDate today = nowInClinicZone.toLocalDate();
-        
+
         // Fetch all appointments for the clinic
         List<Appointment> allAppointments = appointmentService.getAppointments(null, clinicId, null);
-        
+
         // Filter to today's appointments (comparing dates in clinic timezone)
         List<Appointment> todaysAppointments = allAppointments.stream()
-            .filter(appt -> {
-                if (appt.getStartTime() == null) return false;
-                ZonedDateTime apptInClinicZone = appt.getStartTime().atZoneSameInstant(TimezoneConfig.CLINIC_ZONE);
-                LocalDate apptDate = apptInClinicZone.toLocalDate();
-                return apptDate.equals(today);
-            })
-            .collect(Collectors.toList());
-        
+                .filter(appt -> {
+                    if (appt.getStartTime() == null)
+                        return false;
+                    ZonedDateTime apptInClinicZone = appt.getStartTime().atZoneSameInstant(TimezoneConfig.CLINIC_ZONE);
+                    LocalDate apptDate = apptInClinicZone.toLocalDate();
+                    return apptDate.equals(today);
+                })
+                .collect(Collectors.toList());
+
         // Collect all unique IDs we need to fetch
         List<Long> patientIds = todaysAppointments.stream()
-            .map(Appointment::getPatientId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-        
+                .map(Appointment::getPatientId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
         List<Long> doctorIds = todaysAppointments.stream()
-            .map(Appointment::getDoctorId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-        
+                .map(Appointment::getDoctorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
         List<Long> clinicIds = todaysAppointments.stream()
-            .map(Appointment::getClinicId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-        
+                .map(Appointment::getClinicId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
         // Fetch all related entities in bulk
         List<Patient> patients = patientIds.isEmpty() ? List.of() : patientRepository.findByIdIn(patientIds);
         List<Doctor> doctors = doctorIds.isEmpty() ? List.of() : doctorRepository.findAllById(doctorIds);
         List<Clinic> clinics = clinicIds.isEmpty() ? List.of() : clinicRepository.findAllById(clinicIds);
-        
+
         // Build patient ID -> user ID mapping
         Map<Long, String> patientIdToUserId = patients.stream()
-            .filter(p -> p.getUserId() != null)
-            .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
-        
+                .filter(p -> p.getUserId() != null)
+                .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
+
         // Fetch profiles for all user IDs
         List<String> userIds = patients.stream()
-            .map(Patient::getUserId)
-            .filter(Objects::nonNull)
-            .distinct()
-            .collect(Collectors.toList());
-        
+                .map(Patient::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
         List<Profile> profiles = userIds.isEmpty() ? List.of() : profileRepository.findByUserIdIn(userIds);
-        
+
         // Build lookup maps for efficient access
         Map<Long, Patient> patientMap = patients.stream()
-            .collect(Collectors.toMap(Patient::getId, p -> p));
-        
+                .collect(Collectors.toMap(Patient::getId, p -> p));
+
         Map<String, Profile> profileMap = profiles.stream()
-            .collect(Collectors.toMap(Profile::getUserId, p -> p));
-        
+                .collect(Collectors.toMap(Profile::getUserId, p -> p));
+
         Map<Long, Doctor> doctorMap = doctors.stream()
-            .collect(Collectors.toMap(Doctor::getDoctorId, d -> d));
-        
+                .collect(Collectors.toMap(Doctor::getDoctorId, d -> d));
+
         Map<Long, Clinic> clinicMap = clinics.stream()
-            .collect(Collectors.toMap(Clinic::getId, c -> c));
-        
+                .collect(Collectors.toMap(Clinic::getId, c -> c));
+
         // Build enriched responses
         List<StaffAppointmentResponse> responses = todaysAppointments.stream()
-            .map(appt -> {
-                Patient patient = patientMap.get(appt.getPatientId());
-                Profile profile = null;
-                if (patient != null && patient.getUserId() != null) {
-                    profile = profileMap.get(patient.getUserId());
-                }
-                Doctor doctor = doctorMap.get(appt.getDoctorId());
-                Clinic clinic = clinicMap.get(appt.getClinicId());
-                
-                return StaffAppointmentResponse.from(appt, patient, profile, doctor, clinic);
-            })
-            .collect(Collectors.toList());
-        
+                .map(appt -> {
+                    Patient patient = patientMap.get(appt.getPatientId());
+                    Profile profile = null;
+                    if (patient != null && patient.getUserId() != null) {
+                        profile = profileMap.get(patient.getUserId());
+                    }
+                    Doctor doctor = doctorMap.get(appt.getDoctorId());
+                    Clinic clinic = clinicMap.get(appt.getClinicId());
+
+                    return StaffAppointmentResponse.from(appt, patient, profile, doctor, clinic);
+                })
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(responses);
     }
 
@@ -214,7 +219,8 @@ public class StaffController {
     // # ScheduleWalkIn
     @PostMapping("/appointments")
     public ResponseEntity<Appointment> addAppointment(@RequestBody Appointment appointment) {
-        // Expect appointment.startTime and appointment.endTime to be provided (ISO timestamptz)
+        // Expect appointment.startTime and appointment.endTime to be provided (ISO
+        // timestamptz)
         Appointment saved = appointmentService.addAppointment(appointment);
         boolean queued = appointmentService.isEmailConfigured();
         return ResponseEntity.status(HttpStatus.CREATED).header("X-Email-Queued", String.valueOf(queued)).body(saved);
@@ -222,20 +228,36 @@ public class StaffController {
 
     // # ManagementAppointments - Reschedule
     @PutMapping("/appointments/{id}")
-    public Appointment rescheduleAppointment(
+    public ResponseEntity<?> rescheduleAppointment(
             @PathVariable Long id,
-            @RequestParam(required = false) Long newTimeSlotId,
             @RequestParam(required = false) String newStartTime,
             @RequestParam(required = false) String newEndTime) {
-        if (newStartTime != null && newEndTime != null) {
-            OffsetDateTime s = OffsetDateTime.parse(newStartTime);
-            OffsetDateTime e = OffsetDateTime.parse(newEndTime);
-            return appointmentService.rescheduleAppointment(id, s, e);
+
+        try {
+            System.out.println("=== CONTROLLER RESCHEDULE ===");
+            System.out.println("Appointment ID: " + id);
+            System.out.println("newStartTime: " + newStartTime);
+            System.out.println("newEndTime: " + newEndTime);
+
+            if (newStartTime != null && newEndTime != null) {
+                // Parse the timestamps - they should be in UTC
+                OffsetDateTime start = OffsetDateTime.parse(newStartTime);
+                OffsetDateTime end = OffsetDateTime.parse(newEndTime);
+
+                System.out.println("Calling service with timestamps: " + start + " to " + end);
+
+                Appointment updated = appointmentService.rescheduleAppointment(id, start, end);
+                return ResponseEntity.ok(updated);
+            }
+
+            throw new IllegalArgumentException("newStartTime and newEndTime are required");
+        } catch (Exception e) {
+            System.out.println("Controller error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to reschedule appointment",
+                    "message", e.getMessage()));
         }
-        if (newTimeSlotId != null) {
-            return appointmentService.rescheduleAppointment(id, newTimeSlotId);
-        }
-        throw new IllegalArgumentException("Provide either newTimeSlotId or newStartTime and newEndTime");
     }
 
     // # ManagementAppointments - Cancel
@@ -396,30 +418,30 @@ public class StaffController {
     @GetMapping("/staff/queues/{queueId}/tickets")
     public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
         List<QueueTicket> tickets = queueTicketService.list(queueId);
-        
-    // Collect patient IDs via appointment.patientId then resolve to user IDs
-    List<Long> patientIds = tickets.stream()
-        .map(QueueTicket::getAppointment)
-        .filter(Objects::nonNull)
-        .map(Appointment::getPatientId)
-        .filter(Objects::nonNull)
-        .distinct()
-        .collect(Collectors.toList());
 
-    Map<Long, String> patientIdToUserId = patientRepository.findByIdIn(patientIds).stream()
-        .filter(p -> p.getUserId() != null)
-        .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
+        // Collect patient IDs via appointment.patientId then resolve to user IDs
+        List<Long> patientIds = tickets.stream()
+                .map(QueueTicket::getAppointment)
+                .filter(Objects::nonNull)
+                .map(Appointment::getPatientId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
 
-    List<String> userIds = patientIds.stream()
-        .map(patientIdToUserId::get)
-        .filter(Objects::nonNull)
-        .distinct()
-        .collect(Collectors.toList());
-        
+        Map<Long, String> patientIdToUserId = patientRepository.findByIdIn(patientIds).stream()
+                .filter(p -> p.getUserId() != null)
+                .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
+
+        List<String> userIds = patientIds.stream()
+                .map(patientIdToUserId::get)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
         // Fetch all profiles in one query
         Map<String, String> userIdToNameMap = profileRepository.findByUserIdIn(userIds).stream()
                 .collect(Collectors.toMap(Profile::getUserId, Profile::getFullName));
-        
+
         // Convert tickets to responses and enrich with patient names
         List<QueueTicketResponse> responses = tickets.stream()
                 .map(ticket -> {
@@ -430,7 +452,8 @@ public class StaffController {
                         String uid = patientIdToUserId.get(pid);
                         if (uid != null) {
                             String patientName = userIdToNameMap.get(uid);
-                            response.setPatientName(patientName != null ? patientName : (pid != null ? "Patient #" + pid : "Walk-in"));
+                            response.setPatientName(
+                                    patientName != null ? patientName : (pid != null ? "Patient #" + pid : "Walk-in"));
                         } else {
                             response.setPatientName(pid != null ? "Patient #" + pid : "Walk-in");
                         }
@@ -440,7 +463,7 @@ public class StaffController {
                     return response;
                 })
                 .collect(Collectors.toList());
-        
+
         return ResponseEntity.ok(responses);
     }
 
@@ -449,7 +472,8 @@ public class StaffController {
      * PUT /api/queue-tickets/{id}
      */
     @PutMapping("/queue-tickets/{id}")
-    public ResponseEntity<QueueTicketResponse> updateQueueTicket(@PathVariable Long id, @Valid @RequestBody UpdateQueueTicketRequest request) {
+    public ResponseEntity<QueueTicketResponse> updateQueueTicket(@PathVariable Long id,
+            @Valid @RequestBody UpdateQueueTicketRequest request) {
         var updated = queueTicketService.update(id, request);
         return ResponseEntity.ok(QueueTicketResponse.from(updated));
     }

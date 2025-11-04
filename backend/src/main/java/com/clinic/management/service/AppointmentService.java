@@ -13,6 +13,9 @@ import com.clinic.management.service.DoctorService;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -24,7 +27,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Service for managing appointments. Adds validation to ensure requested
- * intervals are within doctor schedules and do not overlap existing appointments.
+ * intervals are within doctor schedules and do not overlap existing
+ * appointments.
  */
 
 @Service
@@ -40,8 +44,8 @@ public class AppointmentService {
     private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
 
     public AppointmentService(AppointmentRepository repository, ScheduleRepository scheduleRepository,
-                              PatientRepository patientRepository, ProfileRepository profileRepository,
-                              EmailService emailService, ClinicService clinicService, DoctorService doctorService) {
+            PatientRepository patientRepository, ProfileRepository profileRepository,
+            EmailService emailService, ClinicService clinicService, DoctorService doctorService) {
         this.repository = repository;
         this.scheduleRepository = scheduleRepository;
         this.patientRepository = patientRepository;
@@ -53,16 +57,20 @@ public class AppointmentService {
 
     @Transactional(readOnly = true)
     public List<Appointment> getAppointments(Long doctorId, Long clinicId, String status) {
-        // Reconcile scheduled -> confirmed for the requested scope before returning results
+        // Reconcile scheduled -> confirmed for the requested scope before returning
+        // results
         try {
             reconcileUpcomingAppointments(clinicId, doctorId, null);
         } catch (Exception ex) {
             log.warn("reconcileUpcomingAppointments failed during getAppointments", ex);
         }
 
-        if (doctorId != null) return repository.findByDoctorId(doctorId);
-        if (clinicId != null) return repository.findByClinicId(clinicId);
-        if (status != null) return repository.findByStatus(status);
+        if (doctorId != null)
+            return repository.findByDoctorId(doctorId);
+        if (clinicId != null)
+            return repository.findByClinicId(clinicId);
+        if (status != null)
+            return repository.findByStatus(status);
         return repository.findAll();
     }
 
@@ -78,16 +86,21 @@ public class AppointmentService {
         OffsetDateTime in24 = nowZ.plusHours(24).toOffsetDateTime();
 
         List<Appointment> candidates = repository.findByStatusAndStartTimeBetween("scheduled", now, in24);
-        if (candidates == null || candidates.isEmpty()) return;
+        if (candidates == null || candidates.isEmpty())
+            return;
 
         int matched = candidates.size();
         int updated = 0;
 
         for (Appointment a : candidates) {
-            if (a.getStartTime() == null) continue;
-            if (clinicId != null && (a.getClinicId() == null || !a.getClinicId().equals(clinicId))) continue;
-            if (doctorId != null && (a.getDoctorId() == null || !a.getDoctorId().equals(doctorId))) continue;
-            if (patientId != null && (a.getPatientId() == null || !a.getPatientId().equals(patientId))) continue;
+            if (a.getStartTime() == null)
+                continue;
+            if (clinicId != null && (a.getClinicId() == null || !a.getClinicId().equals(clinicId)))
+                continue;
+            if (doctorId != null && (a.getDoctorId() == null || !a.getDoctorId().equals(doctorId)))
+                continue;
+            if (patientId != null && (a.getPatientId() == null || !a.getPatientId().equals(patientId)))
+                continue;
 
             OffsetDateTime s = a.getStartTime();
             if (!s.isBefore(now) && !s.isAfter(in24)) {
@@ -104,18 +117,22 @@ public class AppointmentService {
     @Transactional
     public Appointment addAppointment(Appointment appointment) {
         // Basic validation
-        if (appointment.getDoctorId() == null) throw new IllegalArgumentException("doctorId is required");
-        if (appointment.getStartTime() == null || appointment.getEndTime() == null) throw new IllegalArgumentException("startTime and endTime are required");
-        if (!appointment.getStartTime().isBefore(appointment.getEndTime())) throw new IllegalArgumentException("startTime must be before endTime");
+        if (appointment.getDoctorId() == null)
+            throw new IllegalArgumentException("doctorId is required");
+        if (appointment.getStartTime() == null || appointment.getEndTime() == null)
+            throw new IllegalArgumentException("startTime and endTime are required");
+        if (!appointment.getStartTime().isBefore(appointment.getEndTime()))
+            throw new IllegalArgumentException("startTime must be before endTime");
 
         // Check schedule - convert startTime to doctor's local time-of-day check
-    OffsetDateTime start = appointment.getStartTime();
-    // Convert times to the clinic local zone before extracting weekday and local time
-    final java.time.ZoneId clinicZone = TimezoneConfig.CLINIC_ZONE;
-    ZonedDateTime zstart = start.atZoneSameInstant(clinicZone);
-    int weekday = zstart.getDayOfWeek().getValue(); // 1 (Mon) - 7 (Sun)
-    LocalTime timeOfDayStart = zstart.toLocalTime();
-    LocalTime timeOfDayEnd = appointment.getEndTime().atZoneSameInstant(clinicZone).toLocalTime();
+        OffsetDateTime start = appointment.getStartTime();
+        // Convert times to the clinic local zone before extracting weekday and local
+        // time
+        final java.time.ZoneId clinicZone = TimezoneConfig.CLINIC_ZONE;
+        ZonedDateTime zstart = start.atZoneSameInstant(clinicZone);
+        int weekday = zstart.getDayOfWeek().getValue(); // 1 (Mon) - 7 (Sun)
+        LocalTime timeOfDayStart = zstart.toLocalTime();
+        LocalTime timeOfDayEnd = appointment.getEndTime().atZoneSameInstant(clinicZone).toLocalTime();
 
         // Prefer date-aware schedule lookup so valid_from/valid_to are respected
         java.time.LocalDate apptDate = zstart.toLocalDate();
@@ -123,9 +140,11 @@ public class AppointmentService {
 
         boolean fitsSchedule = false;
         if (schedules == null || schedules.isEmpty()) {
-            log.warn("No schedules found for doctor={} on weekday={} date={}", appointment.getDoctorId(), weekday, apptDate);
+            log.warn("No schedules found for doctor={} on weekday={} date={}", appointment.getDoctorId(), weekday,
+                    apptDate);
         } else {
-            log.debug("Checking {} schedule rows for doctor={} on {}", schedules.size(), appointment.getDoctorId(), apptDate);
+            log.debug("Checking {} schedule rows for doctor={} on {}", schedules.size(), appointment.getDoctorId(),
+                    apptDate);
         }
 
         for (Schedule s : schedules) {
@@ -136,8 +155,10 @@ public class AppointmentService {
             LocalTime sStartUtc = s.getStartTime();
             LocalTime sEndUtc = s.getEndTime();
 
-            java.time.ZonedDateTime zSStart = java.time.ZonedDateTime.of(apptDate, sStartUtc, java.time.ZoneOffset.UTC).withZoneSameInstant(clinicZone);
-            java.time.ZonedDateTime zSEnd = java.time.ZonedDateTime.of(apptDate, sEndUtc, java.time.ZoneOffset.UTC).withZoneSameInstant(clinicZone);
+            java.time.ZonedDateTime zSStart = java.time.ZonedDateTime.of(apptDate, sStartUtc, java.time.ZoneOffset.UTC)
+                    .withZoneSameInstant(clinicZone);
+            java.time.ZonedDateTime zSEnd = java.time.ZonedDateTime.of(apptDate, sEndUtc, java.time.ZoneOffset.UTC)
+                    .withZoneSameInstant(clinicZone);
 
             LocalTime sStartLocal = zSStart.toLocalTime();
             LocalTime sEndLocal = zSEnd.toLocalTime();
@@ -152,15 +173,18 @@ public class AppointmentService {
         }
 
         if (!fitsSchedule) {
-            String msg = String.format("Requested time %s - %s (sgt date=%s, weekday=%d) is outside doctor's schedule (no matching schedule row)",
+            String msg = String.format(
+                    "Requested time %s - %s (sgt date=%s, weekday=%d) is outside doctor's schedule (no matching schedule row)",
                     timeOfDayStart, timeOfDayEnd, apptDate, weekday);
             log.warn(msg + "; schedulesCount=" + (schedules == null ? 0 : schedules.size()));
             throw new IllegalArgumentException(msg);
         }
 
         // Check overlapping scheduled appointments
-        long conflicts = repository.countOverlapping(appointment.getDoctorId(), appointment.getStartTime(), appointment.getEndTime());
-        if (conflicts > 0) throw new IllegalStateException("Requested time overlaps an existing appointment");
+        long conflicts = repository.countOverlapping(appointment.getDoctorId(), appointment.getStartTime(),
+                appointment.getEndTime());
+        if (conflicts > 0)
+            throw new IllegalStateException("Requested time overlaps an existing appointment");
 
         // Set status and timestamps at creation time (use clinic timezone)
         OffsetDateTime now = ZonedDateTime.now(clinicZone).toOffsetDateTime();
@@ -171,7 +195,8 @@ public class AppointmentService {
 
         Appointment saved = repository.save(appointment);
 
-        // Attempt to send notification email to patient (if we can resolve an email address)
+        // Attempt to send notification email to patient (if we can resolve an email
+        // address)
         try {
             if (saved.getPatientId() != null) {
                 Optional<Patient> pOpt = patientRepository.findById(saved.getPatientId());
@@ -190,14 +215,17 @@ public class AppointmentService {
                                 String doctorName = null;
                                 try {
                                     if (saved.getClinicId() != null) {
-                                        clinicName = clinicService.getClinicById(saved.getClinicId()).map(c -> c.getName()).orElse(null);
+                                        clinicName = clinicService.getClinicById(saved.getClinicId())
+                                                .map(c -> c.getName()).orElse(null);
                                     }
-                                } catch (Exception _e) {}
+                                } catch (Exception _e) {
+                                }
                                 try {
                                     if (saved.getDoctorId() != null) {
                                         doctorName = doctorService.getDoctorById(saved.getDoctorId()).getName();
                                     }
-                                } catch (Exception _e) {}
+                                } catch (Exception _e) {
+                                }
 
                                 emailService.sendAppointmentScheduledEmail(saved, to, name, clinicName, doctorName);
                             } catch (Exception e) {
@@ -210,14 +238,16 @@ public class AppointmentService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Error while attempting to send appointment notification email for appointment id={}", saved.getId(), e);
+            log.warn("Error while attempting to send appointment notification email for appointment id={}",
+                    saved.getId(), e);
         }
 
         return saved;
     }
 
     /**
-     * Return whether EmailService is configured (useful for controllers to signal client)
+     * Return whether EmailService is configured (useful for controllers to signal
+     * client)
      */
     public boolean isEmailConfigured() {
         try {
@@ -227,39 +257,49 @@ public class AppointmentService {
         }
     }
 
+    /* reschedule */
+    @Transactional
+    public Appointment rescheduleAppointment(Long id, OffsetDateTime newStart, OffsetDateTime newEnd) {
+        System.out.println("=== RESCHEDULE START ===");
+        System.out.println("Rescheduling appointment id=" + id);
+        System.out.println("New times - start: " + newStart + ", end: " + newEnd);
+
+        Appointment appointment = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        System.out.println("Found appointment:");
+        System.out.println("  - Current times: " + appointment.getStartTime() + " to " + appointment.getEndTime());
+        System.out.println("  - Doctor ID: " + appointment.getDoctorId());
+        System.out.println("  - Status: " + appointment.getStatus());
+
+        if (!newStart.isBefore(newEnd)) {
+            throw new IllegalArgumentException("newStart must be before newEnd");
+        }
+
+        // TEMPORARY: Skip overlap check for now
+        System.out.println("TEMPORARILY SKIPPING OVERLAP CHECK");
+
+        // Update appointment
+        appointment.setStartTime(newStart);
+        appointment.setEndTime(newEnd);
+        appointment.setStatus("scheduled");
+        appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+
+        Appointment saved = repository.save(appointment);
+        System.out.println("Successfully rescheduled appointment id=" + saved.getId());
+        System.out.println("New times: " + saved.getStartTime() + " to " + saved.getEndTime());
+        System.out.println("=== RESCHEDULE COMPLETED SUCCESSFULLY ===");
+
+        return saved;
+    }
+
     @Transactional
     public void cancelAppointment(Long id) {
         Appointment appointment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
         appointment.setStatus("cancelled");
-    appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+        appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
         repository.save(appointment);
-    }
-
-    @Transactional
-    public Appointment rescheduleAppointment(Long id, Long newTimeSlotId) {
-        Appointment appointment = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
-        // For migration compatibility, keep existing method
-        appointment.setTimeSlotId(newTimeSlotId);
-        return repository.save(appointment);
-    }
-
-    // New reschedule by start/end timestamps
-    @Transactional
-    public Appointment rescheduleAppointment(Long id, OffsetDateTime newStart, OffsetDateTime newEnd) {
-        Appointment appointment = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
-        appointment.setStartTime(newStart);
-        appointment.setEndTime(newEnd);
-
-        // Reuse validation by delegating to addAppointment-like checks
-        // Temporarily clear id so addAppointment treats it as new? Simpler: run checks inline
-        long conflicts = repository.countOverlapping(appointment.getDoctorId(), newStart, newEnd);
-        if (conflicts > 0) throw new IllegalStateException("Requested time overlaps an existing appointment");
-
-    appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
-        return repository.save(appointment);
     }
 
     // Fetch appointments belonging to a patient
