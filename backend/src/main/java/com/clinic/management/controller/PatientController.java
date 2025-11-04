@@ -3,14 +3,19 @@ package com.clinic.management.controller;
 import com.clinic.management.model.Clinic;
 import com.clinic.management.model.Patient;
 import com.clinic.management.service.PatientService;
+import com.clinic.management.service.QueueService;
 import com.clinic.management.dto.response.ClinicResponse;
+import com.clinic.management.dto.response.PatientQueueResponse;
+import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.service.ClinicService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,9 +25,9 @@ import org.slf4j.LoggerFactory;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.DoctorService;
+import com.clinic.management.service.PatientQueueService;
 import com.clinic.management.dto.response.AppointmentResponse;
 import com.clinic.management.model.Doctor;
-import java.util.Optional;
 
 
 
@@ -37,12 +42,14 @@ public class PatientController {
     private final PatientService patientService;
     private final AppointmentService appointmentService;
     private final DoctorService doctorService;
+    private final PatientQueueService patientQueueService;
 
-    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService, DoctorService doctorService) {
+    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService, DoctorService doctorService, PatientQueueService patientQueueService) {
         this.clinicService = clinicService;
         this.patientService = patientService;
         this.appointmentService = appointmentService;
         this.doctorService = doctorService;
+        this.patientQueueService = patientQueueService;
     }
 
     /**
@@ -72,7 +79,30 @@ public class PatientController {
         return ResponseEntity.ok(responses);
     }
 
-    
+    /**
+     * GET /api/patient/{patientId}/queue
+     * Get patient's current queue information
+     */
+    @GetMapping("/{patientId}/queue")
+    public ResponseEntity<?> getPatientQueueInfo(@PathVariable Long patientId) {
+        try {
+            log.info("Received request for patient queue info. PatientId: {}", patientId);
+            
+            PatientQueueResponse queueInfo = patientQueueService.getPatientQueueInfo(patientId);
+            log.info("Queue info retrieved: {}", queueInfo != null ? "found" : "not found");
+            
+            if (queueInfo == null) {
+                return ResponseEntity.ok()
+                    .body(Map.of("message", "No active queue tickets found for patient"));
+            }
+            return ResponseEntity.ok(queueInfo);
+        } catch (Exception e) {
+            log.error("getPatientQueueInfo: error fetching queue info for patient {}", patientId, e);
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+
     /**
      * Get all patients
      */
