@@ -135,14 +135,18 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
         <Input v-model="searchQuery" placeholder="Search patient..." class="w-full h-10" />
       </div>
 
-      <div>
+      <div class="relative">
         <label class="block text-sm font-medium mb-1">Doctor</label>
-        <select v-model="selectedDoctor" class="h-10 border rounded-md px-2">
+        <select v-model="selectedDoctor"
+          class="h-10 border rounded-md px-3 pr-10 appearance-none bg-white w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all">
           <option value="all">All Doctors</option>
           <option v-for="doc in doctors" :key="doc.id" :value="doc.id">
             {{ doc.name }} ({{ doc.specialty }})
           </option>
         </select>
+        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 pt-6">
+          <Icon icon="lucide:chevron-down" class="h-4 w-4 text-gray-400" />
+        </div>
       </div>
 
       <div>
