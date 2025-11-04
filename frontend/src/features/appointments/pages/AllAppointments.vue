@@ -87,14 +87,18 @@ const openReschedule = (appointmentId: number) => {
   rescheduleAppointmentId.value = appointmentId
   rescheduleDate.value = appt.date
   rescheduleTime.value = appt.time
+  // Set doctor automatically
+  const doctor = doctors.value.find(d => d.id === appt.doctorId) ?? null
   rescheduleDoctorId.value = appt.doctorId
+  bookingData.value = { doctor, date: appt.date }
   showReschedule.value = true
 }
+
 
 // Confirm reschedule
 const confirmReschedule = async () => {
   if (!rescheduleAppointmentId.value || !rescheduleDoctorId.value) return
-  await rescheduleAppointment(rescheduleAppointmentId.value, rescheduleDoctorId.value, rescheduleDate.value, rescheduleTime.value)
+  await rescheduleAppointment(rescheduleAppointmentId.value, rescheduleDate.value, rescheduleTime.value)
   showReschedule.value = false
   alert("Appointment rescheduled successfully.")
 }
@@ -183,35 +187,21 @@ const confirmReschedule = async () => {
 
         <div class="space-y-6">
           <!-- Step 1: Doctor Selection -->
+          <!-- Doctor is fixed, display only -->
           <div class="space-y-3">
             <div class="flex items-center gap-2">
               <div
                 class="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
                 1
               </div>
-              <h3 class="text-lg font-semibold">Choose Your Doctor</h3>
+              <h3 class="text-lg font-semibold">Doctor</h3>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
-              <div v-for="doctor in doctors.filter(d => d.active)" :key="doctor.id"
-                class="relative cursor-pointer rounded-lg border-2 p-4"
-                :class="rescheduleDoctorId === doctor.id ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'"
-                @click="rescheduleDoctorId = doctor.id; rescheduleTime = ''">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex-1 min-w-0">
-                    <span class="font-semibold text-base truncate">{{ doctor.name }}</span>
-                    <p class="text-sm text-muted-foreground">{{ doctor.specialty }}</p>
-                  </div>
-                  <div class="shrink-0">
-                    <div class="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-                      :class="rescheduleDoctorId === doctor.id ? 'border-primary bg-primary' : 'border-muted-foreground/30'">
-                      <div v-if="rescheduleDoctorId === doctor.id" class="w-2 h-2 rounded-full bg-primary-foreground">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="p-4 border rounded-lg bg-gray-50">
+              <p class="font-semibold">{{ bookingData.doctor?.name }}</p>
+              <p class="text-sm text-muted-foreground">{{ bookingData.doctor?.specialty }}</p>
             </div>
           </div>
+
 
           <!-- Step 2: Date & Time Selection -->
           <div v-if="rescheduleDoctorId" class="space-y-6">
