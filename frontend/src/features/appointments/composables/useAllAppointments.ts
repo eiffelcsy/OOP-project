@@ -51,6 +51,27 @@ export function useAllAppointments() {
     date: null
   })
 
+  // Utility function to check if appointment can be modified (24 hours in advance)
+  const canModifyAppointment = (appointmentDate: string, appointmentTime: string): boolean => {
+    try {
+      // Create appointment datetime in SGT
+      const appointmentDateTimeSGT = new Date(`${appointmentDate}T${appointmentTime}:00+08:00`)
+
+      // Get current datetime in SGT
+      const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+
+      // Calculate difference in hours
+      const timeDifferenceMs = appointmentDateTimeSGT.getTime() - nowSGT.getTime()
+      const timeDifferenceHours = timeDifferenceMs / (1000 * 60 * 60)
+
+      // Allow modification if more than 24 hours in advance
+      return timeDifferenceHours >= 24
+    } catch (err) {
+      console.error('Error checking appointment modification eligibility:', err)
+      return false
+    }
+  }
+
   // Utility function for API calls with error handling
   const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
     try {
@@ -206,6 +227,7 @@ export function useAllAppointments() {
       return false
     }
   }
+
 
   // --- Generate timeslots ---
   const generateTimeSlots = async (doctorId: number, selectedDate: DateValue | string) => {
@@ -407,6 +429,7 @@ export function useAllAppointments() {
     rescheduleAppointment,
     cancelAppointment,
     bookingData,
-    onDateChange
+    onDateChange,
+    canModifyAppointment
   }
 }

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Icon } from '@iconify/vue'
 
+
 // Composable
 const {
   allAppointments,
@@ -16,7 +17,8 @@ const {
   rescheduleAppointment,
   fetchAllAppointments,
   rescheduleAvailableSlots,
-  bookingData // <-- use this for reactive timeslot generation
+  bookingData, // timeslot generation
+  canModifyAppointment // 24h in advance check
 } = useAllAppointments()
 
 // Filters
@@ -70,9 +72,15 @@ const filteredAppointments = computed(() => {
 const handleCancel = async (appointmentId: number) => {
   const appt = allAppointments.value.find(a => a.id === appointmentId)
   if (!appt) return
+
   const confirmed = confirm(`Are you sure you want to cancel the appointment for ${appt.patientName}?`)
   if (confirmed) {
-    await cancelAppointment(appointmentId)
+    const success = await cancelAppointment(appointmentId)
+    if (!success) {
+      // Show error message from composable
+      alert('Failed to cancel appointment')
+    }
+    // No need to refresh - UI updates in real-time
   }
 }
 
@@ -105,6 +113,7 @@ const confirmReschedule = async () => {
 </script>
 
 <template>
+
   <div class="p-8 space-y-6">
     <h1 class="text-3xl font-bold">All Upcoming Appointments</h1>
 
@@ -160,10 +169,14 @@ const confirmReschedule = async () => {
           </div>
           <div class="flex gap-2">
             <Button v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" @click="handleCancel(appt.id)"
+              :disabled="!canModifyAppointment(appt.date, appt.time)"
+              :title="!canModifyAppointment(appt.date, appt.time) ? 'Cannot cancel within 24 hours of appointment' : ''"
               variant="destructive" size="sm">
               Cancel
             </Button>
             <Button v-if="appt.status !== 'completed' && appt.status !== 'cancelled'" @click="openReschedule(appt.id)"
+              :disabled="!canModifyAppointment(appt.date, appt.time)"
+              :title="!canModifyAppointment(appt.date, appt.time) ? 'Cannot reschedule within 24 hours of appointment' : ''"
               variant="outline" size="sm">
               Reschedule
             </Button>
