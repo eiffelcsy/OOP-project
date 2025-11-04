@@ -20,6 +20,31 @@ export interface PatientResponse {
   date_of_birth?: string
 }
 
+export interface QueueTicketResponse {
+  id: number
+  queue_id: number
+  appointment_id: number
+  patient_name: string | null
+  ticket_number: number
+  priority: number
+  ticket_status: 'Checked In' | 'Called' | 'Completed' | 'No Show'
+  called_at: string | null
+  completed_at: string | null
+  no_show_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PatientQueueResponse { // Response when patient has an active queue
+  queue_id: number
+  current_ticket: QueueTicketResponse[]
+  queue_tickets: QueueTicketResponse[]
+}
+
+export interface NoQueueResponse { // Response when patient has no active queue
+  message: string
+}
+
 /**
  * Patients API client
  */
@@ -38,7 +63,15 @@ export const patientsApi = {
    */
   async getPatientById(id: number): Promise<PatientResponse> {
     return apiClient.get(`/api/staff/patients/${id}`)
-  }
+  },
 
+  /**
+   * Get patient's queue information
+   * GET /api/patient/{patientId}/queue
+   */
+  async getPatientQueueInfo(patientId: number): Promise<PatientQueueResponse | NoQueueResponse> {
+    return apiClient.get(`/api/patient/${patientId}/queue`)
+  }
+  
 }
 
