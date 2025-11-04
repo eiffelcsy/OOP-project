@@ -9,7 +9,6 @@ import { clinicsApi } from '@/services/clinicsApi'
 import { appointmentsApi } from '@/services/appointmentsApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
-import { h } from 'vue'
 import { useRouter } from 'vue-router'
 import { ensureSgtOffset, SGT_OFFSET, hasTz, sgtLocalToUtcIso, utcIsoToSgTime } from '@/lib/utils'
 
@@ -746,7 +745,10 @@ export const useBookAppointment = () => {
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
       console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
-      const doctorsFromApi = await doctorsApi.getDoctorsByClinicId(clinicId)
+      // Use patient endpoint for appointment booking
+      const response = await fetch(`http://localhost:8080/api/patient/doctors/clinic/${clinicId}`)
+      if (!response.ok) throw new Error('Failed to fetch doctors')
+      const doctorsFromApi = await response.json()
       console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
 
       if (doctorsFromApi.length > 0) {
@@ -1206,48 +1208,34 @@ export const useBookAppointment = () => {
       }
 
       if (status === 201 || (json && json.id)) {
-        toast.success('Your appointment has been successfully scheduled', {
-          description: 'A confirmation has been created and will appear in your appointments list.',
-        })
-        // Simplified success flow: navigate to appointments page after a short delay
-        try {
-          const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
-          
-          // Show a custom toast with navigation option
-          const toastId = toast.custom((t: any) => {
-            return h('div', { class: 'flex items-center gap-4' }, [
-              h('div', { class: 'flex-1' }, [
-                h('div', { class: 'font-medium' }, 'Appointment booked successfully!'),
-                h('div', { class: 'text-sm text-muted-foreground' }, 'Redirecting to My Appointments...')
-              ]),
-              h('button', {
-                class: 'px-3 py-1 rounded-md bg-primary text-white text-sm',
-                onClick: () => {
-                  try {
-                    if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
-                    else router.push({ name: 'PatientAppointments' })
-                  } catch (navErr) {
-                    try { router.push('/patient/appointments') } catch (_) {}
-                  }
-                  try { (toast as any).dismiss?.(t.id) } catch (_) {}
-                }
-              }, 'Go Now')
-            ])
-          }, { duration: 3000 })
-
-          // Auto-redirect after 3 seconds
-          setTimeout(() => {
-            try {
-              if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
-              else router.push({ name: 'PatientAppointments' })
-            } catch (navErr) {
-              try { router.push('/patient/appointments') } catch (_) {}
+        // Show success toast with default styling
+        toast.success('Appointment Booked Successfully', {
+          description: 'Your appointment has been scheduled. Redirecting to your appointments...',
+          action: {
+            label: 'View Now',
+            onClick: () => {
+              try {
+                const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
+                if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+                else router.push({ name: 'PatientAppointments' })
+              } catch (navErr) {
+                try { router.push('/patient/appointments') } catch (_) {}
+              }
             }
-            try { (toast as any).dismiss?.(toastId) } catch (_) {}
-          }, 3000)
-        } catch (e) {
-          // ignore navigation errors
-        }
+          }
+        })
+
+        // Auto-redirect after 2 seconds
+        setTimeout(() => {
+          try {
+            const highlightId = json?.id ?? (json && json.appointment && json.appointment.id) ?? null
+            if (highlightId) router.push({ name: 'PatientAppointments', query: { highlight: String(highlightId) } })
+            else router.push({ name: 'PatientAppointments' })
+          } catch (navErr) {
+            try { router.push('/patient/appointments') } catch (_) {}
+          }
+        }, 2000)
+
         console.log('Appointment created:', json)
         return { success: true, status, created: json }
       }

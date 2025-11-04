@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,18 @@ const filteredClinics = computed(() => {
     clinic.area?.toLowerCase().includes(query)
   )
 })
+
+// Pagination for clinic selector
+const clinicsPerPage = 5
+const currentClinicPage = ref(1)
+
+const paginatedClinics = computed(() => {
+  const start = (currentClinicPage.value - 1) * clinicsPerPage
+  const end = start + clinicsPerPage
+  return filteredClinics.value.slice(start, end)
+})
+
+const totalClinicPages = computed(() => Math.ceil(filteredClinics.value.length / clinicsPerPage))
 
 // Statistics
 const stats = computed(() => ({
@@ -323,26 +336,44 @@ onMounted(async () => {
             <div v-if="clinicsLoading" class="space-y-2">
               <Skeleton v-for="i in 5" :key="i" class="h-16 w-full" />
             </div>
-            <div 
-              v-else
-              v-for="clinic in filteredClinics" 
-              :key="clinic.id"
-              class="p-4 border rounded-lg cursor-pointer transition-all hover:border-primary hover:shadow-md"
-              @click="handleSelectClinic(clinic.id)"
-            >
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="font-semibold">{{ clinic.name }}</p>
-                  <p class="text-sm text-muted-foreground">
-                    {{ clinic.region }} • {{ clinic.area }}
-                  </p>
+            <div v-else class="space-y-2">
+              <div 
+                v-for="clinic in paginatedClinics" 
+                :key="clinic.id"
+                class="p-4 border rounded-lg cursor-pointer transition-all hover:border-primary hover:shadow-md"
+                @click="handleSelectClinic(clinic.id)"
+              >
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="font-semibold">{{ clinic.name }}</p>
+                    <p class="text-sm text-muted-foreground">
+                      {{ clinic.region }} • {{ clinic.area }}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">{{ clinic.clinicType }}</Badge>
                 </div>
-                <Badge variant="secondary">{{ clinic.clinicType }}</Badge>
+              </div>
+              <div v-if="filteredClinics.length === 0" class="text-center py-8">
+                <p class="text-muted-foreground">No clinics found</p>
               </div>
             </div>
-            <div v-if="!clinicsLoading && filteredClinics.length === 0" class="text-center py-8">
-              <p class="text-muted-foreground">No clinics found</p>
-            </div>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="filteredClinics.length > clinicsPerPage" class="pt-4 border-t">
+            <Pagination :total="filteredClinics.length" :items-per-page="clinicsPerPage" 
+              :sibling-count="1" :default-page="1" v-model:page="currentClinicPage">
+              <PaginationContent v-slot="{ items }">
+                <PaginationPrevious />
+                <template v-for="(item, index) in items" :key="index">
+                  <PaginationItem v-if="item.type === 'page'" :value="item.value" :is-active="item.value === currentClinicPage">
+                    {{ item.value }}
+                  </PaginationItem>
+                  <PaginationEllipsis v-else />
+                </template>
+                <PaginationNext />
+              </PaginationContent>
+            </Pagination>
           </div>
         </div>
       </DialogContent>

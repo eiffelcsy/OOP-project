@@ -99,7 +99,8 @@ const doctorId = computed(() => parseInt(route.params.id as string))
 
 const formatTimeForDisplay = (time: string) => {
   if (!time) return 'Not set'
-  return time.substring(0, 5) // HH:MM
+  // Use the same timezone-aware formatting as formatTime
+  return formatTime(time)
 }
 
 // Validation error message
@@ -143,6 +144,17 @@ const getDayLabel = (dayNum: number) => {
 }
 
 const formatTime = (time: string) => {
+  if (!time) return 'Not set'
+  
+  // Debug: Log the time value being formatted
+  console.log('⏰ formatTime called with:', {
+    time,
+    type: typeof time,
+    substring: time.substring(0, 5)
+  })
+  
+  // Backend returns LocalTime as "HH:MM:SS" string - already in SGT
+  // Just display it as-is (no timezone conversion needed)
   return time.substring(0, 5) // HH:MM
 }
 
@@ -181,6 +193,19 @@ const loadClinic = async (clinicId: number) => {
 // Load schedules from API
 const loadSchedules = async () => {
   await fetchSchedulesByDoctorId(doctorId.value)
+  
+  // Debug: Log raw schedule data from backend
+  console.group('🔍 Schedule Data Debug')
+  console.log('Total schedules fetched:', schedules.value.length)
+  if (schedules.value.length > 0) {
+    console.log('First schedule raw data:', schedules.value[0])
+    console.log('start_time type:', typeof schedules.value[0].start_time)
+    console.log('start_time value:', schedules.value[0].start_time)
+    console.log('end_time type:', typeof schedules.value[0].end_time)
+    console.log('end_time value:', schedules.value[0].end_time)
+    console.log('Full schedule object:', JSON.stringify(schedules.value[0], null, 2))
+  }
+  console.groupEnd()
 }
 
 // Schedule dialog handlers

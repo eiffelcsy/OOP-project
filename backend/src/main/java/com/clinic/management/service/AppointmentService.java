@@ -6,11 +6,18 @@ import com.clinic.management.repository.AppointmentRepository;
 import com.clinic.management.repository.ScheduleRepository;
 import com.clinic.management.repository.PatientRepository;
 import com.clinic.management.repository.ProfileRepository;
+import com.clinic.management.repository.DoctorRepository;
+import com.clinic.management.repository.ClinicRepository;
 import com.clinic.management.model.Patient;
 import com.clinic.management.model.Profile;
-import com.clinic.management.service.ClinicService;
-import com.clinic.management.service.DoctorService;
+import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Clinic;
+import com.clinic.management.dto.response.StaffAppointmentResponse;
 import java.util.Optional;
+import java.util.Objects;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -38,18 +45,23 @@ public class AppointmentService {
     private final ScheduleRepository scheduleRepository;
     private final PatientRepository patientRepository;
     private final ProfileRepository profileRepository;
+    private final DoctorRepository doctorRepository;
+    private final ClinicRepository clinicRepository;
     private final EmailService emailService;
     private final ClinicService clinicService;
     private final DoctorService doctorService;
     private static final Logger log = LoggerFactory.getLogger(AppointmentService.class);
 
     public AppointmentService(AppointmentRepository repository, ScheduleRepository scheduleRepository,
-            PatientRepository patientRepository, ProfileRepository profileRepository,
-            EmailService emailService, ClinicService clinicService, DoctorService doctorService) {
+                              PatientRepository patientRepository, ProfileRepository profileRepository,
+                              DoctorRepository doctorRepository, ClinicRepository clinicRepository,
+                              EmailService emailService, ClinicService clinicService, DoctorService doctorService) {
         this.repository = repository;
         this.scheduleRepository = scheduleRepository;
         this.patientRepository = patientRepository;
         this.profileRepository = profileRepository;
+        this.doctorRepository = doctorRepository;
+        this.clinicRepository = clinicRepository;
         this.emailService = emailService;
         this.clinicService = clinicService;
         this.doctorService = doctorService;
@@ -324,5 +336,96 @@ public class AppointmentService {
             log.error("getAppointmentsByPatientId: unexpected error", ex);
             return List.of();
         }
+    }
+
+    /**
+     * Get today's appointments for a clinic with enriched data
+     * This method returns appointments with patient names, doctor names, clinic info, etc.
+     * Filters appointments to only show those scheduled for today (in Asia/Singapore timezone)
+     * 
+     * @param clinicId Clinic ID
+     * @return List of enriched appointments for today
+     */
+    @Transactional(readOnly = true)
+    public List<StaffAppointmentResponse> getTodaysAppointmentsForClinic(Long clinicId) {
+        // Get today's date in clinic timezone (Asia/Singapore)
+        ZonedDateTime nowInClinicZone = ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE);
+        LocalDate today = nowInClinicZone.toLocalDate();
+        
+        // Fetch all appointments for the clinic
+        List<Appointment> allAppointments = getAppointments(null, clinicId, null);
+        
+        // Filter to today's appointments (comparing dates in clinic timezone)
+        List<Appointment> todaysAppointments = allAppointments.stream()
+            .filter(appt -> {
+                if (appt.getStartTime() == null) return false;
+                ZonedDateTime apptInClinicZone = appt.getStartTime().atZoneSameInstant(TimezoneConfig.CLINIC_ZONE);
+                LocalDate apptDate = apptInClinicZone.toLocalDate();
+                return apptDate.equals(today);
+            })
+            .collect(Collectors.toList());
+        
+        // Collect all unique IDs we need to fetch
+        List<Long> patientIds = todaysAppointments.stream()
+            .map(Appointment::getPatientId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Long> doctorIds = todaysAppointments.stream()
+            .map(Appointment::getDoctorId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Long> clinicIds = todaysAppointments.stream()
+            .map(Appointment::getClinicId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        // Fetch all related entities in bulk
+        List<Patient> patients = patientIds.isEmpty() ? List.of() : patientRepository.findByIdIn(patientIds);
+        List<Doctor> doctors = doctorIds.isEmpty() ? List.of() : doctorRepository.findAllById(doctorIds);
+        List<Clinic> clinics = clinicIds.isEmpty() ? List.of() : clinicRepository.findAllById(clinicIds);
+        
+        // Fetch profiles for all user IDs
+        List<String> userIds = patients.stream()
+            .map(Patient::getUserId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
+        
+        List<Profile> profiles = userIds.isEmpty() ? List.of() : profileRepository.findByUserIdIn(userIds);
+        
+        // Build lookup maps for efficient access
+        Map<Long, Patient> patientMap = patients.stream()
+            .collect(Collectors.toMap(Patient::getId, p -> p));
+        
+        Map<String, Profile> profileMap = profiles.stream()
+            .collect(Collectors.toMap(Profile::getUserId, p -> p));
+        
+        Map<Long, Doctor> doctorMap = doctors.stream()
+            .collect(Collectors.toMap(Doctor::getDoctorId, d -> d));
+        
+        Map<Long, Clinic> clinicMap = clinics.stream()
+            .collect(Collectors.toMap(Clinic::getId, c -> c));
+        
+        // Build enriched responses
+        List<StaffAppointmentResponse> responses = todaysAppointments.stream()
+            .map(appt -> {
+                Patient patient = patientMap.get(appt.getPatientId());
+                Profile profile = null;
+                if (patient != null && patient.getUserId() != null) {
+                    profile = profileMap.get(patient.getUserId());
+                }
+                Doctor doctor = doctorMap.get(appt.getDoctorId());
+                Clinic clinic = clinicMap.get(appt.getClinicId());
+                
+                return StaffAppointmentResponse.from(appt, patient, profile, doctor, clinic);
+            })
+            .collect(Collectors.toList());
+        
+        return responses;
     }
 }

@@ -216,7 +216,7 @@ onMounted(async () => {
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent class="min-h-10">
           <div class="space-y-2 text-sm">
             <!-- Patient Info -->
             <div v-if="user.patient?.phone" class="flex items-center gap-2 text-muted-foreground">

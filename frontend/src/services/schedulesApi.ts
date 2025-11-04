@@ -47,7 +47,20 @@ export const schedulesApi = {
    * GET /api/admin/doctors/{doctorId}/schedules
    */
   async getSchedulesByDoctorId(doctorId: number): Promise<ScheduleResponse[]> {
-    return apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
+    const response = await apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
+    
+    // Debug: Log raw API response
+    console.group('🌐 API Response Debug - getSchedulesByDoctorId')
+    console.log('Doctor ID:', doctorId)
+    console.log('Response array length:', response?.length || 0)
+    if (response && response.length > 0) {
+      console.log('First schedule from API:', response[0])
+      console.log('start_time from API:', response[0].start_time)
+      console.log('end_time from API:', response[0].end_time)
+    }
+    console.groupEnd()
+    
+    return response
   },
 
   /**

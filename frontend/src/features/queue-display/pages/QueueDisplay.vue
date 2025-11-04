@@ -216,17 +216,6 @@ watch(queueId, async (newId) => {
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Average Wait Time -->
-                            <div class="text-center mt-auto">
-                                <div
-                                    class="inline-flex items-center gap-2 bg-yellow-50 rounded-lg px-4 py-2 border border-yellow-200">
-                                    <Icon icon="lucide:clock" class="h-4 w-4 text-yellow-600" />
-                                    <span class="text-sm font-medium text-gray-700">
-                                        Estimated wait time: {{ averageWaitTime }} minutes
-                                    </span>
-                                </div>
-                            </div>
                         </div>
                         <div v-else class="flex-1 flex flex-col justify-center items-center">
                             <Icon icon="lucide:users" class="h-12 w-12 text-gray-300 mb-2" />

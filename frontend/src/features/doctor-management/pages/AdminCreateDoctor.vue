@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,18 @@ const filteredClinics = computed(() => {
     clinic.area?.toLowerCase().includes(query)
   )
 })
+
+// Pagination for clinic selector
+const clinicsPerPage = 5
+const currentClinicPage = ref(1)
+
+const paginatedClinics = computed(() => {
+  const start = (currentClinicPage.value - 1) * clinicsPerPage
+  const end = start + clinicsPerPage
+  return filteredClinics.value.slice(start, end)
+})
+
+const totalClinicPages = computed(() => Math.ceil(filteredClinics.value.length / clinicsPerPage))
 
 const isFormValid = computed(() => {
   return formData.name.trim() !== '' && formData.clinic_id > 0
@@ -360,7 +373,7 @@ onMounted(() => {
           <!-- Clinics List -->
           <div class="flex-1 overflow-y-auto space-y-2 pr-2">
             <div 
-              v-for="clinic in filteredClinics" 
+              v-for="clinic in paginatedClinics" 
               :key="clinic.id"
               class="p-4 border rounded-lg cursor-pointer transition-all hover:border-primary hover:shadow-md"
               :class="{ 'border-primary bg-primary/5': selectedClinicId === clinic.id }"
@@ -380,6 +393,23 @@ onMounted(() => {
               <Icon icon="lucide:building-2" class="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p class="text-muted-foreground">No clinics found</p>
             </div>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="filteredClinics.length > clinicsPerPage" class="pt-4 border-t">
+            <Pagination :total="filteredClinics.length" :items-per-page="clinicsPerPage" 
+              :sibling-count="1" :default-page="1" v-model:page="currentClinicPage">
+              <PaginationContent v-slot="{ items }">
+                <PaginationPrevious />
+                <template v-for="(item, index) in items" :key="index">
+                  <PaginationItem v-if="item.type === 'page'" :value="item.value" :is-active="item.value === currentClinicPage">
+                    {{ item.value }}
+                  </PaginationItem>
+                  <PaginationEllipsis v-else />
+                </template>
+                <PaginationNext />
+              </PaginationContent>
+            </Pagination>
           </div>
         </div>
       </DialogContent>

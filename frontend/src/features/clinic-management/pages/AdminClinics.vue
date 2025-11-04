@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination'
 import { toast } from 'vue-sonner'
 
 const { clinics, loading, error, fetchClinics, navigateToClinic, navigateToCreateClinic } = useClinics()
@@ -70,6 +71,17 @@ const stats = computed(() => ({
   }, {} as Record<string, number>)
 }))
 
+// Pagination
+const clinicsPerPage = 9
+const currentPage = ref(1)
+
+const paginatedClinics = computed(() => {
+  const start = (currentPage.value - 1) * clinicsPerPage
+  const end = start + clinicsPerPage
+  return filteredClinics.value.slice(start, end)
+})
+
+const totalPages = computed(() => Math.ceil(filteredClinics.value.length / clinicsPerPage))
 
 onMounted(async () => {
   await fetchClinics()
@@ -193,48 +205,67 @@ onMounted(async () => {
     </div>
 
     <!-- Clinics Grid -->
-    <div v-else-if="filteredClinics.length > 0" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card 
-        v-for="clinic in filteredClinics" 
-        :key="clinic.id"
-        class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-        @click="navigateToClinic(clinic.id)"
-      >
-        <CardHeader>
-          <div class="flex items-start justify-between">
-            <div class="flex-1">
-              <CardTitle class="text-lg mb-2">{{ clinic.name }}</CardTitle>
-              <CardDescription>
-                <div class="flex items-center gap-2">
-                  <Icon icon="lucide:map-pin" class="h-3 w-3" />
-                  <span class="text-sm">{{ clinic.region }} • {{ clinic.area }}</span>
-                </div>
-              </CardDescription>
+    <div v-else-if="filteredClinics.length > 0" class="space-y-6">
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card 
+          v-for="clinic in paginatedClinics" 
+          :key="clinic.id"
+          class="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+          @click="navigateToClinic(clinic.id)"
+        >
+          <CardHeader>
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <CardTitle class="text-lg mb-2">{{ clinic.name }}</CardTitle>
+                <CardDescription>
+                  <div class="flex items-center gap-2">
+                    <Icon icon="lucide:map-pin" class="h-3 w-3" />
+                    <span class="text-sm">{{ clinic.region }} • {{ clinic.area }}</span>
+                  </div>
+                </CardDescription>
+              </div>
+              <Badge variant="secondary" class="ml-2">
+                {{ clinic.clinic_type }}
+              </Badge>
             </div>
-            <Badge variant="secondary" class="ml-2">
-              {{ clinic.clinic_type }}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div class="flex items-center gap-2 text-sm text-muted-foreground">
-            <Icon icon="lucide:map" class="h-4 w-4 flex-shrink-0" />
-            <span>{{ clinic.address_line }}</span>
-          </div>
-        </CardContent>
-        <CardFooter class="border-t pt-4">
-          <div class="flex items-center justify-between w-full text-sm">
-            <div class="flex items-center gap-2 text-muted-foreground">
-              <Icon icon="lucide:clock" class="h-4 w-4" />
-              <span v-if="clinic.open_time && clinic.close_time">
-                {{ clinic.open_time }} - {{ clinic.close_time }}
-              </span>
-              <span v-else>Hours not set</span>
+          </CardHeader>
+          <CardContent>
+            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+              <Icon icon="lucide:map" class="h-4 w-4 flex-shrink-0" />
+              <span>{{ clinic.address_line }}</span>
             </div>
-            <Icon icon="lucide:chevron-right" class="h-4 w-4 text-muted-foreground" />
-          </div>
-        </CardFooter>
-      </Card>
+          </CardContent>
+          <CardFooter class="border-t pt-4">
+            <div class="flex items-center justify-between w-full text-sm">
+              <div class="flex items-center gap-2 text-muted-foreground">
+                <Icon icon="lucide:clock" class="h-4 w-4" />
+                <span v-if="clinic.open_time && clinic.close_time">
+                  {{ clinic.open_time }} - {{ clinic.close_time }}
+                </span>
+                <span v-else>Hours not set</span>
+              </div>
+              <Icon icon="lucide:chevron-right" class="h-4 w-4 text-muted-foreground" />
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="filteredClinics.length > clinicsPerPage" class="flex justify-center">
+        <Pagination :total="filteredClinics.length" :items-per-page="clinicsPerPage" 
+          :sibling-count="1" :show-edges="true" :default-page="1" v-model:page="currentPage">
+          <PaginationContent v-slot="{ items }">
+            <PaginationPrevious />
+            <template v-for="(item, index) in items" :key="index">
+              <PaginationItem v-if="item.type === 'page'" :value="item.value" :is-active="item.value === currentPage">
+                {{ item.value }}
+              </PaginationItem>
+              <PaginationEllipsis v-else />
+            </template>
+            <PaginationNext />
+          </PaginationContent>
+        </Pagination>
+      </div>
     </div>
 
     <!-- Empty State -->
