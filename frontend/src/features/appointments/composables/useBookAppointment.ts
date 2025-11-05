@@ -3,6 +3,7 @@ import type { DateValue } from '@internationalized/date'
 import { parseDate } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
+import { apiClient } from '@/lib/api'
 import { schedulesApi } from '@/services/schedulesApi'
 import { doctorsApi } from '@/services/doctorsApi'
 import { clinicsApi } from '@/services/clinicsApi'
@@ -746,9 +747,7 @@ export const useBookAppointment = () => {
     try {
       console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
       // Use patient endpoint for appointment booking
-      const response = await fetch(`http://localhost:8080/api/patient/doctors/clinic/${clinicId}`)
-      if (!response.ok) throw new Error('Failed to fetch doctors')
-      const doctorsFromApi = await response.json()
+      const doctorsFromApi = await apiClient.get(`/api/patient/doctors/clinic/${clinicId}`)
       console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
 
       if (doctorsFromApi.length > 0) {

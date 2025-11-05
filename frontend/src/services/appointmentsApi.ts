@@ -32,24 +32,24 @@ export interface AppointmentResponse {
  */
 export interface StaffAppointmentResponse {
   id: number
-  patientId: number
-  doctorId: number
-  clinicId: number
-  startTime: string
-  endTime: string
+  patient_id: number
+  doctor_id: number
+  clinic_id: number
+  start_time: string
+  end_time: string
   status: string
-  treatmentSummary: string | null
-  createdAt: string
-  updatedAt: string
+  treatment_summary: string | null
+  created_at: string
+  updated_at: string
   // Enriched fields
-  patientName: string
-  patientPhone: string
-  doctorName: string
-  doctorSpecialty: string | null
-  clinicName: string
-  clinicType: string
-  clinicAddress: string | null
-  durationMinutes: number | null
+  patient_name: string
+  patient_phone: string
+  doctor_name: string
+  doctor_specialty: string | null
+  clinic_name: string
+  clinic_type: string
+  clinic_address: string | null
+  duration_minutes: number | null
 }
 
 export interface CreateAppointmentRequest {

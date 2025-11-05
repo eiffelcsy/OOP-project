@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useStaffAppointments } from '../composables/useStaffAppointments'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { Icon } from '@iconify/vue'
 
 const {
   todaysAppointments,
   doctors,
-  timeSlots,
   appointmentsByDoctor,
-  appointmentsByTimeSlot,
   totalAppointments,
   checkedInCount,
   completedCount,
@@ -21,15 +18,17 @@ const {
   checkInPatient,
   markNoShow,
   markCompleted,
-  formatTime,
-  isCurrentTimeSlot
+  formatTime
 } = useStaffAppointments()
 
 // View modes
-const viewMode = ref<'doctor' | 'timeline'>('doctor')
+const viewMode = ref<'doctor' | 'list'>('doctor')
 
 // Selected doctor filter
 const selectedDoctorId = ref<number | null>(null)
+
+// Search filter
+const searchQuery = ref('')
 
 // Current time tracking
 const currentTime = ref(new Date().toLocaleTimeString('en-SG', { 
@@ -60,14 +59,21 @@ const filteredAppointmentsByDoctor = computed(() => {
   return filtered
 })
 
+// Filtered appointments for list view
+const filteredAppointmentsList = computed(() => {
+  return todaysAppointments.value
+    .filter(appt => {
+      const matchesSearch = appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+                           appt.doctorName.toLowerCase().includes(searchQuery.value.toLowerCase())
+      const matchesDoctor = selectedDoctorId.value === null || appt.doctorId === selectedDoctorId.value
+      return matchesSearch && matchesDoctor
+    })
+    .sort((a, b) => a.time.localeCompare(b.time))
+})
+
 // Get doctor by ID
 const getDoctorById = (doctorId: number) => {
   return doctors.value.find(d => d.id === doctorId)
-}
-
-// Get appointments for a specific time slot
-const getAppointmentsForTimeSlot = (timeSlot: string) => {
-  return appointmentsByTimeSlot.value.get(timeSlot) || []
 }
 
 // Handle quick actions
@@ -91,33 +97,14 @@ const handleCompleted = async (appointmentId: number) => {
     console.log('Appointment marked as completed')
   }
 }
-
-// Get priority badge for urgent appointments
-const getUrgencyIndicator = (appointment: any) => {
-  if (appointment.specialInstructions) {
-    return 'urgent'
-  }
-  if (appointment.type.toLowerCase().includes('surgery') || appointment.type.toLowerCase().includes('emergency')) {
-    return 'high'
-  }
-  return 'normal'
-}
-
-const getUrgencyColor = (urgency: string) => {
-  switch (urgency) {
-    case 'urgent': return 'bg-gray-700 text-white border-gray-700'
-    case 'high': return 'bg-gray-500 text-white border-gray-500'
-    default: return 'bg-gray-100 text-gray-800 border-gray-200'
-  }
-}
 </script>
 
 <template>
   <div class="space-y-8 p-8">
     <!-- Header -->
     <div class="flex items-center justify-between">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
+      <div class="flex flex-col gap-1">
+        <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
         <p class="text-muted-foreground">{{ new Date().toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
       </div>
       <div class="flex items-center gap-4">
@@ -134,12 +121,12 @@ const getUrgencyColor = (urgency: string) => {
             By Doctor
           </Button>
           <Button 
-            :variant="viewMode === 'timeline' ? 'default' : 'outline'"
-            @click="viewMode = 'timeline'"
+            :variant="viewMode === 'list' ? 'default' : 'outline'"
+            @click="viewMode = 'list'"
             size="sm"
           >
-            <Icon icon="lucide:clock" class="h-4 w-4 mr-2" />
-            Timeline
+            <Icon icon="lucide:list" class="h-4 w-4 mr-2" />
+            List View
           </Button>
         </div>
       </div>
@@ -203,8 +190,16 @@ const getUrgencyColor = (urgency: string) => {
       </Card>
     </div>
 
-    <!-- Doctor Filter (for Doctor view) -->
-    <div v-if="viewMode === 'doctor'" class="flex items-center gap-4">
+    <!-- Filters -->
+    <div class="flex items-center gap-4">
+      <div class="w-64">
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="Search patient or doctor..." 
+          class="w-full h-10 border rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
       <span class="text-sm font-medium">Filter by Doctor:</span>
       <div class="flex gap-2 flex-wrap">
         <Button 
@@ -236,8 +231,7 @@ const getUrgencyColor = (urgency: string) => {
       
       <div v-for="[doctorId, appointments] in filteredAppointmentsByDoctor" :key="doctorId" class="space-y-4">
         <div class="flex items-center gap-3">
-          <div class="w-4 h-4 rounded-full bg-gray-400"></div>
-          <h2 class="text-xl font-semibold">{{ getDoctorById(doctorId)?.name }}</h2>
+          <h2 class="text-xl font-semibold">Dr. {{ getDoctorById(doctorId)?.name }}</h2>
           <Badge variant="outline">
             {{ getDoctorById(doctorId)?.specialty }}
           </Badge>
@@ -250,191 +244,152 @@ const getUrgencyColor = (urgency: string) => {
             :key="appointment.id"
             :class="[
               'transition-all duration-200 hover:shadow-md',
-              isCurrentTimeSlot(appointment.time) ? 'ring-2 ring-gray-400 ring-opacity-50' : '',
-              appointment.status === 'in-progress' ? 'bg-gray-50' : '',
-              appointment.status === 'completed' ? 'bg-gray-100' : '',
-              appointment.status === 'no-show' ? 'bg-gray-200' : ''
+              appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
+              appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
+              appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
+              appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
             ]"
           >
-            <CardContent class="p-6">
-              <div class="flex items-start justify-between">
-                <div class="space-y-3 flex-1">
-                  <div class="flex items-center gap-3">
-                    <div class="text-lg font-medium">{{ appointment.time }}</div>
-                    <Badge class="font-medium">
-                      {{ appointment.status.replace('-', ' ').toUpperCase() }}
-                    </Badge>
-                    <Badge 
-                      v-if="getUrgencyIndicator(appointment) !== 'normal'"
-                      variant="outline"
-                      class="font-medium border-gray-400"
-                    >
-                      {{ getUrgencyIndicator(appointment).toUpperCase() }}
-                    </Badge>
-                    <div v-if="appointment.queueNumber" class="text-sm text-muted-foreground">
-                      Queue #{{ appointment.queueNumber }}
-                    </div>
-                  </div>
-                  
-                  <div class="space-y-1">
-                    <h3 class="font-semibold text-lg">{{ appointment.patientName }}</h3>
-                    <p class="text-sm text-muted-foreground">{{ appointment.type }} • {{ appointment.duration }}</p>
-                    <p v-if="appointment.patientPhone" class="text-sm text-muted-foreground">
-                      <Icon icon="lucide:phone" class="h-3 w-3 inline mr-1" />
-                      {{ appointment.patientPhone }}
-                    </p>
-                  </div>
-                  
-                  <div v-if="appointment.notes || appointment.specialInstructions" class="space-y-1">
-                    <p v-if="appointment.notes" class="text-sm bg-gray-50 p-2 rounded">
-                      <Icon icon="lucide:file-text" class="h-3 w-3 inline mr-1" />
-                      {{ appointment.notes }}
-                    </p>
-                    <p v-if="appointment.specialInstructions" class="text-sm bg-gray-100 p-2 rounded font-medium">
-                      <Icon icon="lucide:alert-triangle" class="h-3 w-3 inline mr-1" />
-                      {{ appointment.specialInstructions }}
-                    </p>
-                  </div>
-                  
-                  <div v-if="appointment.checkInTime" class="text-xs text-muted-foreground">
-                    <Icon icon="lucide:clock" class="h-3 w-3 inline mr-1" />
-                    Checked in at {{ formatTime(appointment.checkInTime) }}
-                  </div>
-                  
-                  <div v-if="appointment.completedTime" class="text-xs text-muted-foreground">
-                    <Icon icon="lucide:check-circle" class="h-3 w-3 inline mr-1" />
-                    Completed at {{ formatTime(appointment.completedTime) }}
-                  </div>
+            <CardHeader class="flex flex-row items-start justify-between space-y-0">
+              <div class="space-y-3 flex-1">
+                <div class="flex items-center gap-3">
+                  <div class="text-lg font-medium">{{ formatTime(appointment.time) }}</div>
+                  <Badge :class="{
+                    'bg-gray-100 text-gray-800': appointment.status === 'scheduled',
+                    'bg-yellow-100 text-yellow-800': appointment.status === 'checked-in',
+                    'bg-blue-100 text-blue-800': appointment.status === 'in-progress',
+                    'bg-green-100 text-green-800': appointment.status === 'completed',
+                    'bg-red-100 text-red-800': appointment.status === 'no-show',
+                    'bg-gray-200 text-gray-800': appointment.status === 'cancelled'
+                  }">
+                    {{ appointment.status.replace('-', ' ').toUpperCase() }}
+                  </Badge>
                 </div>
                 
-                <!-- Quick Actions -->
-                <div class="flex flex-col gap-2 ml-6">
-                  <Button 
-                    v-if="appointment.status === 'scheduled'"
-                    @click="handleCheckIn(appointment.id)"
-                    size="sm"
-                    class="min-w-[100px]"
-                  >
-                    <Icon icon="lucide:user-check" class="h-3 w-3 mr-1" />
-                    Check In
-                  </Button>
-                  
-                  <Button 
-                    v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
-                    @click="handleCompleted(appointment.id)"
-                    size="sm"
-                    variant="outline"
-                    class="min-w-[100px]"
-                  >
-                    <Icon icon="lucide:check-circle" class="h-3 w-3 mr-1" />
-                    Complete
-                  </Button>
-                  
-                  <Button 
-                    v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
-                    @click="handleNoShow(appointment.id)"
-                    size="sm"
-                    variant="destructive"
-                    class="min-w-[100px]"
-                  >
-                    <Icon icon="lucide:x-circle" class="h-3 w-3 mr-1" />
-                    No Show
-                  </Button>
+                <div class="space-y-1">
+                  <h3 class="font-semibold text-lg">{{ appointment.patientName }}</h3>
+                  <p class="text-sm text-muted-foreground">
+                    {{ appointment.type }}
+                  </p>
+                  <p v-if="appointment.patientPhone && appointment.patientPhone !== '-'" class="text-sm text-muted-foreground">
+                    <Icon icon="lucide:phone" class="h-3 w-3 inline mr-1" />
+                    {{ appointment.patientPhone }}
+                  </p>
+                  <p class="text-sm text-muted-foreground">
+                    <Icon icon="lucide:building" class="h-3 w-3 inline mr-1" />
+                    {{ appointment.clinicName }} ({{ appointment.clinicType }})
+                  </p>
                 </div>
               </div>
-            </CardContent>
+              
+              <!-- Quick Actions -->
+              <div class="flex flex-col gap-2 ml-6">
+                <Button 
+                  v-if="appointment.status === 'scheduled'"
+                  @click="handleCheckIn(appointment.id)"
+                  size="sm"
+                  class="min-w-[100px]"
+                >
+                  <Icon icon="lucide:user-check" class="h-3 w-3 mr-1" />
+                  Check In
+                </Button>
+                
+                <Button 
+                  v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+                  @click="handleCompleted(appointment.id)"
+                  size="sm"
+                  variant="outline"
+                  class="min-w-[100px]"
+                >
+                  <Icon icon="lucide:check-circle" class="h-3 w-3 mr-1" />
+                  Complete
+                </Button>
+                
+                <Button 
+                  v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
+                  @click="handleNoShow(appointment.id)"
+                  size="sm"
+                  variant="destructive"
+                  class="min-w-[100px]"
+                >
+                  <Icon icon="lucide:x-circle" class="h-3 w-3 mr-1" />
+                  No Show
+                </Button>
+              </div>
+            </CardHeader>
           </Card>
         </div>
       </div>
     </div>
 
-    <!-- Timeline View -->
-    <div v-if="viewMode === 'timeline'" class="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <Icon icon="lucide:clock" class="h-5 w-5" />
-            Daily Schedule Timeline
-          </CardTitle>
-          <CardDescription>All appointments organized by time slots</CardDescription>
-        </CardHeader>
-        <CardContent class="p-0">
-          <div class="max-h-[800px] overflow-y-auto">
-            <div v-for="timeSlot in timeSlots" :key="timeSlot.time" class="border-b last:border-b-0">
-              <div 
-                :class="[
-                  'flex p-4 hover:bg-gray-50 transition-colors',
-                  isCurrentTimeSlot(timeSlot.time) ? 'bg-gray-100 border-l-4 border-l-gray-400' : '',
-                  getAppointmentsForTimeSlot(timeSlot.time).length > 0 ? 'bg-white' : 'bg-gray-25'
-                ]"
-              >
-                <div class="w-20 flex-shrink-0">
-                  <div :class="[
-                    'text-sm font-medium',
-                    isCurrentTimeSlot(timeSlot.time) ? 'text-gray-900' : 'text-muted-foreground'
-                  ]">
-                    {{ formatTime(timeSlot.time) }}
-                  </div>
-                </div>
-                
-                <div class="flex-1 space-y-2">
-                  <div v-if="getAppointmentsForTimeSlot(timeSlot.time).length === 0" class="text-sm text-muted-foreground italic">
-                    No appointments scheduled
-                  </div>
-                  
-                  <div 
-                    v-for="appointment in getAppointmentsForTimeSlot(timeSlot.time)" 
-                    :key="appointment.id"
-                    class="flex items-center justify-between p-3 bg-white border rounded-lg shadow-sm"
-                  >
-                    <div class="flex items-center gap-3">
-                      <div class="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <div>
-                        <div class="font-medium">{{ appointment.patientName }}</div>
-                        <div class="text-sm text-muted-foreground">
-                          {{ appointment.doctorName }} • {{ appointment.type }}
-                        </div>
-                      </div>
-                      <Badge class="text-xs">
-                        {{ appointment.status.replace('-', ' ').toUpperCase() }}
-                      </Badge>
-                      <div v-if="appointment.queueNumber" class="text-xs text-muted-foreground">
-                        #{{ appointment.queueNumber }}
-                      </div>
-                    </div>
-                    
-                    <div class="flex gap-1">
-                      <Button 
-                        v-if="appointment.status === 'scheduled'"
-                        @click="handleCheckIn(appointment.id)"
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Icon icon="lucide:user-check" class="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
-                        @click="handleCompleted(appointment.id)"
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Icon icon="lucide:check-circle" class="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
-                        @click="handleNoShow(appointment.id)"
-                        size="sm"
-                        variant="destructive"
-                      >
-                        <Icon icon="lucide:x-circle" class="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+    <!-- List View -->
+    <div v-if="viewMode === 'list'" class="space-y-4">
+      <div v-if="filteredAppointmentsList.length === 0" class="text-center py-12">
+        <Icon icon="lucide:calendar-x" class="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <h3 class="text-lg font-medium text-muted-foreground">No appointments found</h3>
+        <p class="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
+      </div>
+
+      <Card 
+        v-for="appointment in filteredAppointmentsList" 
+        :key="appointment.id"
+        :class="[
+          'transition-all duration-200 hover:shadow-md',
+          appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
+          appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
+          appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
+          appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
+        ]"
+      >
+        <CardHeader class="flex flex-row items-center justify-between space-y-0">
+          <div class="flex-1">
+            <CardTitle class="flex items-center gap-3">
+              <span>{{ appointment.patientName }}</span>
+              <Badge :class="{
+                'bg-gray-100 text-gray-800': appointment.status === 'scheduled',
+                'bg-yellow-100 text-yellow-800': appointment.status === 'checked-in',
+                'bg-blue-100 text-blue-800': appointment.status === 'in-progress',
+                'bg-green-100 text-green-800': appointment.status === 'completed',
+                'bg-red-100 text-red-800': appointment.status === 'no-show',
+                'bg-gray-200 text-gray-800': appointment.status === 'cancelled'
+              }">
+                {{ appointment.status.replace('-', ' ').toUpperCase() }}
+              </Badge>
+            </CardTitle>
+            <p class="text-sm text-muted-foreground mt-2">
+              {{ formatTime(appointment.time) }} • Dr. {{ appointment.doctorName }} ({{ appointment.doctorSpecialty }}) • {{ appointment.clinicName }} ({{ appointment.clinicType }})
+            </p>
+            <p class="text-sm text-muted-foreground">
+              {{ appointment.type }}
+            </p>
           </div>
-        </CardContent>
+
+          <div class="flex gap-2">
+            <Button 
+              v-if="appointment.status === 'scheduled'"
+              @click="handleCheckIn(appointment.id)"
+              size="sm"
+            >
+              Check In
+            </Button>
+            <Button 
+              v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+              @click="handleCompleted(appointment.id)"
+              size="sm"
+              variant="outline"
+            >
+              Complete
+            </Button>
+            <Button 
+              v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
+              @click="handleNoShow(appointment.id)"
+              size="sm"
+              variant="destructive"
+            >
+              No Show
+            </Button>
+          </div>
+        </CardHeader>
       </Card>
     </div>
   </div>

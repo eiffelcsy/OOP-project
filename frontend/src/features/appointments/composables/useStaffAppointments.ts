@@ -16,24 +16,17 @@ export interface StaffAppointment {
   id: number
   patientName: string
   patientId: number
-  doctorName: string
+  patientPhone: string
   doctorId: number
-  time: string
-  duration: number // in minutes
+  doctorName: string
+  doctorSpecialty: string
+  clinicId: number
+  clinicName: string
+  clinicType: string
   type: string
+  date: string
+  time: string
   status: AppointmentStatus
-  queueNumber?: number
-  notes?: string
-  patientPhone?: string
-  specialInstructions?: string
-  checkInTime?: string
-  completedTime?: string
-  // Database fields (optional for UI mock data)
-  clinic_id?: number | null
-  time_slot_id?: number | null
-  treatment_summary?: string | null
-  created_at?: string
-  updated_at?: string
 }
 
 // Extended doctor interface for staff view
@@ -119,21 +112,49 @@ export const useStaffAppointments = () => {
 
       // Map to the StaffAppointment interface expected by the UI
       todaysAppointments.value = data.map((appt) => {
-        // Parse timestamps for formatting
-        const start = appt.startTime ? new Date(appt.startTime) : null
-        const timeStr = start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'
+        // Parse timestamps for formatting in 24-hour format (HH:mm)
+        // The backend returns ISO 8601 strings with timezone info
+        const start = appt.start_time 
+          ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+          : null
+        
+        const timeStr = start 
+          ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`
+          : '-'
+
+        const dateStr = start ? start.toISOString().split('T')[0] : '-'
+
+        // Map backend status to frontend status
+        // Backend uses: scheduled, confirmed, cancelled
+        // Frontend uses: scheduled, checked-in, in-progress, completed, cancelled, no-show
+        let mappedStatus: AppointmentStatus = 'scheduled'
+        if (appt.status) {
+          const backendStatus = appt.status.toLowerCase()
+          if (backendStatus === 'confirmed' || backendStatus === 'scheduled') {
+            mappedStatus = 'scheduled'
+          } else if (backendStatus === 'cancelled') {
+            mappedStatus = 'cancelled'
+          } else if (backendStatus === 'checked-in' || backendStatus === 'in-progress' || 
+                     backendStatus === 'completed' || backendStatus === 'no-show') {
+            mappedStatus = appt.status as AppointmentStatus
+          }
+        }
 
         return {
           id: appt.id,
-          patientId: appt.patientId,
-          patientName: appt.patientName,
-          patientPhone: appt.patientPhone,
-          doctorId: appt.doctorId,
-          doctorName: appt.doctorName,
-          type: appt.clinicType,
+          patientId: appt.patient_id,
+          patientName: appt.patient_name || '-',
+          patientPhone: appt.patient_phone || '-',
+          doctorId: appt.doctor_id,
+          doctorName: appt.doctor_name || '-',
+          doctorSpecialty: appt.doctor_specialty || '-',
+          clinicId: appt.clinic_id,
+          clinicName: appt.clinic_name || '-',
+          clinicType: appt.clinic_type || '-',
+          type: appt.treatment_summary || 'Consultation',
+          date: dateStr,
           time: timeStr,
-          duration: appt.durationMinutes ?? 0, // Duration in minutes from backend
-          status: appt.status as AppointmentStatus
+          status: mappedStatus
         }
       })
     } catch (error) {
@@ -216,24 +237,8 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status
+      // Update appointment status locally (backend doesn't support this status yet)
       appointment.status = 'checked-in'
-      appointment.checkInTime = new Date().toLocaleTimeString('en-SG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      })
-
-      // Assign queue number if not exists
-      if (!appointment.queueNumber) {
-        const maxQueueNumber = Math.max(
-          ...todaysAppointments.value
-            .filter(apt => apt.queueNumber)
-            .map(apt => apt.queueNumber!),
-          0
-        )
-        appointment.queueNumber = maxQueueNumber + 1
-      }
 
       // Update queue management system
       updatePatientStatus(appointment.patientId, 'checked-in')
@@ -252,6 +257,7 @@ export const useStaffAppointments = () => {
     }
 
     try {
+      // Update appointment status locally (backend doesn't support this status yet)
       appointment.status = 'no-show'
 
       // Update queue management system
@@ -271,12 +277,8 @@ export const useStaffAppointments = () => {
     }
 
     try {
+      // Update appointment status locally (backend doesn't support this status yet)
       appointment.status = 'completed'
-      appointment.completedTime = new Date().toLocaleTimeString('en-SG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      })
 
       // Update queue management system
       updatePatientStatus(appointment.patientId, 'completed')
@@ -284,21 +286,6 @@ export const useStaffAppointments = () => {
       return true
     } catch (error) {
       console.error('Mark completed failed:', error)
-      return false
-    }
-  }
-
-  const cancelAppointment = async (appointmentId: number) => {
-    const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-    if (!appointment) {
-      return false
-    }
-
-    try {
-      appointment.status = 'cancelled'
-      return true
-    } catch (error) {
-      console.error('Cancel appointment failed:', error)
       return false
     }
   }
@@ -351,7 +338,6 @@ export const useStaffAppointments = () => {
     checkInPatient,
     markNoShow,
     markCompleted,
-    cancelAppointment,
 
     // Utilities
     formatTime,

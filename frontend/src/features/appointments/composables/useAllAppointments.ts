@@ -2,6 +2,9 @@ import { ref, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import type { Tables } from '@/types/supabase'
 import type { DateValue } from '@internationalized/date'
+import { apiClient } from '@/lib/api'
+import { doctorsApi } from '@/services/doctorsApi'
+import { appointmentsApi } from '@/services/appointmentsApi'
 
 // Define proper TypeScript interfaces
 interface Appointment {
@@ -106,43 +109,10 @@ export function useAllAppointments() {
     }
   }
 
-  // Utility function for API calls with error handling
-  const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
-    try {
-      const response = await fetch(url, {
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        ...options
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${await response.text()}`)
-      }
-
-      // Handle empty responses (common for DELETE operations)
-      if (response.status === 204 || response.headers.get('content-length') === '0') {
-        return null // Return null for empty responses
-      }
-
-      // Only parse JSON if there's content
-      const contentType = response.headers.get('content-type')
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json()
-      }
-
-      return await response.text()
-    } catch (err) {
-      console.error('API call failed:', err)
-      throw err
-    }
-  }
-
   // --- Fetch doctors ---
   const fetchDoctors = async (clinicId: number) => {
     try {
-      doctors.value = await fetchWithErrorHandling(
-        `http://localhost:8080/api/admin/doctors/clinic/${clinicId}`
-      )
+      doctors.value = await doctorsApi.getDoctorsByClinicId(clinicId)
 
       // Set default doctor if none is selected
       if (!bookingData.value.doctor && doctors.value.length > 0) {
@@ -171,9 +141,7 @@ export function useAllAppointments() {
 
       await fetchDoctors(clinicId)
 
-      const data = await fetchWithErrorHandling(
-        `http://localhost:8080/api/staff/appointments/clinic/${clinicId}`
-      )
+      const data = await appointmentsApi.getClinicAppointments(clinicId)
 
       // Filter out past appointments (SGT timezone)
       const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
@@ -185,9 +153,9 @@ export function useAllAppointments() {
 
       // Fetch related data in parallel
       const [patients, profiles, clinicsData] = await Promise.all([
-        fetchWithErrorHandling('http://localhost:8080/api/patient/all'),
-        fetchWithErrorHandling('http://localhost:8080/api/admin/users'),
-        fetchWithErrorHandling('http://localhost:8080/api/admin/clinics')
+        apiClient.get('/api/patient/all'),
+        apiClient.get('/api/admin/users'),
+        apiClient.get('/api/admin/clinics')
       ])
 
       clinics.value = clinicsData
@@ -268,9 +236,7 @@ export function useAllAppointments() {
       }
 
       // This might return null (empty response), but that's OK for DELETE
-      await fetchWithErrorHandling(`http://localhost:8080/api/appointments/${appointmentId}`, {
-        method: 'DELETE'
-      })
+      await appointmentsApi.cancelAppointment(appointmentId)
 
       // Update local state for real-time UI
       allAppointments.value[appointmentIndex] = {
@@ -300,9 +266,7 @@ export function useAllAppointments() {
       const dayOfWeek = selectedDateObj.getDay() === 0 ? 7 : selectedDateObj.getDay()
       const selectedDateStr = selectedDateObj.toISOString().split('T')[0]
 
-      const schedules = await fetchWithErrorHandling(
-        `http://localhost:8080/api/admin/doctors/${doctorId}/schedules`
-      )
+      const schedules = await apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
 
       const validSchedules = schedules.filter((sch: any) => {
         const validFrom = new Date(sch.valid_from)
@@ -395,17 +359,9 @@ export function useAllAppointments() {
       console.log("[RESCHEDULE] Final UTC times:")
       console.log("  - Start:", newStartTime)
       console.log("  - End:", newEndTime)
+      console.log("[RESCHEDULE] Calling appointmentsApi.updateAppointment with params:", { appointmentId, newStartTime, newEndTime })
 
-      // Build URL with query params
-      const params = new URLSearchParams({
-        newStartTime,
-        newEndTime
-      })
-
-      const url = `http://localhost:8080/api/appointments/${appointmentId}?${params.toString()}`
-      console.log("[RESCHEDULE] Calling URL:", url)
-
-      await fetchWithErrorHandling(url, { method: "PUT" })
+      await appointmentsApi.updateAppointment(appointmentId, newStartTime, newEndTime)
 
       // Refresh appointments to get updated data
       await fetchAllAppointments()
