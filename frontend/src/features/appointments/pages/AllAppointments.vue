@@ -18,7 +18,8 @@ const {
   rescheduleAvailableSlots,
   bookingData, // timeslot generation
   canModifyAppointment, // 24h in advance check
-  getTimeRemaining
+  getTimeRemaining,
+  error
 } = useAllAppointments()
 
 // Filters
@@ -38,7 +39,7 @@ const rescheduleDate = ref('')
 watch([rescheduleDoctorId, rescheduleDate], ([doctorId, date]) => {
   if (doctorId && date) {
     const doctor = doctors.value.find(d => d.id === doctorId) ?? null
-    bookingData.value = { doctor, date }
+    bookingData.value = { doctor, date: date as any }
     rescheduleTime.value = ''
   } else {
     bookingData.value = { doctor: null, date: null }
@@ -100,7 +101,7 @@ const openReschedule = (appointmentId: number) => {
   // Set doctor automatically
   const doctor = doctors.value.find(d => d.id === appt.doctorId) ?? null
   rescheduleDoctorId.value = appt.doctorId
-  bookingData.value = { doctor, date: appt.date }
+  bookingData.value = { doctor, date: appt.date as any }
   showReschedule.value = true
 }
 
@@ -173,7 +174,7 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
             </p>
 
             <!-- Status and time remaining (only show timer when cannot modify) -->
-            <div class="flex items-center gap-4 mt-2">
+            <div class="flex items-center gap-4 my-2">
               <Badge :class="{
                 'bg-gray-100 text-gray-800': appt.status === 'scheduled',
                 'bg-gray-200 text-gray-800': appt.status === 'checked-in',

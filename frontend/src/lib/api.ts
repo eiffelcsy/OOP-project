@@ -198,8 +198,14 @@ export const apiClient = {
       throw new Error(errorMessage)
     }
     
-    // DELETE may return no content
-    if (response.status === 204) {
+    // DELETE may return no content (204) or empty body
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+      return null
+    }
+    
+    // Check if there's actually content to parse
+    const contentType = response.headers.get('content-type')
+    if (!contentType || !contentType.includes('application/json')) {
       return null
     }
     

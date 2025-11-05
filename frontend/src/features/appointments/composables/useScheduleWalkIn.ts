@@ -4,7 +4,7 @@ import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { clinicsApi } from '@/services/clinicsApi'
 import { doctorsApi } from '@/services/doctorsApi'
-import { appointmentsApi } from '@/services/appointmentsApi'
+import { appointmentsApi, type AppointmentResponse } from '@/services/appointmentsApi'
 import { patientsApi } from '@/services/patientsApi'
 import { schedulesApi } from '@/services/schedulesApi'
 
@@ -47,16 +47,16 @@ export const useScheduleWalkIn = () => {
     region: 'Central',
     area: 'Outram Park',
     address_line: 'Outram Road, Singapore 169608',
-    source_ref: null,
-    remarks: null,
+    source_ref: null as string | null,
+    remarks: null as string | null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    open_time: null,
-    close_time: null,
+    open_time: null as string | null,
+    close_time: null as string | null,
   })
 
   const availableDoctors = ref<Doctor[]>([])
-  const clinicAppointments = ref<Tables<'appointments'>[]>([])
+  const clinicAppointments = ref<AppointmentResponse[]>([])
   const availableSlots = ref<TimeSlot[]>([])
 
   const fetchClinic = async (clinicId: number) => {
@@ -181,7 +181,7 @@ export const useScheduleWalkIn = () => {
         return
       }
 
-      const generatedSlots = await generateTimeSlots(doctor.id, date)
+      const generatedSlots = await generateTimeSlots(doctor.id, date as DateValue)
       const selectedDateStr = new Date(date.toString()).toISOString().split('T')[0]
 
       const bookedAppointments = clinicAppointments.value.filter(

@@ -69,7 +69,7 @@ const handleSubmit = async () => {
   }
   
   try {
-    const result = await createClinic(formData)
+    const result = await createClinic(formData as any)
     toast.success('Clinic Created', {
       description: 'New clinic has been successfully created',
       action: {
@@ -285,13 +285,13 @@ const handleCancel = () => {
             </div>
 
             <!-- Source Reference -->
-            <div class="space-y-2">
+            <div class="space-y-2" v-if="false">
               <Label for="source-ref">Source Reference</Label>
               <Input 
                 id="source-ref" 
                 placeholder="External reference or ID"
-                :model-value="formData.source_ref ?? ''"
-                @update:model-value="formData.source_ref = ($event as string) || null"
+                :model-value="''"
+                @update:model-value="() => {}"
               />
             </div>
           </div>

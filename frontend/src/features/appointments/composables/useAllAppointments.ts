@@ -429,8 +429,9 @@ export function useAllAppointments() {
       }
 
       try {
-        const generatedSlots = await generateTimeSlots(doctor.id, date)
-        const selectedDateStr = new Date(date.toString()).toISOString().split('T')[0]
+        const dateStr = typeof date === 'string' ? date : date.toString()
+        const generatedSlots = await generateTimeSlots(doctor.id, dateStr)
+        const selectedDateStr = new Date(dateStr).toISOString().split('T')[0]
 
         const bookedAppointments = allAppointments.value.filter(
           (appt) =>

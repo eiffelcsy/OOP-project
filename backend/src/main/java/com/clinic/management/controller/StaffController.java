@@ -11,18 +11,11 @@ import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.dto.response.StaffAppointmentResponse;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Queue;
-import com.clinic.management.model.QueueTicket;
 import com.clinic.management.model.Patient;
-import com.clinic.management.model.Profile;
-import com.clinic.management.model.Doctor;
-import com.clinic.management.model.Clinic;
-import com.clinic.management.repository.ProfileRepository;
-import com.clinic.management.repository.PatientRepository;
-import com.clinic.management.repository.DoctorRepository;
-import com.clinic.management.repository.ClinicRepository;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
 import com.clinic.management.service.QueueTicketService;
+import com.clinic.management.service.PatientService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -31,14 +24,9 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
-import java.time.ZonedDateTime;
-import java.time.LocalDate;
-import com.clinic.management.config.TimezoneConfig;
 
 /**
  * REST Controller for Staff, Appointment, Queue, and Patient management
@@ -78,22 +66,15 @@ public class StaffController {
     private final AppointmentService appointmentService;
     private final QueueService queueService;
     private final QueueTicketService queueTicketService;
-    private final ProfileRepository profileRepository;
-    private final PatientRepository patientRepository;
-    private final DoctorRepository doctorRepository;
-    private final ClinicRepository clinicRepository;
+    private final PatientService patientService;
 
     @Autowired
     public StaffController(AppointmentService appointmentService, QueueService queueService,
-            QueueTicketService queueTicketService, ProfileRepository profileRepository,
-            PatientRepository patientRepository, DoctorRepository doctorRepository, ClinicRepository clinicRepository) {
+            QueueTicketService queueTicketService, PatientService patientService) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
-        this.profileRepository = profileRepository;
-        this.patientRepository = patientRepository;
-        this.doctorRepository = doctorRepository;
-        this.clinicRepository = clinicRepository;
+        this.patientService = patientService;
     }
 
     // =========================
@@ -111,10 +92,8 @@ public class StaffController {
 
     /**
      * Get today's appointments for a clinic with enriched data
-     * This endpoint returns appointments with patient names, doctor names, clinic
-     * info, etc.
-     * Filters appointments to only show those scheduled for today (in
-     * Asia/Singapore timezone)
+     * This endpoint returns appointments with patient names, doctor names, clinic info, etc.
+     * Filters appointments to only show those scheduled for today (in Asia/Singapore timezone)
      * 
      * GET /api/staff/appointments/today/{clinicId}
      * 
@@ -123,90 +102,7 @@ public class StaffController {
      */
     @GetMapping("/staff/appointments/today/{clinicId}")
     public ResponseEntity<List<StaffAppointmentResponse>> getTodaysAppointments(@PathVariable Long clinicId) {
-        // Get today's date in clinic timezone (Asia/Singapore)
-        ZonedDateTime nowInClinicZone = ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE);
-        LocalDate today = nowInClinicZone.toLocalDate();
-
-        // Fetch all appointments for the clinic
-        List<Appointment> allAppointments = appointmentService.getAppointments(null, clinicId, null);
-
-        // Filter to today's appointments (comparing dates in clinic timezone)
-        List<Appointment> todaysAppointments = allAppointments.stream()
-                .filter(appt -> {
-                    if (appt.getStartTime() == null)
-                        return false;
-                    ZonedDateTime apptInClinicZone = appt.getStartTime().atZoneSameInstant(TimezoneConfig.CLINIC_ZONE);
-                    LocalDate apptDate = apptInClinicZone.toLocalDate();
-                    return apptDate.equals(today);
-                })
-                .collect(Collectors.toList());
-
-        // Collect all unique IDs we need to fetch
-        List<Long> patientIds = todaysAppointments.stream()
-                .map(Appointment::getPatientId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<Long> doctorIds = todaysAppointments.stream()
-                .map(Appointment::getDoctorId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<Long> clinicIds = todaysAppointments.stream()
-                .map(Appointment::getClinicId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        // Fetch all related entities in bulk
-        List<Patient> patients = patientIds.isEmpty() ? List.of() : patientRepository.findByIdIn(patientIds);
-        List<Doctor> doctors = doctorIds.isEmpty() ? List.of() : doctorRepository.findAllById(doctorIds);
-        List<Clinic> clinics = clinicIds.isEmpty() ? List.of() : clinicRepository.findAllById(clinicIds);
-
-        // Build patient ID -> user ID mapping
-        Map<Long, String> patientIdToUserId = patients.stream()
-                .filter(p -> p.getUserId() != null)
-                .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
-
-        // Fetch profiles for all user IDs
-        List<String> userIds = patients.stream()
-                .map(Patient::getUserId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<Profile> profiles = userIds.isEmpty() ? List.of() : profileRepository.findByUserIdIn(userIds);
-
-        // Build lookup maps for efficient access
-        Map<Long, Patient> patientMap = patients.stream()
-                .collect(Collectors.toMap(Patient::getId, p -> p));
-
-        Map<String, Profile> profileMap = profiles.stream()
-                .collect(Collectors.toMap(Profile::getUserId, p -> p));
-
-        Map<Long, Doctor> doctorMap = doctors.stream()
-                .collect(Collectors.toMap(Doctor::getDoctorId, d -> d));
-
-        Map<Long, Clinic> clinicMap = clinics.stream()
-                .collect(Collectors.toMap(Clinic::getId, c -> c));
-
-        // Build enriched responses
-        List<StaffAppointmentResponse> responses = todaysAppointments.stream()
-                .map(appt -> {
-                    Patient patient = patientMap.get(appt.getPatientId());
-                    Profile profile = null;
-                    if (patient != null && patient.getUserId() != null) {
-                        profile = profileMap.get(patient.getUserId());
-                    }
-                    Doctor doctor = doctorMap.get(appt.getDoctorId());
-                    Clinic clinic = clinicMap.get(appt.getClinicId());
-
-                    return StaffAppointmentResponse.from(appt, patient, profile, doctor, clinic);
-                })
-                .collect(Collectors.toList());
-
+        List<StaffAppointmentResponse> responses = appointmentService.getTodaysAppointmentsForClinic(clinicId);
         return ResponseEntity.ok(responses);
     }
 
@@ -378,7 +274,7 @@ public class StaffController {
      */
     @GetMapping("/staff/patients")
     public List<Patient> getAllPatients() {
-        return patientRepository.findAll();
+        return patientService.getAllPatients();
     }
 
     /**
@@ -392,7 +288,7 @@ public class StaffController {
      */
     @GetMapping("/staff/patients/{id}")
     public ResponseEntity<Patient> getPatientById(@PathVariable Long id) {
-        return patientRepository.findById(id)
+        return patientService.getPatientById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -417,53 +313,7 @@ public class StaffController {
      */
     @GetMapping("/staff/queues/{queueId}/tickets")
     public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
-        List<QueueTicket> tickets = queueTicketService.list(queueId);
-
-        // Collect patient IDs via appointment.patientId then resolve to user IDs
-        List<Long> patientIds = tickets.stream()
-                .map(QueueTicket::getAppointment)
-                .filter(Objects::nonNull)
-                .map(Appointment::getPatientId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        Map<Long, String> patientIdToUserId = patientRepository.findByIdIn(patientIds).stream()
-                .filter(p -> p.getUserId() != null)
-                .collect(Collectors.toMap(Patient::getId, Patient::getUserId));
-
-        List<String> userIds = patientIds.stream()
-                .map(patientIdToUserId::get)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        // Fetch all profiles in one query
-        Map<String, String> userIdToNameMap = profileRepository.findByUserIdIn(userIds).stream()
-                .collect(Collectors.toMap(Profile::getUserId, Profile::getFullName));
-
-        // Convert tickets to responses and enrich with patient names
-        List<QueueTicketResponse> responses = tickets.stream()
-                .map(ticket -> {
-                    QueueTicketResponse response = QueueTicketResponse.from(ticket);
-                    // Enrich patient name via appointment.patientId -> patient.userId -> profiles
-                    if (ticket.getAppointment() != null && ticket.getAppointment().getPatientId() != null) {
-                        Long pid = ticket.getAppointment().getPatientId();
-                        String uid = patientIdToUserId.get(pid);
-                        if (uid != null) {
-                            String patientName = userIdToNameMap.get(uid);
-                            response.setPatientName(
-                                    patientName != null ? patientName : (pid != null ? "Patient #" + pid : "Walk-in"));
-                        } else {
-                            response.setPatientName(pid != null ? "Patient #" + pid : "Walk-in");
-                        }
-                    } else {
-                        response.setPatientName("Walk-in");
-                    }
-                    return response;
-                })
-                .collect(Collectors.toList());
-
+        List<QueueTicketResponse> responses = queueTicketService.listWithPatientNames(queueId);
         return ResponseEntity.ok(responses);
     }
 

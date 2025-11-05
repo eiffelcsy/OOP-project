@@ -290,9 +290,9 @@ onMounted(() => {
                     <Label class="text-muted-foreground">Remarks</Label>
                     <p class="text-base font-medium">{{ clinic.remarks || 'No remarks' }}</p>
                   </div>
-                  <div>
+                  <div v-if="false">
                     <Label class="text-muted-foreground">Source Reference</Label>
-                    <p class="text-base font-medium">{{ clinic.source_ref || 'No reference' }}</p>
+                    <p class="text-base font-medium">No reference</p>
                   </div>
                 </div>
               </CollapsibleContent>
@@ -551,12 +551,12 @@ onMounted(() => {
                 @update:model-value="editFormData.remarks = ($event as string) || null"
               />
             </div>
-            <div class="space-y-2">
+            <div class="space-y-2" v-if="false">
               <Label for="edit-source-ref">Source Reference</Label>
               <Input 
                 id="edit-source-ref" 
-                :model-value="editFormData.source_ref ?? ''"
-                @update:model-value="editFormData.source_ref = ($event as string) || null"
+                :model-value="''"
+                @update:model-value="() => {}"
               />
             </div>
           </CardContent>

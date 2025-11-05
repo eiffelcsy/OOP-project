@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { useAuth } from '@/features/auth/composables/useAuth'
 
 const { currentUser } = useAuth()
-const patientId = currentUser?.id
+const patientId = currentUser.value?.patient?.id
 
 // Dummy queue ticket data
 const dummyQueueTicketData = ref([

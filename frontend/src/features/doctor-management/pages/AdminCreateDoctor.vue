@@ -102,10 +102,11 @@ const handleSelectOther = () => {
   formData.specialty = null
 }
 
-const handleCustomSpecialtyChange = (value: string) => {
-  customSpecialty.value = value
-  if (value.trim()) {
-    formData.specialty = value.trim()
+const handleCustomSpecialtyChange = (value: string | number) => {
+  const strValue = String(value)
+  customSpecialty.value = strValue
+  if (strValue.trim()) {
+    formData.specialty = strValue.trim()
   } else {
     formData.specialty = null
   }
@@ -386,7 +387,7 @@ onMounted(() => {
                     {{ clinic.region }} • {{ clinic.area }}
                   </p>
                 </div>
-                <Badge variant="secondary">{{ clinic.clinicType }}</Badge>
+                <Badge variant="secondary">{{ clinic.clinic_type }}</Badge>
               </div>
             </div>
             <div v-if="filteredClinics.length === 0" class="text-center py-8">

@@ -87,12 +87,12 @@ const daysOfWeek = [
 
 // Schedule form data
 const scheduleFormData = reactive<Partial<CreateScheduleRequest>>({
-  dayOfWeek: 1,
-  startTime: '09:00:00',
-  endTime: '17:00:00',
-  slotDurationMinutes: 30,
-  validFrom: null,
-  validTo: null
+  day_of_week: 1,
+  start_time: '09:00:00',
+  end_time: '17:00:00',
+  slot_duration_minutes: 30,
+  valid_from: null,
+  valid_to: null
 })
 
 const doctorId = computed(() => parseInt(route.params.id as string))
@@ -119,7 +119,7 @@ const filteredSchedules = computed(() => {
   if (validityFilter.value !== 'all') {
     const today = new Date().toISOString().split('T')[0]
     filtered = filtered.filter(s => {
-      const isValid = (!s.validTo || s.validTo >= today) && (!s.validFrom || s.validFrom <= today)
+      const isValid = (!s.valid_to || s.valid_to >= today) && (!s.valid_from || s.valid_from <= today)
       return validityFilter.value === 'valid' ? isValid : !isValid
     })
   }
@@ -215,16 +215,16 @@ const handleAddSchedule = () => {
   scheduleValidationError.value = null
   
   // Set default times to clinic hours if available
-  const defaultStartTime = clinic.value?.openTime || '09:00:00'
-  const defaultEndTime = clinic.value?.closeTime || '17:00:00'
+  const defaultStartTime = clinic.value?.open_time || '09:00:00'
+  const defaultEndTime = clinic.value?.close_time || '17:00:00'
   
   Object.assign(scheduleFormData, {
-    dayOfWeek: 1,
-    startTime: defaultStartTime,
-    endTime: defaultEndTime,
-    slotDurationMinutes: 30,
-    validFrom: null,
-    validTo: null
+    day_of_week: 1,
+    start_time: defaultStartTime,
+    end_time: defaultEndTime,
+    slot_duration_minutes: 30,
+    valid_from: null,
+    valid_to: null
   })
   showScheduleDialog.value = true
 }
@@ -379,10 +379,11 @@ const handleSelectOther = () => {
   editFormData.specialty = null
 }
 
-const handleCustomSpecialtyChange = (value: string) => {
-  customSpecialty.value = value
-  if (value.trim()) {
-    editFormData.specialty = value.trim()
+const handleCustomSpecialtyChange = (value: string | number) => {
+  const strValue = String(value)
+  customSpecialty.value = strValue
+  if (strValue.trim()) {
+    editFormData.specialty = strValue.trim()
   } else {
     editFormData.specialty = null
   }
@@ -393,7 +394,7 @@ const handleSave = async () => {
     const result = await updateDoctor(doctorId.value, {
       name: editFormData.name,
       specialty: editFormData.specialty,
-      active: editFormData.active,
+      active: editFormData.active ?? undefined,
       clinic_id: editFormData.clinic_id
     })
     doctor.value = result
@@ -859,13 +860,13 @@ onMounted(() => {
         </DialogHeader>
 
         <!-- Clinic Operating Hours Info -->
-        <div v-if="clinic?.openTime && clinic?.closeTime" class="bg-muted/50 p-4 rounded-lg border">
+        <div v-if="clinic?.open_time && clinic?.close_time" class="bg-muted/50 p-4 rounded-lg border">
           <div class="flex items-start gap-3">
             <Icon icon="lucide:info" class="h-5 w-5 text-muted-foreground mt-0.5" />
             <div>
               <p class="text-sm font-medium">Clinic Operating Hours</p>
               <p class="text-sm text-muted-foreground mt-1">
-                {{ clinic.name }}: {{ formatTimeForDisplay(clinic.openTime) }} - {{ formatTimeForDisplay(clinic.closeTime) }}
+                {{ clinic.name }}: {{ formatTimeForDisplay(clinic.open_time) }} - {{ formatTimeForDisplay(clinic.close_time) }}
               </p>
               <p class="text-xs text-muted-foreground mt-1">
                 Schedule times must be within these hours
@@ -946,7 +947,8 @@ onMounted(() => {
               <Label for="schedule-valid-from">Valid From (Optional)</Label>
               <Input 
                 id="schedule-valid-from" 
-                v-model="scheduleFormData.valid_from" 
+                :model-value="scheduleFormData.valid_from ?? undefined"
+                @update:model-value="scheduleFormData.valid_from = $event as string || null"
                 type="date"
               />
             </div>
@@ -955,7 +957,8 @@ onMounted(() => {
               <Label for="schedule-valid-to">Valid To (Optional)</Label>
               <Input 
                 id="schedule-valid-to" 
-                v-model="scheduleFormData.valid_to" 
+                :model-value="scheduleFormData.valid_to ?? undefined"
+                @update:model-value="scheduleFormData.valid_to = $event as string || null"
                 type="date"
               />
             </div>

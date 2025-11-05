@@ -261,7 +261,7 @@ const createAuth = () => {
       if (currentSession?.user) {
         session.value = currentSession
         console.log('[RefreshUser] Session refreshed successfully. Fetching user profile...')
-        currentUser.value = await fetchUserProfile(currentSession.user.id)
+        currentUser.value = await fetchUserProfile(currentSession.user.id) as any
         console.log('[RefreshUser] User profile fetched successfully. Current user:', currentUser.value)
       }
     } catch (err: any) {

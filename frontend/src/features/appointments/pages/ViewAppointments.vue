@@ -406,7 +406,7 @@ onMounted(async () => {
                 </p>
               </div>
 
-              <div class="flex gap-2">
+              <div class="flex gap-2 mt-4">
                 <template v-if="appointment.status === 'scheduled'">
                   <Button 
                     variant="outline" 

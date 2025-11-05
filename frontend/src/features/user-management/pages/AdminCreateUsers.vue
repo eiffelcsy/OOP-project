@@ -19,12 +19,12 @@ const formData = reactive<CreateUserRequest>({
     role: 'patient',
     password: '',
     // Patient fields
-    nric: '',
-    phone: '',
-    dob: '',
-    address: '',
+    nric: null,
+    phone: null,
+    dob: null,
+    address: null,
     // Staff fields
-    clinic_id: undefined,
+    clinic_id: null,
     staff_role: null
 })
 
@@ -238,25 +238,25 @@ const getRoleDisplayName = (role: string) => {
                         <!-- NRIC -->
                         <div class="space-y-2">
                             <Label for="nric">NRIC/FIN</Label>
-                            <Input id="nric" v-model="formData.nric" placeholder="S1234567A" />
+                            <Input id="nric" :model-value="formData.nric ?? undefined" @update:model-value="formData.nric = $event as string || null" placeholder="S1234567A" />
                         </div>
 
                         <!-- Phone -->
                         <div class="space-y-2">
                             <Label for="phone">Phone Number</Label>
-                            <Input id="phone" v-model="formData.phone" type="tel" placeholder="+65 9123 4567" />
+                            <Input id="phone" :model-value="formData.phone ?? undefined" @update:model-value="formData.phone = $event as string || null" type="tel" placeholder="+65 9123 4567" />
                         </div>
 
                         <!-- Date of Birth -->
                         <div class="space-y-2">
                             <Label for="dob">Date of Birth</Label>
-                            <Input id="dob" v-model="formData.dob" type="date" />
+                            <Input id="dob" :model-value="formData.dob ?? undefined" @update:model-value="formData.dob = $event as string || null" type="date" />
                         </div>
 
                         <!-- Address -->
                         <div class="space-y-2 md:col-span-2 lg:col-span-3">
                             <Label for="address">Address</Label>
-                            <Input id="address" v-model="formData.address" placeholder="123 Main Street, #01-234" />
+                            <Input id="address" :model-value="formData.address ?? undefined" @update:model-value="formData.address = $event as string || null" placeholder="123 Main Street, #01-234" />
                         </div>
                     </div>
                 </CardContent>
@@ -275,7 +275,7 @@ const getRoleDisplayName = (role: string) => {
                             <Label for="clinic_id">
                                 Clinic ID <span class="text-destructive">*</span>
                             </Label>
-                            <Input id="clinic_id" v-model.number="formData.clinic_id" type="number"
+                            <Input id="clinic_id" :model-value="formData.clinic_id ?? undefined" @update:model-value="formData.clinic_id = $event ? Number($event) : null" type="number"
                                 placeholder="e.g., 1" :class="{ 'border-destructive': formErrors.clinic_id }" />
                             <p v-if="formErrors.clinic_id" class="text-sm text-destructive">{{ formErrors.clinic_id }}
                             </p>
