@@ -100,6 +100,7 @@ const doctorId = computed(() => parseInt(route.params.id as string))
 const formatTimeForDisplay = (time: string) => {
   if (!time) return 'Not set'
   // Use the same timezone-aware formatting as formatTime
+  // This ensures consistent display across all time fields
   return formatTime(time)
 }
 
@@ -146,15 +147,9 @@ const getDayLabel = (dayNum: number) => {
 const formatTime = (time: string) => {
   if (!time) return 'Not set'
   
-  // Debug: Log the time value being formatted
-  console.log('⏰ formatTime called with:', {
-    time,
-    type: typeof time,
-    substring: time.substring(0, 5)
-  })
-  
-  // Backend returns LocalTime as "HH:MM:SS" string - already in SGT
-  // Just display it as-is (no timezone conversion needed)
+  // Backend returns LocalTime as "HH:MM:SS" string in Singapore timezone
+  // Thanks to Jackson timezone configuration, the time is already in clinic local time
+  // We simply display it as-is (truncated to HH:MM for cleaner UI)
   return time.substring(0, 5) // HH:MM
 }
 

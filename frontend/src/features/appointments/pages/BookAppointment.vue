@@ -377,7 +377,7 @@ const totalDoctorPages = computed(() => Math.ceil(availableDoctors.value.length 
 
                             <!-- Legend explaining the green highlight -->
                             <p class="text-sm text-muted-foreground mt-3 flex items-center gap-2">
-                                <span class="inline-block w-3 h-3 rounded-full bg-green-100 border border-green-200" aria-hidden="true"></span>
+                                <span class="inline-block size-4 rounded-full bg-green-100 border border-green-200 shrink-0" aria-hidden="true"></span>
                                 Days highlighted in light green have available time slots — select one to view times.
                             </p>
                         </CardContent>

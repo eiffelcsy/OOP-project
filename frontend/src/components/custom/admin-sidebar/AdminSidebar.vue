@@ -194,9 +194,9 @@ const handleLogout = async () => {
                 <div class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Icon icon="lucide:user-cog" class="size-4" />
                 </div>
-                <div class="flex flex-col gap-0.5 leading-none">
-                  <span class="font-semibold">{{ userName }}</span>
-                  <span class="text-xs">{{ userEmail }}</span>
+                <div class="flex flex-col gap-0.5 leading-none min-w-0 flex-1">
+                  <span class="font-semibold truncate">{{ userName }}</span>
+                  <span class="text-xs truncate">{{ userEmail }}</span>
                 </div>
                 <Icon icon="lucide:chevrons-up-down" class="ml-auto" />
               </SidebarMenuButton>

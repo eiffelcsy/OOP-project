@@ -785,23 +785,11 @@ export const useBookAppointment = () => {
           })) as any[]
 
           // compute slots
-          // Helper: convert a time-of-day string that is in UTC (HH:mm[:ss]) to Singapore local time (HH:mm)
-          const convertUtcTimeToSgt = (timeStr: string | null | undefined) => {
-            if (!timeStr) return timeStr
-            // Expect formats like '01:00:00' or '01:00'
-            const parts = (timeStr || '').split(':').map((p: string) => parseInt(p, 10) || 0)
-            let hh = parts[0] || 0
-            const mm = parts[1] || 0
-            // Add 8 hours to convert UTC -> SGT
-            hh = (hh + 8) % 24
-            const pad = (n: number) => n.toString().padStart(2, '0')
-            return `${pad(hh)}:${pad(mm)}`
-          }
-
           const scheduleWithSlots = rows.map(row => {
-            // For API-sourced rows we treat returned times as UTC-of-day and convert to SGT
-            const start = convertUtcTimeToSgt(row.start_time)
-            const end = convertUtcTimeToSgt(row.end_time)
+            // Backend returns LocalTime in Singapore timezone (configured in JacksonConfig)
+            // No timezone conversion needed - times are already in clinic local time
+            const start = row.start_time
+            const end = row.end_time
             const duration = Number(row.slot_duration_minutes) || 0
             const dayNum = Number(row.day_of_week) || 0
 
