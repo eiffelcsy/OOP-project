@@ -106,4 +106,100 @@ public class EmailService {
             log.error("Error while sending appointment email for id=" + appointment.getId(), ex);
         }
     }
+
+    @Async
+    public void sendQueueApproachingEmail(String toEmail, String patientName, int queueNumber, String clinicName) {
+        if (!isConfigured()) {
+            log.warn("EmailService not configured - skipping queue notification for patient {}", patientName);
+            return;
+        }
+
+        try {
+            String from = String.format("clinic@%s", domain);
+            String subject = "Your turn is approaching";
+            String html = String.format(
+                "<html><body>" +
+                "<p>Hi %s,</p>" +
+                "<p>Your queue number %d will be called soon at %s.</p>" +
+                "<p>Please ensure you are in the clinic.</p>" +
+                "</body></html>",
+                patientName,
+                queueNumber,
+                clinicName
+            );
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("from", from);
+            body.put("to", new String[]{ toEmail });
+            body.put("subject", subject);
+            body.put("html", html);
+
+            String json = mapper.writeValueAsString(body);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                log.info("Sent queue approaching email to {} for queue number {}", toEmail, queueNumber);
+            } else {
+                log.warn("Failed to send queue approaching email (status={}): {}", resp.statusCode(), resp.body());
+            }
+        } catch (Exception ex) {
+            log.error("Error sending queue notification email", ex);
+        }
+    }
+
+    @Async
+    public void sendQueueCalledEmail(String toEmail, String patientName, String doctorName, String clinicName) {
+        if (!isConfigured()) {
+            log.warn("EmailService not configured - skipping queue called notification for patient {}", patientName);
+            return;
+        }
+
+        try {
+            String from = String.format("clinic@%s", domain);
+            String subject = "Please proceed to your doctor";
+            String html = String.format(
+                "<html><body>" +
+                "<p>Hi %s,</p>" +
+                "<p>It's your turn! Please proceed to Dr. %s at %s.</p>" +
+                "<p>If you are not present, you may be marked as 'No Show' after a brief waiting period.</p>" +
+                "</body></html>",
+                patientName,
+                doctorName,
+                clinicName
+            );
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("from", from);
+            body.put("to", new String[]{ toEmail });
+            body.put("subject", subject);
+            body.put("html", html);
+
+            String json = mapper.writeValueAsString(body);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                log.info("Sent queue called email to {} for doctor {}", toEmail, doctorName);
+            } else {
+                log.warn("Failed to send queue called email (status={}): {}", resp.statusCode(), resp.body());
+            }
+        } catch (Exception ex) {
+            log.error("Error sending queue called email", ex);
+        }
+    }
+
+
 }

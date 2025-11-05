@@ -48,4 +48,11 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     List<QueueTicket> findByQueueIdAndDate(
             @Param("queueId") Long queueId,
             @Param("date") LocalDate date);
+
+	/**
+     * Find tickets by queue and status
+     * Used for email notifications to find waiting patients
+     */
+    @Query("SELECT qt FROM QueueTicket qt WHERE qt.queue = :queue AND qt.ticketStatus = :status ORDER BY qt.priority DESC, qt.ticketNumber ASC")
+    List<QueueTicket> findByQueueAndStatus(@Param("queue") Queue queue, @Param("status") String status);
 }

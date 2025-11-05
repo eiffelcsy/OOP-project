@@ -23,18 +23,24 @@ public class QueueTicketService {
     private final AppointmentRepository appointmentRepository;
     private final PatientRepository patientRepository;
     private final ProfileRepository profileRepository;
+    
+    // Added for Email notifications 
+    private final QueueService queueService;
 
     @Autowired
     public QueueTicketService(QueueTicketRepository queueTicketRepository,
                               QueueRepository queueRepository,
                               AppointmentRepository appointmentRepository,
                               PatientRepository patientRepository,
-                              ProfileRepository profileRepository) {
+                              ProfileRepository profileRepository,
+                              QueueService queueService) {
         this.queueTicketRepository = queueTicketRepository;
         this.queueRepository = queueRepository;
         this.appointmentRepository = appointmentRepository;
         this.patientRepository = patientRepository;
         this.profileRepository = profileRepository;
+        // Added for Email notifications 
+        this.queueService = queueService;
     }
 
     @Transactional
@@ -60,7 +66,17 @@ public class QueueTicketService {
         t.setCompletedAt(req.getCompletedAt());
         t.setNoShowAt(req.getNoShowAt());
 
-        return queueTicketRepository.save(t);
+        QueueTicket saved = queueTicketRepository.save(t);
+        
+        // Trigger email notifications after creating ticket (queue positions changed)
+        try {
+            queueService.processQueueNotifications(saved.getQueue().getId());
+        } catch (Exception e) {
+            // Log but don't fail the ticket creation
+            // Logging is handled in QueueService
+        }
+
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -86,6 +102,12 @@ public class QueueTicketService {
             }
         }
 
+        // ## Added for Email Notifications
+        // Store old values to check if they changed
+        String oldStatus = t.getTicketStatus();
+        Short oldPriority = t.getPriority();
+        // ## Added for Email Notifications
+
         req.getQueueId().ifPresent(qid -> {
             Queue q = queueRepository.findById(qid)
                     .orElseThrow(() -> new ValidationException("Queue not found with id: " + qid));
@@ -107,15 +129,46 @@ public class QueueTicketService {
         req.getCompletedAt().ifPresent(t::setCompletedAt);
         req.getNoShowAt().ifPresent(t::setNoShowAt);
 
-        return queueTicketRepository.save(t);
+        QueueTicket updated = queueTicketRepository.save(t);
+        
+        // ## Added for Email Notifications
+        // Trigger email notifications if status or priority changed
+        boolean statusChanged = req.getTicketStatus().isPresent() && 
+                               !req.getTicketStatus().get().equals(oldStatus);
+        boolean priorityChanged = req.getPriority().isPresent() && 
+                                 !req.getPriority().get().equals(oldPriority);
+        
+        if (statusChanged || priorityChanged) {
+            try {
+                queueService.processQueueNotifications(updated.getQueue().getId());
+            } catch (Exception e) {
+                // Log but don't fail the update
+                // Logging is handled in QueueService
+            }
+        }
+        // ## Added for Email Notifications
+
+        return updated;
     }
 
     @Transactional
     public void delete(Long id) {
-        if (!queueTicketRepository.existsById(id)) {
-            throw new NotFoundException("Queue ticket not found with id: " + id);
-        }
+        QueueTicket ticket = queueTicketRepository.findById(id)
+        .orElseThrow(() -> new NotFoundException("Queue ticket not found with id: " + id));
+
+        Long queueId = ticket.getQueue().getId();
+
         queueTicketRepository.deleteById(id);
+
+        // ## Added for Email Notifications
+        // Trigger email notifications after deleting ticket (queue positions changed)
+        try {
+            queueService.processQueueNotifications(queueId);
+        } catch (Exception e) {
+            // Log but don't fail the deletion
+            // Logging is handled in QueueService
+        }
+        // ## Added for Email Notifications
     }
 
     /**

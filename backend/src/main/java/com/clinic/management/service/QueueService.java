@@ -1,12 +1,26 @@
 package com.clinic.management.service;
 
+// Imported for Email Notification feature
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.clinic.management.repository.QueueTicketRepository;
+import com.clinic.management.repository.PatientRepository;
+import com.clinic.management.repository.ProfileRepository;
+import com.clinic.management.repository.DoctorRepository;
+import com.clinic.management.model.Profile;
+// Imported for Email Notification feature
+
 import com.clinic.management.dto.request.CreateQueueRequest;
 import com.clinic.management.dto.request.ListQueuesOptions;
 import com.clinic.management.dto.request.UpdateQueueRequest;
 import com.clinic.management.dto.response.ListResult;
 import com.clinic.management.exception.CustomExceptions.*;
+import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Clinic;
+import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Patient;
 import com.clinic.management.model.Queue;
+import com.clinic.management.model.QueueTicket;
 import com.clinic.management.model.enums.QueueStatus;
 import com.clinic.management.repository.ClinicRepository;
 import com.clinic.management.repository.QueueRepository;
@@ -44,11 +58,34 @@ public class QueueService {
     
     private final QueueRepository queueRepository;
     private final ClinicRepository clinicRepository;
+
+    // Added for Email Notification feature
+    private static final Logger log = LoggerFactory.getLogger(QueueService.class);
+    private final QueueTicketRepository queueTicketRepository;
+    private final PatientRepository patientRepository;
+    private final ProfileRepository profileRepository;
+    private final DoctorRepository doctorRepository;
+    private final EmailService emailService;
+    // Added for Email Notification feature
     
     @Autowired
-    public QueueService(QueueRepository queueRepository, ClinicRepository clinicRepository) {
+    public QueueService(
+            QueueRepository queueRepository,
+            ClinicRepository clinicRepository,
+            QueueTicketRepository queueTicketRepository,
+            PatientRepository patientRepository,
+            ProfileRepository profileRepository,
+            DoctorRepository doctorRepository,
+            EmailService emailService) {
         this.queueRepository = queueRepository;
         this.clinicRepository = clinicRepository;
+        // Added for Email Notification feature
+        this.queueTicketRepository = queueTicketRepository;
+        this.patientRepository = patientRepository;
+        this.profileRepository = profileRepository;
+        this.doctorRepository = doctorRepository;
+        this.emailService = emailService;
+        // Added for Email Notification feature
     }
     
     /**
@@ -207,6 +244,118 @@ public class QueueService {
         }
     }
     
+    /**
+     * Calculate position in queue considering priority
+     * @param ticketId The ticket to calculate position for
+     * @return Position in queue (1-based), or -1 if ticket not found
+     */
+    @Transactional(readOnly = true)
+    public int calculateQueuePosition(Long ticketId) {
+        try {
+            QueueTicket ticket = queueTicketRepository.findById(ticketId)
+                .orElseThrow(() -> new NotFoundException("Ticket not found"));
+
+            List<QueueTicket> waitingTickets = queueTicketRepository
+                .findByQueueAndStatus(ticket.getQueue(), "Checked In"); // Changed from "CHECKED_IN"
+
+            // Split and sort by priority
+            List<QueueTicket> fastTrackTickets = waitingTickets.stream()
+                .filter(t -> t.getPriority() == 1)
+                .sorted((a, b) -> a.getTicketNumber().compareTo(b.getTicketNumber()))
+                .toList();
+
+            List<QueueTicket> normalTickets = waitingTickets.stream()
+                .filter(t -> t.getPriority() == 0)
+                .sorted((a, b) -> a.getTicketNumber().compareTo(b.getTicketNumber()))
+                .toList();
+
+            // Combine lists
+            List<QueueTicket> orderedTickets = new ArrayList<>();
+            orderedTickets.addAll(fastTrackTickets);
+            orderedTickets.addAll(normalTickets);
+
+            // Find position (1-based index)
+            return orderedTickets.indexOf(ticket) + 1;
+        } catch (Exception e) {
+            log.error("Error calculating queue position for ticket {}", ticketId, e);
+            return -1;
+        }
+    }
+
+    /**
+     * Process email notifications for a queue
+     * @param queueId Queue ID to process notifications for
+     */
+    @Transactional
+    public void processQueueNotifications(Long queueId) {
+        try {
+            Queue queue = queueRepository.findById(queueId)
+                .orElseThrow(() -> new NotFoundException("Queue not found"));
+
+            Clinic clinic = queue.getClinic();
+
+            // Get all relevant tickets
+            List<QueueTicket> tickets = queueTicketRepository.findByQueue(queue);
+
+            for (QueueTicket ticket : tickets) {
+                try {
+                    String ticketStatus = ticket.getTicketStatus();
+                    if (!"Checked In".equals(ticketStatus) && 
+                        !"Called".equals(ticketStatus)) {
+                        continue;
+                    }
+
+                    // Get patient through appointment
+                    Appointment appointment = ticket.getAppointment();
+                    if (appointment == null) continue;
+
+                    Long patientId = appointment.getPatientId();
+                    if (patientId == null) continue;
+
+                    Patient patient = patientRepository.findById(patientId).orElse(null);
+                    if (patient == null) continue;
+
+                    Profile profile = profileRepository.findByUserId(patient.getUserId())
+                        .orElse(null);
+                    if (profile == null || profile.getEmail() == null) continue;
+
+                    // Check position for Checked In tickets
+                    if ("Checked In".equals(ticketStatus)) {
+                        int position = calculateQueuePosition(ticket.getId());
+                        if (position == 3) {
+                            emailService.sendQueueApproachingEmail(
+                                profile.getEmail(),
+                                profile.getFullName(),
+                                ticket.getTicketNumber(),
+                                clinic.getName()
+                            );
+                        }
+                    }
+                    // Handle Called tickets
+                    else if ("Called".equals(ticketStatus)) {
+                        Long doctorId = appointment.getDoctorId();
+                        Doctor doctor = doctorId != null ? 
+                            doctorRepository.findById(doctorId).orElse(null) : null;
+                        String doctorName = doctor != null ? doctor.getName() : "your doctor";
+
+                        emailService.sendQueueCalledEmail(
+                            profile.getEmail(),
+                            profile.getFullName(),
+                            doctorName,
+                            clinic.getName()
+                        );
+                    }
+                } catch (Exception e) {
+                    log.error("Error processing notification for ticket {}", ticket.getId(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to process queue notifications for queue {}", queueId, e);
+        }
+    }
+
+
+
     // ==================== Helper Methods ====================
     
     /**
