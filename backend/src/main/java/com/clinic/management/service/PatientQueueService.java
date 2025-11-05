@@ -42,10 +42,11 @@ public class PatientQueueService {
         try {
             // 1. Get patient's tickets
             List<QueueTicket> patientTickets = queueTicketRepository
-                // .findByPatientId(patientId); // Old method without date filtering
-                .findByPatientIdAndDate(patientId, LocalDate.now());
+                .findByPatientId(patientId);
+                
 
             // 2. Filter for active patient tickets
+            // Can be done in query itself for optimization
             List<QueueTicket> activeTickets = patientTickets.stream()
                 .filter(t -> !t.getTicketStatus().equals(STATUS_NO_SHOW) && 
                             !t.getTicketStatus().equals(STATUS_COMPLETED))
@@ -63,7 +64,17 @@ public class PatientQueueService {
             // 4. Get tickets from all relevant queues
             List<QueueTicket> allQueueTickets = new ArrayList<>();
             for (Long queueId : queueIds) {
-                allQueueTickets.addAll(queueTicketRepository.findByQueueIdAndDate(queueId, LocalDate.now()));
+                
+                List<QueueTicket> queueTickets = queueTicketRepository.findByQueueId(queueId);
+                
+                // Filter out completed and no-show tickets
+                // Can be done in query itself for optimization
+                List<QueueTicket> activeQueueTickets = queueTickets.stream()
+                    .filter(t -> !t.getTicketStatus().equals(STATUS_COMPLETED) && 
+                                !t.getTicketStatus().equals(STATUS_NO_SHOW))
+                    .collect(Collectors.toList());
+                
+                allQueueTickets.addAll(activeQueueTickets);
             }
 
             // 5. Build response
