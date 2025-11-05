@@ -11,10 +11,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import com.clinic.management.config.TimezoneConfig;
 
 @Service
 public class QueueTicketService {
@@ -147,6 +150,32 @@ public class QueueTicketService {
             }
         }
         // ## Added for Email Notifications
+
+        // == Additional behavior ==
+        // When a queue ticket is marked No Show or Completed, update its appointment status accordingly.
+        if (statusChanged) {
+            String newStatus = req.getTicketStatus().orElse(updated.getTicketStatus());
+            if (newStatus != null && updated.getAppointment() != null && updated.getAppointment().getId() != null) {
+                String normalized = newStatus.toLowerCase().replace("_", "").replace("-", "").replace(" ", "");
+                Long apptId = updated.getAppointment().getId();
+                try {
+                    Appointment appt = appointmentRepository.findById(apptId).orElse(null);
+                    if (appt != null) {
+                        if ("noshow".equals(normalized)) {
+                            appt.setStatus("cancelled");
+                            appt.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+                            appointmentRepository.save(appt);
+                        } else if ("completed".equals(normalized)) {
+                            appt.setStatus("completed");
+                            appt.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+                            appointmentRepository.save(appt);
+                        }
+                    }
+                } catch (Exception _ignore) {
+                    // Best-effort: do not fail the ticket update if appointment update fails
+                }
+            }
+        }
 
         return updated;
     }
