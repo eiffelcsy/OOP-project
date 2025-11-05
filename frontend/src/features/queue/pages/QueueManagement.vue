@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, watch, ref, computed } from 'vue'
 import { useQueueManagement } from '../composables/useQueueManagement'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +20,7 @@ const {
   pauseQueue,
   resumeQueue,
   endQueue,
+  endQueueMarkRemainingNoShow,
   callNext,
   updatePatientStatus,
   moveToFastTrack,
@@ -55,6 +56,31 @@ const getStatusColor = (status: string) => {
     case 'No Show': return 'bg-red-100 text-red-800'
     default: return 'bg-gray-100 text-gray-800'
   }
+}
+
+// End Queue modal state
+const showEndModal = ref(false)
+const pendingCount = computed(() => patients.value.filter(p => p.status === 'Checked In' || p.status === 'Called').length)
+
+const handleEndQueueClick = () => {
+  if (pendingCount.value > 0) {
+    showEndModal.value = true
+  } else {
+    // No pending patients; end immediately
+    endQueue()
+  }
+}
+
+const confirmEndQueue = async () => {
+  try {
+    await endQueueMarkRemainingNoShow()
+  } finally {
+    showEndModal.value = false
+  }
+}
+
+const cancelEndQueue = () => {
+  showEndModal.value = false
 }
 </script>
 
@@ -179,7 +205,7 @@ const getStatusColor = (status: string) => {
 
           <Button 
             v-if="queueState.isActive"
-            @click="endQueue"
+            @click="handleEndQueueClick"
             variant="destructive"
             class="flex items-center gap-2"
           >
@@ -357,5 +383,22 @@ const getStatusColor = (status: string) => {
         </div>
       </CardContent>
     </Card>
+  </div>
+
+  <!-- End Queue Modal -->
+  <div v-if="showEndModal" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="cancelEndQueue" />
+    <div class="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+      <div class="p-6 border-b">
+        <h3 class="text-xl font-semibold">End Queue</h3>
+      </div>
+      <div class="p-6">
+        <p class="text-gray-700">There are {{ pendingCount }} patient(s) remaining. End queue now and mark them as No Show?</p>
+      </div>
+      <div class="p-4 border-t flex justify-end gap-2">
+        <Button variant="outline" @click="cancelEndQueue">No</Button>
+        <Button variant="destructive" @click="confirmEndQueue">Yes</Button>
+      </div>
+    </div>
   </div>
 </template>
