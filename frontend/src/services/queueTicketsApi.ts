@@ -15,9 +15,24 @@ export interface QueueTicketResponse {
   updated_at: string | null
 }
 
+export type CreateQueueTicketRequest = {
+  queue_id: number
+  appointment_id: number
+  ticket_number: number
+  priority: number // 0 or 1
+  ticket_status: string // e.g. 'Checked In'
+  called_at: string | null
+  completed_at: string | null
+  no_show_at: string | null
+}
+
 export const queueTicketsApi = {
   async list(queueId: number): Promise<QueueTicketResponse[]> {
     return apiClient.get(`/api/staff/queues/${queueId}/tickets`)
+  },
+
+  async create(payload: CreateQueueTicketRequest): Promise<QueueTicketResponse> {
+    return apiClient.post(`/api/queue-tickets`, payload)
   },
 
   async update(id: number, payload: Partial<{

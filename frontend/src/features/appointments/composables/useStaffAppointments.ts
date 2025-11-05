@@ -4,6 +4,8 @@ import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { doctorsApi } from '@/services/doctorsApi'
 import { appointmentsApi } from '@/services/appointmentsApi'
+import { queueApi } from '@/services/queueApi'
+import { queueTicketsApi, type CreateQueueTicketRequest } from '@/services/queueTicketsApi'
 
 const { currentUser, initializeAuth } = useAuth()
 
@@ -237,11 +239,53 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status locally (backend doesn't support this status yet)
-      appointment.status = 'checked-in'
+      // 1) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
+      const clinicId = currentUser.value?.staff?.clinic_id
+      if (!clinicId) {
+        console.warn('Missing clinic_id on current user; cannot check in.')
+        return false
+      }
 
-      // Update queue management system
-      updatePatientStatus(appointment.patientId, 'checked-in')
+      // Try ACTIVE first
+      let activeQueue = await queueApi.getActiveQueueByClinicId(clinicId)
+      if (!activeQueue) {
+        // Fallback to PAUSED (allow check-in even if queue is paused)
+        const pausedResult = await queueApi.listQueues({
+          clinicId,
+          statuses: ['PAUSED'],
+          size: 1,
+          sortBy: 'created_at',
+          sortDir: 'DESC'
+        })
+        activeQueue = pausedResult.data[0] || null
+      }
+
+      if (!activeQueue) {
+        console.warn('No ACTIVE or PAUSED queue found for clinic; cannot check in.')
+        return false
+      }
+
+      // 2) Compute next ticket number by listing current tickets for this queue
+      const existingTickets = await queueTicketsApi.list(activeQueue.id)
+      const maxNumber = existingTickets.reduce((max, t) => Math.max(max, t.ticket_number || 0), 0)
+      const nextNumber = (maxNumber || 0) + 1
+
+      // 3) Create the queue ticket via backend only
+      const payload: CreateQueueTicketRequest = {
+        queue_id: activeQueue.id,
+        appointment_id: appointment.id,
+        ticket_number: nextNumber,
+        priority: 0,
+        ticket_status: 'Checked In',
+        called_at: new Date().toISOString(),
+        completed_at: null,
+        no_show_at: null
+      }
+
+      await queueTicketsApi.create(payload)
+
+      // 4) Update appointment status locally; realtime will update the queue UI elsewhere
+      appointment.status = 'checked-in'
 
       return true
     } catch (error) {
