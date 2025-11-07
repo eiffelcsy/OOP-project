@@ -214,11 +214,15 @@ public class AppointmentService {
                             try {
                                 // Enrich with clinic and doctor names when available
                                 String clinicName = null;
+                                                        String clinicAddress = null;
                                 String doctorName = null;
                                 try {
                                     if (saved.getClinicId() != null) {
-                                        clinicName = clinicService.getClinicById(saved.getClinicId())
-                                                .map(c -> c.getName()).orElse(null);
+                                        var cOpt = clinicService.getClinicById(saved.getClinicId());
+                                        if (cOpt.isPresent()) {
+                                            clinicName = cOpt.get().getName();
+                                            clinicAddress = cOpt.get().getAddressLine();
+                                        }
                                     }
                                 } catch (Exception _e) {
                                 }
@@ -229,7 +233,7 @@ public class AppointmentService {
                                 } catch (Exception _e) {
                                 }
 
-                                emailService.sendAppointmentScheduledEmail(saved, to, name, clinicName, doctorName);
+                                                        emailService.sendAppointmentScheduledEmail(saved, to, name, clinicName, doctorName, clinicAddress);
                             } catch (Exception e) {
                                 log.warn("Failed to send appointment email for appointment id={}", saved.getId(), e);
                             }
@@ -350,11 +354,15 @@ public class AppointmentService {
                             String name = prof.get().getFullName();
                             try {
                                 String clinicName = null;
+                                String clinicAddress = null;
                                 String doctorName = null;
                                 try {
                                     if (saved.getClinicId() != null) {
-                                        clinicName = clinicService.getClinicById(saved.getClinicId())
-                                                .map(c -> c.getName()).orElse(null);
+                                        var cOpt = clinicService.getClinicById(saved.getClinicId());
+                                        if (cOpt.isPresent()) {
+                                            clinicName = cOpt.get().getName();
+                                            clinicAddress = cOpt.get().getAddressLine();
+                                        }
                                     }
                                 } catch (Exception _e) {
                                 }
@@ -365,7 +373,7 @@ public class AppointmentService {
                                 } catch (Exception _e) {
                                 }
 
-                                emailService.sendAppointmentRescheduledEmail(saved, to, name, clinicName, doctorName);
+                                emailService.sendAppointmentRescheduledEmail(saved, to, name, clinicName, doctorName, clinicAddress);
                             } catch (Exception e) {
                                 log.warn("Failed to send appointment reschedule email for appointment id={}", saved.getId(), e);
                             }
@@ -388,7 +396,52 @@ public class AppointmentService {
                 .orElseThrow(() -> new RuntimeException("Appointment not found"));
         appointment.setStatus("cancelled");
         appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
-        repository.save(appointment);
+        Appointment saved = repository.save(appointment);
+
+        // Attempt to notify patient by email (best-effort)
+        try {
+            if (saved.getPatientId() != null) {
+                Optional<Patient> pOpt = patientRepository.findById(saved.getPatientId());
+                if (pOpt.isPresent()) {
+                    Patient p = pOpt.get();
+                    String userId = p.getUserId();
+                    if (userId != null) {
+                        Optional<Profile> prof = profileRepository.findByUserId(userId);
+                        if (prof.isPresent() && prof.get().getEmail() != null && !prof.get().getEmail().isBlank()) {
+                            String to = prof.get().getEmail();
+                            String name = prof.get().getFullName();
+
+                            String clinicName = null;
+                            String clinicAddress = null;
+                            try {
+                                if (saved.getClinicId() != null) {
+                                    var cOpt = clinicService.getClinicById(saved.getClinicId());
+                                    if (cOpt.isPresent()) {
+                                        clinicName = cOpt.get().getName();
+                                        clinicAddress = cOpt.get().getAddressLine();
+                                    }
+                                }
+                            } catch (Exception _e) { /* ignore */ }
+
+                            String doctorName = null;
+                            try {
+                                if (saved.getDoctorId() != null) {
+                                    doctorName = doctorService.getDoctorById(saved.getDoctorId()).getName();
+                                }
+                            } catch (Exception _e) { /* ignore */ }
+
+                            try {
+                                emailService.sendAppointmentCancelledEmail(saved, to, name, clinicName, doctorName, clinicAddress);
+                            } catch (Exception _e) {
+                                log.warn("Failed to queue cancelled email for appointment id={}", saved.getId(), _e);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error while attempting to send cancelled email for appointment id={}", saved.getId(), e);
+        }
     }
 
     // Fetch appointments belonging to a patient

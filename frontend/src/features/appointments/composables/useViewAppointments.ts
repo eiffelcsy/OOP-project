@@ -589,7 +589,7 @@ export const useViewAppointments = () => {
     try {
       console.log('Cancelling appointment via API', appointmentToCancel.value.id)
       
-      await appointmentsApi.cancelAppointment(Number(appointmentToCancel.value.id))
+  await appointmentsApi.cancelAppointmentForPatient(Number(appointmentToCancel.value.id))
 
       // Refetch appointments from backend to keep UI authoritative
       try {

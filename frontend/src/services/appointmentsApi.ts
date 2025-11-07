@@ -230,6 +230,14 @@ export const appointmentsApi = {
   },
 
   /**
+   * Cancel an appointment as the authenticated patient
+   * DELETE /api/patient/appointments/{id}
+   */
+  async cancelAppointmentForPatient(id: number): Promise<void> {
+    return apiClient.delete(`/api/patient/appointments/${id}`)
+  },
+
+  /**
    * Get today's appointments for a clinic with enriched data
    * GET /api/staff/appointments/today/{clinicId}
    * Returns appointments with patient names, doctor names, clinic info, etc.

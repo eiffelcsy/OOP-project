@@ -7,6 +7,7 @@ import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.dto.response.PatientQueueResponse;
 import com.clinic.management.service.ClinicService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -307,6 +308,48 @@ public class PatientController {
             e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Failed to reschedule appointment",
+                    "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * DELETE /api/patient/appointments/{id}
+     * Allow the authenticated patient to cancel their own appointment only.
+     */
+    @DeleteMapping("/appointments/{id}")
+    public ResponseEntity<?> cancelMyAppointment(@PathVariable Long id) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getPrincipal() == null) {
+                log.warn("cancelMyAppointment: no authentication principal");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String userId = auth.getPrincipal().toString();
+            Optional<com.clinic.management.model.Patient> pOpt = patientService.getPatientByUserId(userId);
+            if (pOpt.isEmpty()) {
+                log.warn("cancelMyAppointment: no patient record for userId={}", userId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No patient record for user"));
+            }
+
+            Long patientId = pOpt.get().getId();
+
+            // Load this patient's appointments and verify ownership of the requested appointment id
+            List<Appointment> myAppts = appointmentService.getAppointmentsByPatientId(patientId);
+            boolean owns = myAppts.stream().anyMatch(a -> a.getId() != null && a.getId().equals(id));
+            if (!owns) {
+                log.warn("cancelMyAppointment: user {} attempted to cancel appointment {} not owned by them", userId, id);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Not allowed to cancel this appointment"));
+            }
+
+            // Call existing service method to cancel
+            appointmentService.cancelAppointment(id);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            log.warn("cancelMyAppointment error: {}", e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Failed to cancel appointment",
                     "message", e.getMessage()));
         }
     }

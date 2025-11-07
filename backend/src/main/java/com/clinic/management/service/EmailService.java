@@ -47,7 +47,7 @@ public class EmailService {
     }
 
     @Async
-    public void sendAppointmentScheduledEmail(Appointment appointment, String toEmail, String patientName, String clinicName, String doctorName) {
+    public void sendAppointmentScheduledEmail(Appointment appointment, String toEmail, String patientName, String clinicName, String doctorName, String clinicAddress) {
         if (!isConfigured()) {
             log.warn("EmailService not configured (missing API key or domain) — skipping email for appointment id={}", appointment.getId());
             return;
@@ -58,28 +58,38 @@ public class EmailService {
 
             // Format appointment time in clinic timezone for readability
             ZoneId clinicZone = ZoneId.of("Asia/Singapore");
-            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm (z)").withZone(clinicZone);
-            String start = appointment.getStartTime() != null ? dtf.format(appointment.getStartTime()) : "n/a";
-            String end = appointment.getEndTime() != null ? dtf.format(appointment.getEndTime()) : "n/a";
+            DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(clinicZone);
+            DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm").withZone(clinicZone);
 
-        String subject = "Your appointment is scheduled";
-        String html = String.format(
-            "<html><body>" +
-            "<p>Hi %s,</p>" +
-            "<p>Your appointment has been scheduled:</p>" +
-            "<ul>" +
-            "<li><strong>Date & Time:</strong> %s - %s</li>" +
-            "<li><strong>Clinic:</strong> %s</li>" +
-            "<li><strong>Doctor:</strong> %s</li>" +
-            "</ul>" +
-            "<p>If you have any questions, reply to this email.</p>" +
-            "</body></html>",
-            (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
-            start,
-            end,
-            (clinicName == null ? (appointment.getClinicId() != null ? appointment.getClinicId().toString() : "") : clinicName),
-            (doctorName == null ? (appointment.getDoctorId() != null ? appointment.getDoctorId().toString() : "") : doctorName)
-        );
+            String startDate = appointment.getStartTime() != null ? dateFmt.format(appointment.getStartTime()) : "n/a";
+            String startTime = appointment.getStartTime() != null ? timeFmt.format(appointment.getStartTime()) : "n/a";
+            String endDate = appointment.getEndTime() != null ? dateFmt.format(appointment.getEndTime()) : "n/a";
+            String endTime = appointment.getEndTime() != null ? timeFmt.format(appointment.getEndTime()) : "n/a";
+
+            String subject = String.format("Appointment Confirmation — %s — %s %s (SGT)",
+                    clinicName == null ? "Clinic" : clinicName, startDate, startTime);
+
+            String html = String.format(
+                "<html><body>" +
+                "<h2>🩺 Appointment Scheduled Email</h2>" +
+                "<p>Dear %s,</p>" +
+                "<p>Your appointment has been successfully scheduled.<br/>Please find the details below:</p>" +
+                "<p><strong>Date & Time:</strong> %s %s – %s %s (SGT)</p>" +
+                "<p><strong>Clinic:</strong> %s<br/>" +
+                "<strong>Doctor:</strong> Dr. %s</p>" +
+                "<p>If you wish to make any changes or cancel your appointment, please contact the clinic in advance.<br/>We look forward to seeing you.</p>" +
+                "<p>Warm regards,<br/>%s<br/>%s</p>" +
+                "</body></html>",
+                (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
+                startDate,
+                startTime,
+                endDate,
+                endTime,
+                (clinicName == null ? (appointment.getClinicId() != null ? appointment.getClinicId().toString() : "") : clinicName),
+                (doctorName == null ? (appointment.getDoctorId() != null ? appointment.getDoctorId().toString() : "") : doctorName),
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicAddress == null ? "" : clinicAddress)
+            );
 
             Map<String, Object> body = new HashMap<>();
             body.put("from", from);
@@ -108,7 +118,7 @@ public class EmailService {
     }
 
     @Async
-    public void sendAppointmentRescheduledEmail(Appointment appointment, String toEmail, String patientName, String clinicName, String doctorName) {
+    public void sendAppointmentRescheduledEmail(Appointment appointment, String toEmail, String patientName, String clinicName, String doctorName, String clinicAddress) {
         if (!isConfigured()) {
             log.warn("EmailService not configured (missing API key or domain) — skipping reschedule email for appointment id={}", appointment.getId());
             return;
@@ -119,27 +129,37 @@ public class EmailService {
 
             // Format appointment time in clinic timezone for readability
             ZoneId clinicZone = ZoneId.of("Asia/Singapore");
-            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm (z)").withZone(clinicZone);
-            String start = appointment.getStartTime() != null ? dtf.format(appointment.getStartTime()) : "n/a";
-            String end = appointment.getEndTime() != null ? dtf.format(appointment.getEndTime()) : "n/a";
+            DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(clinicZone);
+            DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm").withZone(clinicZone);
 
-            String subject = "Your appointment has been updated";
+            String startDate = appointment.getStartTime() != null ? dateFmt.format(appointment.getStartTime()) : "n/a";
+            String startTime = appointment.getStartTime() != null ? timeFmt.format(appointment.getStartTime()) : "n/a";
+            String endDate = appointment.getEndTime() != null ? dateFmt.format(appointment.getEndTime()) : "n/a";
+            String endTime = appointment.getEndTime() != null ? timeFmt.format(appointment.getEndTime()) : "n/a";
+
+            String subject = String.format("Appointment Updated — %s — %s %s (SGT)",
+                    clinicName == null ? "Clinic" : clinicName, startDate, startTime);
+
             String html = String.format(
                 "<html><body>" +
-                "<p>Hi %s,</p>" +
-                "<p>Your appointment has been updated to the following schedule:</p>" +
-                "<ul>" +
-                "<li><strong>Date & Time:</strong> %s - %s</li>" +
-                "<li><strong>Clinic:</strong> %s</li>" +
-                "<li><strong>Doctor:</strong> %s</li>" +
-                "</ul>" +
+                "<h2>🩺 Appointment Scheduled Email</h2>" +
+                "<p>Dear %s,</p>" +
+                "<p>Your appointment has been updated. Please find the details below:</p>" +
+                "<p><strong>Date & Time:</strong> %s %s – %s %s (SGT)</p>" +
+                "<p><strong>Clinic:</strong> %s<br/>" +
+                "<strong>Doctor:</strong> Dr. %s</p>" +
                 "<p>If you did not request this change or have any questions, please contact the clinic.</p>" +
+                "<p>Warm regards,<br/>%s<br/>%s</p>" +
                 "</body></html>",
                 (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
-                start,
-                end,
+                startDate,
+                startTime,
+                endDate,
+                endTime,
                 (clinicName == null ? (appointment.getClinicId() != null ? appointment.getClinicId().toString() : "") : clinicName),
-                (doctorName == null ? (appointment.getDoctorId() != null ? appointment.getDoctorId().toString() : "") : doctorName)
+                (doctorName == null ? (appointment.getDoctorId() != null ? appointment.getDoctorId().toString() : "") : doctorName),
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicAddress == null ? "" : clinicAddress)
             );
 
             Map<String, Object> body = new HashMap<>();
@@ -165,6 +185,77 @@ public class EmailService {
             }
         } catch (Exception ex) {
             log.error("Error while sending reschedule email for id=" + appointment.getId(), ex);
+        }
+    }
+
+    @Async
+    public void sendAppointmentCancelledEmail(Appointment appointment, String toEmail, String patientName, String clinicName, String doctorName, String clinicAddress) {
+        if (!isConfigured()) {
+            log.warn("EmailService not configured (missing API key or domain) — skipping cancelled email for appointment id={}", appointment.getId());
+            return;
+        }
+
+        try {
+            String from = String.format("clinic@%s", domain);
+
+            ZoneId clinicZone = ZoneId.of("Asia/Singapore");
+            DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(clinicZone);
+            DateTimeFormatter timeFmt = DateTimeFormatter.ofPattern("HH:mm").withZone(clinicZone);
+
+            String cancelDate = appointment.getStartTime() != null ? dateFmt.format(appointment.getStartTime()) : "n/a";
+            String cancelTime = appointment.getStartTime() != null ? timeFmt.format(appointment.getStartTime()) : "n/a";
+            String endDate = appointment.getEndTime() != null ? dateFmt.format(appointment.getEndTime()) : "n/a";
+            String endTime = appointment.getEndTime() != null ? timeFmt.format(appointment.getEndTime()) : "n/a";
+
+            String subject = String.format("Appointment Cancelled — %s — %s %s (SGT)",
+                    clinicName == null ? "Clinic" : clinicName, cancelDate, cancelTime);
+
+            String html = String.format(
+                "<html><body>" +
+                "<h2>🩺 Appointment Cancelled Email</h2>" +
+                "<p>Dear %s,</p>" +
+                "<p>Your appointment has been cancelled as per your request.<br/>Please find the cancelled appointment details below:</p>" +
+                "<p><strong>Date & Time:</strong> %s %s – %s %s (SGT)</p>" +
+                "<p><strong>Clinic:</strong> %s<br/>" +
+                "<strong>Doctor:</strong> Dr. %s</p>" +
+                "<p>If this cancellation was made in error or you wish to reschedule, please contact the clinic to arrange a new appointment.</p>" +
+                "<p>Thank you for informing us in advance, and we hope to serve you again soon.</p>" +
+                "<p>Warm regards,<br/>%s<br/>%s</p>" +
+                "</body></html>",
+                (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
+                cancelDate,
+                cancelTime,
+                endDate,
+                endTime,
+                (clinicName == null ? (appointment.getClinicId() != null ? appointment.getClinicId().toString() : "") : clinicName),
+                (doctorName == null ? (appointment.getDoctorId() != null ? appointment.getDoctorId().toString() : "") : doctorName),
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicAddress == null ? "" : clinicAddress)
+            );
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("from", from);
+            body.put("to", new String[]{ toEmail });
+            body.put("subject", subject);
+            body.put("html", html);
+
+            String json = mapper.writeValueAsString(body);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.resend.com/emails"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                log.info("Sent cancelled appointment email to {} for appointment id={}", toEmail, appointment.getId());
+            } else {
+                log.warn("Failed to send cancelled appointment email (status={}): {}", resp.statusCode(), resp.body());
+            }
+        } catch (Exception ex) {
+            log.error("Error while sending cancelled appointment email for id=" + appointment.getId(), ex);
         }
     }
 
