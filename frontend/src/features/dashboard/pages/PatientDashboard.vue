@@ -21,6 +21,9 @@ const {
     doctorDetails,
     getDoctorName,
     getClinicName,
+    currentServing, // unused here
+    calculatePosition, // unused here
+    calculateProgress, // unused here
     fetchPatientQueueInfo 
 } = usePatientQueue()
 

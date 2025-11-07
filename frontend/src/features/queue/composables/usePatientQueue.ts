@@ -38,6 +38,51 @@ const createPatientQueue = () => {
     let isIntentionalUnsubscribe = false
     let currentPatientId: number | null = null
 
+    // Currently serving computation
+    const currentServing = computed(() => 
+        queueTickets.value.filter(t => t.ticket_status === 'Called')
+    )
+
+    // Calculate position in queue (how many people ahead)
+    const calculatePosition = (ticket: QueueTicketResponse) => {
+        // Get ALL tickets (current + queue) with Checked In status
+        const allTickets = [...currentTicket.value, ...queueTickets.value]
+        const waitingTickets = allTickets.filter(t => t.ticket_status === 'Checked In')
+        
+        // Separate into priority and normal queues
+        const priorityTickets = waitingTickets
+            .filter(t => t.priority === 1)
+            .sort((a, b) => a.ticket_number - b.ticket_number)
+        
+        const normalTickets = waitingTickets
+            .filter(t => t.priority !== 1 && t.priority !== true)
+            .sort((a, b) => a.ticket_number - b.ticket_number)
+        
+        // Combine: Priority first, then normal
+        const combinedQueue = [...priorityTickets, ...normalTickets]
+        
+        // Find current ticket's position in the combined queue by ID
+        const currentPosition = combinedQueue.findIndex(t => t.id === ticket.id)
+        
+        // Return how many are ahead
+        return currentPosition >= 0 ? currentPosition : 0
+    }
+
+    // Calculate progress percentage (0-100)
+    const calculateProgress = (ticket: QueueTicketResponse) => {
+        // Get ALL tickets (current + queue) with Checked In status
+        const allTickets = [...currentTicket.value, ...queueTickets.value]
+        const totalWaiting = allTickets.filter(t => t.ticket_status === 'Checked In').length
+        
+        if (totalWaiting === 0) return 100
+        
+        const position = calculatePosition(ticket)
+        
+        // Progress = (total - position) / total * 100
+        const progress = ((totalWaiting - position) / totalWaiting) * 100
+        return Math.min(Math.max(progress, 5), 100)
+    }
+
     // Fetch doctor details for current tickets
     async function fetchDoctorDetails() {
         console.log('[PatientQueue] Fetching doctor details for tickets:', currentTicket.value)
@@ -304,6 +349,11 @@ const createPatientQueue = () => {
         doctorDetails,
         getDoctorName,
         getClinicName,
+        
+        // Queue computations
+        currentServing,
+        calculatePosition,
+        calculateProgress,
         
         // Methods
         fetchPatientQueueInfo
