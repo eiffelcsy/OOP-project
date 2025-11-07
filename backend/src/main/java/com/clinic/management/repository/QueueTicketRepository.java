@@ -30,24 +30,25 @@ public interface QueueTicketRepository extends JpaRepository<QueueTicket, Long> 
     @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE a.patientId = :patientId ORDER BY qt.ticketNumber ASC")
     List<QueueTicket> findByPatientId(@Param("patientId") Long patientId);
 
-    // Currently not used, but may be useful later
-    /**
-     * Find all queue tickets for a patient's appointments on a specific date
-     * Eagerly fetches appointment details to avoid N+1 queries
-     */
-    @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE a.patientId = :patientId AND DATE(qt.createdAt) = :date ORDER BY qt.ticketNumber ASC")
-    List<QueueTicket> findByPatientIdAndDate(
-            @Param("patientId") Long patientId,
-            @Param("date") LocalDate date);
+//     // CURRENTLY NOT USED
+//     /**
+//      * Find all queue tickets for a patient's appointments on a specific date
+//      * Eagerly fetches appointment details to avoid N+1 queries
+//      */
+//     @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE a.patientId = :patientId AND DATE(qt.createdAt) = :date ORDER BY qt.ticketNumber ASC")
+//     List<QueueTicket> findByPatientIdAndDate(
+//             @Param("patientId") Long patientId,
+//             @Param("date") LocalDate date);
 
-    /**
-     * Find all queue tickets in a specified queue for a date
-     * Eagerly fetches appointment details to avoid N+1 queries
-     */
-    @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE qt.queue.id = :queueId AND DATE(qt.createdAt) = :date ORDER BY qt.ticketNumber ASC")
-    List<QueueTicket> findByQueueIdAndDate(
-            @Param("queueId") Long queueId,
-            @Param("date") LocalDate date);
+//     // CURRENTLY NOT USED
+//     /**
+//      * Find all queue tickets in a specified queue for a date
+//      * Eagerly fetches appointment details to avoid N+1 queries
+//      */
+//     @Query("SELECT qt FROM QueueTicket qt LEFT JOIN FETCH qt.appointment a WHERE qt.queue.id = :queueId AND DATE(qt.createdAt) = :date ORDER BY qt.ticketNumber ASC")
+//     List<QueueTicket> findByQueueIdAndDate(
+//             @Param("queueId") Long queueId,
+//             @Param("date") LocalDate date);
 
 	/**
      * Find tickets by queue and status

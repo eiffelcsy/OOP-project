@@ -391,30 +391,7 @@ const createQueueManagement = () => {
 
   const endQueue = async () => {
     try {
-      // If there are pending patients, prompt the user to decide
-      const pending = patients.value.filter(p => p.status === 'Checked In' || p.status === 'Called')
-      if (pending.length > 0) {
-        const choice = window.prompt(
-          `There are still ${pending.length} patients in the queue. Type one of: cancel | no-show | completed`,
-          'cancel'
-        )
-        if (!choice || choice.toLowerCase() === 'cancel') {
-          return
-        }
-        const nowIso = new Date().toISOString()
-        if (choice.toLowerCase() === 'no-show') {
-          await Promise.all(
-            pending.map(p => queueTicketsApi.update(p.ticket_id, { ticket_status: 'No Show', no_show_at: nowIso }))
-          )
-        } else if (choice.toLowerCase() === 'completed') {
-          await Promise.all(
-            pending.map(p => queueTicketsApi.update(p.ticket_id, { ticket_status: 'Completed', completed_at: nowIso }))
-          )
-        } else {
-          return
-        }
-      }
-
+      // End queue without any prompt or mass ticket updates
       if (queueState.queueId) {
         await queueApi.updateQueue(queueState.queueId, { queue_status: 'CLOSED' })
       }
@@ -428,7 +405,7 @@ const createQueueManagement = () => {
 
       // Unsubscribe from realtime
       unsubscribeQueueTickets()
-  unsubscribeQueueStatus()
+      unsubscribeQueueStatus()
 
       console.log('Queue ended successfully')
     } catch (error) {
@@ -439,6 +416,24 @@ const createQueueManagement = () => {
       queueState.isPaused = false
       queueState.queueId = null
       queueState.endedAt = new Date()
+    }
+  }
+
+  // End queue and mark remaining Checked In / Called tickets as No Show first
+  const endQueueMarkRemainingNoShow = async () => {
+    try {
+      const pending = patients.value.filter(p => p.status === 'Checked In' || p.status === 'Called')
+      if (pending.length > 0) {
+        const nowIso = new Date().toISOString()
+        await Promise.all(
+          pending.map(p => queueTicketsApi.update(p.ticket_id, { ticket_status: 'No Show', no_show_at: nowIso }))
+        )
+      }
+
+      await endQueue()
+    } catch (error) {
+      console.error('Failed to mark pending as No Show and end queue:', error)
+      throw error
     }
   }
 
@@ -953,6 +948,7 @@ const createQueueManagement = () => {
     pauseQueue,
     resumeQueue,
     endQueue,
+  endQueueMarkRemainingNoShow,
     callNext,
     updatePatientStatus,
     moveToFastTrack,
