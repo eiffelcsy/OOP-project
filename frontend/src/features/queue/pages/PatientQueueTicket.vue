@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { usePatientQueue } from '../composables/usePatientQueue'
-import { useQueueDoctors } from '../composables/useQueueDoctors'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,60 +16,40 @@ const patientId = computed(() => currentUser.value?.patient?.id)
 const { 
     currentTicket, 
     queueTickets, 
-    isLoading: queueLoading, 
+    isLoading: queueLoading,
     error: queueError,
+    doctorDetails,
+    getDoctorName,
+    getClinicName,
     fetchPatientQueueInfo 
 } = usePatientQueue()
 
-// Queue Ticket Doctors data
-const {
-    doctorDetails,
-    isLoading: doctorsLoading,
-    error: doctorsError,
-    fetchDoctorDetails,
-    getDoctorName,
-    getClinicName
-} = useQueueDoctors(currentTicket)
-
 // Loading states
-const loadingQueue = computed(() => queueLoading.value || doctorsLoading.value)
+const loadingQueue = computed(() => queueLoading.value)
 
 // Currently serving and waiting computations
 const currentServing = computed(() => 
     queueTickets.value.filter(t => t.ticket_status === 'Called')
 )
 
-// Get queue ticket status badge variant
-const getQueueStatusVariant = (status: string) => {
-    const statusLower = status.toLowerCase()
-    switch (statusLower) {
-        case 'called':
-            return 'destructive'
-        case 'checked in':
-            return 'default'
-        default:
-            return 'secondary'
-    }
-}
-
-// Load data on mount
 // Load data on mount
 onMounted(async () => {
-    console.log('[Dashboard] Loading with patientId:', patientId.value)
+    console.log('[QueueTicket] Loading with patientId:', patientId.value)
     if (patientId.value) {
         try {
-            // Fetch appointments and queue data in parallel
-            await Promise.all([
-                fetchPatientQueueInfo(patientId.value)
-            ])
-            
-            // Only fetch doctor details if we have queue tickets
-            if (currentTicket.value.length > 0) {
-                await fetchDoctorDetails()
-            }
+            // Fetch queue data (doctor details are fetched automatically by the composable)
+            await fetchPatientQueueInfo(patientId.value)
         } catch (error) {
-            console.error('[Dashboard] Error loading data:', error)
+            console.error('[QueueTicket] Error loading data:', error)
         }
+    }
+})
+
+// Watch for user changes and refetch
+watch(() => patientId.value, async (newId) => {
+    if (newId) {
+        console.log('[QueueTicket] Patient ID changed, refetching:', newId)
+        await fetchPatientQueueInfo(newId)
     }
 })
 </script>
@@ -94,11 +73,11 @@ onMounted(async () => {
         </Card>
 
         <!-- Error State -->
-        <Card v-else-if="queueError || doctorsError">
+        <Card v-else-if="queueError">
             <CardContent class="flex flex-col items-center text-center py-12">
                 <Icon icon="lucide:alert-circle" class="size-12 mb-4 text-destructive" />
                 <p class="text-destructive font-medium mb-2">Error loading queue information</p>
-                <p class="text-sm text-muted-foreground">{{ queueError || doctorsError }}</p>
+                <p class="text-sm text-muted-foreground">{{ queueError }}</p>
                 <Button @click="fetchPatientQueueInfo(patientId)" class="mt-4">
                     Try Again
                 </Button>
@@ -157,25 +136,13 @@ onMounted(async () => {
                                     <div class="flex items-center gap-2 mb-1">
                                         <Icon icon="lucide:stethoscope" class="size-4 text-muted-foreground" />
                                         <span class="font-medium">
-                                            <template v-if="doctorsLoading">
-                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
-                                                Loading...
-                                            </template>
-                                            <template v-else>
-                                                Dr. {{ getDoctorName(ticket.id) }}
-                                            </template>
+                                            Dr. {{ getDoctorName(ticket.id) }}
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <Icon icon="lucide:building-2" class="size-4 text-muted-foreground" />
                                         <span class="text-sm text-muted-foreground">
-                                            <template v-if="doctorsLoading">
-                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
-                                                Loading...
-                                            </template>
-                                            <template v-else>
-                                                {{ getClinicName(ticket.id) }}
-                                            </template>
+                                            {{ getClinicName(ticket.id) }}
                                         </span>
                                     </div>
                                 </div>

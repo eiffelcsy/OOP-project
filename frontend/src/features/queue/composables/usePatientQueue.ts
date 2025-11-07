@@ -1,21 +1,33 @@
-import { ref, onUnmounted, onMounted } from 'vue'
+import { ref, computed, onUnmounted, onMounted } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { patientsApi } from '@/services/patientsApi'
+import { appointmentsApi } from '@/services/appointmentsApi'
+import { doctorsApi } from '@/services/doctorsApi'
 import type { QueueTicketResponse } from '@/services/patientsApi'
 
-// Type for realtime payload
-interface RealtimePayload {
-    new: QueueTicketResponse
-    old: QueueTicketResponse
-    eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+interface DoctorAndClinicDetails {
+    id: number
+    name: string
+    clinicId: number | null
+    clinicName: string | null
 }
 
 // Create singleton instance to persist state across component remounts
 const createPatientQueue = () => {
+    // Queue ticket state
     const currentTicket = ref<QueueTicketResponse[]>([])
     const queueTickets = ref<QueueTicketResponse[]>([])
-    const isLoading = ref(false)
-    const error = ref<string | null>(null)
+    const isLoadingQueue = ref(false)
+    const queueError = ref<string | null>(null)
+    
+    // Doctor details state
+    const doctorDetails = ref(new Map<number, DoctorAndClinicDetails>())
+    const isLoadingDoctors = ref(false)
+    const doctorsError = ref<string | null>(null)
+    
+    // Combined loading state
+    const isLoading = computed(() => isLoadingQueue.value || isLoadingDoctors.value)
+    const error = computed(() => queueError.value || doctorsError.value)
     
     // Subscription management
     let ticketChannel: any | null = null
@@ -26,13 +38,68 @@ const createPatientQueue = () => {
     let isIntentionalUnsubscribe = false
     let currentPatientId: number | null = null
 
-    // Fetch queue info
+    // Fetch doctor details for current tickets
+    async function fetchDoctorDetails() {
+        console.log('[PatientQueue] Fetching doctor details for tickets:', currentTicket.value)
+        
+        // Clear and return early if no tickets
+        if (!currentTicket.value || currentTicket.value.length === 0) {
+            console.log('[PatientQueue] No tickets, clearing doctor details')
+            doctorDetails.value.clear()
+            return
+        }
+
+        isLoadingDoctors.value = true
+        doctorsError.value = null
+        doctorDetails.value.clear()
+
+        try {
+            for (const ticket of currentTicket.value) {
+                try {
+                    console.log('[PatientQueue] Processing ticket for doctor details:', ticket.id)
+                    
+                    // Get appointment to find doctor_id and clinic info
+                    const appointments = await appointmentsApi.getPatientAppointments()
+                    const appointment = appointments.find(a => a.id === ticket.appointment_id)
+                    
+                    if (appointment?.doctor_id) {
+                        // Fetch doctor details
+                        const doctor = await doctorsApi.getDoctorById(appointment.doctor_id)
+                        doctorDetails.value.set(ticket.id, {
+                            id: doctor.id,
+                            name: doctor.name,
+                            clinicId: appointment.clinic_id || null,
+                            clinicName: appointment.clinic_name ?? 'Main Clinic'
+                        })
+                        console.log('[PatientQueue] Added doctor details:', {
+                            ticketId: ticket.id,
+                            doctorName: doctor.name,
+                            clinicName: appointment.clinic_name
+                        })
+                    } else {
+                        console.warn('[PatientQueue] No doctor_id for appointment:', ticket.appointment_id)
+                    }
+                } catch (e) {
+                    console.error('[PatientQueue] Error fetching details for ticket:', ticket.id, e)
+                    doctorsError.value = 'Failed to fetch some doctor details'
+                }
+            }
+            console.log('[PatientQueue] Doctor details fetch complete')
+        } catch (e) {
+            console.error('[PatientQueue] Fatal error fetching doctor details:', e)
+            doctorsError.value = 'Failed to fetch doctor information'
+        } finally {
+            isLoadingDoctors.value = false
+        }
+    }
+
+    // Fetch queue info and doctor details
     async function fetchPatientQueueInfo(patientId: number) {
-        console.log('[PatientQueue] Fetching for patient:', patientId)
+        console.log('[PatientQueue] Fetching queue info for patient:', patientId)
         if (!patientId) return
 
-        isLoading.value = true
-        error.value = null
+        isLoadingQueue.value = true
+        queueError.value = null
         currentPatientId = patientId
         
         try {
@@ -42,46 +109,44 @@ const createPatientQueue = () => {
                 console.log('[PatientQueue] No active queue:', response.message)
                 currentTicket.value = []
                 queueTickets.value = []
-                // Unsubscribe if no active queue
+                doctorDetails.value.clear()
                 unsubscribeFromQueueTickets()
                 return
             }
 
             console.log('[PatientQueue] Queue data received:', response)
             
-            // Always update the state, even if empty arrays
+            // Update queue state
             currentTicket.value = response.current_ticket || []
             queueTickets.value = response.queue_tickets || []
             
-            // Subscribe to realtime updates AFTER loading initial data
-            // Only subscribe if we have active tickets
-            if (response.current_ticket.length > 0) {
+            // Fetch doctor details for the tickets
+            if (currentTicket.value.length > 0) {
+                await fetchDoctorDetails()
                 subscribeToQueueTickets(patientId)
             } else {
-                // If no active tickets, unsubscribe to clean up
                 console.log('[PatientQueue] No active tickets, unsubscribing')
+                doctorDetails.value.clear()
                 unsubscribeFromQueueTickets()
             }
         } catch (e) {
             console.error('[PatientQueue] Error:', e)
-            error.value = 'Failed to fetch queue information'
-            // Clear state on error
+            queueError.value = 'Failed to fetch queue information'
             currentTicket.value = []
             queueTickets.value = []
+            doctorDetails.value.clear()
         } finally {
-            isLoading.value = false
+            isLoadingQueue.value = false
         }
     }
 
-    // Set up realtime subscription with proper filtering
+    // Set up realtime subscription
     const subscribeToQueueTickets = (patientId: number) => {
-        // Clear any pending reconnection attempts
         if (reconnectTimeout) {
             clearTimeout(reconnectTimeout)
             reconnectTimeout = null
         }
         
-        // Mark as intentional unsubscribe before cleaning up
         isIntentionalUnsubscribe = true
         unsubscribeFromQueueTickets()
         isIntentionalUnsubscribe = false
@@ -101,18 +166,16 @@ const createPatientQueue = () => {
                     event: '*',
                     schema: 'public',
                     table: 'queue_tickets',
-                    filter: `patient_id=eq.${patientId}` // Filter by patient_id
+                    filter: `patient_id=eq.${patientId}`
                 },
                 async (payload: any) => {
                     console.log('[PatientQueue] Realtime update received:', payload)
                     
                     try {
-                        // Refresh the entire queue info for simplicity
-                        // This ensures consistency with backend state
                         await fetchPatientQueueInfo(patientId)
                     } catch (e) {
                         console.error('[PatientQueue] Error handling realtime update:', e)
-                        error.value = 'Failed to process queue update'
+                        queueError.value = 'Failed to process queue update'
                     }
                 }
             )
@@ -136,7 +199,6 @@ const createPatientQueue = () => {
                 
                 if (status === 'CLOSED' && !isReconnecting && !isIntentionalUnsubscribe) {
                     console.warn('[PatientQueue] Channel closed unexpectedly')
-                    // Only reconnect if we still have tickets
                     if (currentTicket.value.length > 0) {
                         handleReconnection(patientId)
                     }
@@ -146,13 +208,11 @@ const createPatientQueue = () => {
 
     // Handle reconnection with exponential backoff
     const handleReconnection = (patientId: number) => {
-        if (isReconnecting) {
-            return
-        }
+        if (isReconnecting) return
         
         if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             console.error('[PatientQueue] Max reconnection attempts reached')
-            error.value = 'Connection lost. Please refresh the page.'
+            queueError.value = 'Connection lost. Please refresh the page.'
             isReconnecting = false
             return
         }
@@ -164,7 +224,6 @@ const createPatientQueue = () => {
         console.log(`[PatientQueue] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
         
         reconnectTimeout = window.setTimeout(() => {
-            // Only reconnect if we still have tickets
             if (currentTicket.value.length > 0) {
                 subscribeToQueueTickets(patientId)
             } else {
@@ -202,7 +261,7 @@ const createPatientQueue = () => {
         }
     }
 
-    // Handle visibility changes - resubscribe when tab becomes visible
+    // Handle visibility changes
     const handleVisibilityChange = async () => {
         if (document.visibilityState === 'visible' && currentPatientId) {
             console.log('[PatientQueue] Tab visible, refreshing data')
@@ -214,12 +273,20 @@ const createPatientQueue = () => {
         }
     }
 
-    // Set up visibility change listener
+    // Computed getters for doctor details
+    const getDoctorName = computed(() => (ticketId: number) => 
+        doctorDetails.value.get(ticketId)?.name ?? 'Not available'
+    )
+
+    const getClinicName = computed(() => (ticketId: number) => 
+        doctorDetails.value.get(ticketId)?.clinicName ?? 'Clinic info unavailable'
+    )
+
+    // Lifecycle hooks
     onMounted(() => {
         document.addEventListener('visibilitychange', handleVisibilityChange)
     })
 
-    // Cleanup on unmount
     onUnmounted(() => {
         console.log('[PatientQueue] Cleaning up')
         document.removeEventListener('visibilitychange', handleVisibilityChange)
@@ -227,10 +294,18 @@ const createPatientQueue = () => {
     })
 
     return {
+        // Queue state
         currentTicket,
         queueTickets,
         isLoading,
         error,
+        
+        // Doctor details
+        doctorDetails,
+        getDoctorName,
+        getClinicName,
+        
+        // Methods
         fetchPatientQueueInfo
     }
 }

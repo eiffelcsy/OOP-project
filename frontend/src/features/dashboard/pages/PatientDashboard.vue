@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { usePatientQueue } from '@/features/queue/composables/usePatientQueue'
-import { useQueueDoctors } from '@/features/queue/composables/useQueueDoctors'
 import { appointmentsApi } from '@/services/appointmentsApi'
 import type { AppointmentResponse } from '@/services/appointmentsApi'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,22 +18,15 @@ const {
     queueTickets, 
     isLoading: queueLoading, 
     error: queueError,
+    doctorDetails,
+    getDoctorName,
+    getClinicName,
     fetchPatientQueueInfo 
 } = usePatientQueue()
 
-// Queue Ticket Doctors data
-const {
-    doctorDetails,
-    isLoading: doctorsLoading,
-    error: doctorsError,
-    fetchDoctorDetails,
-    getDoctorName,
-    getClinicName
-} = useQueueDoctors(currentTicket)
-
 // Loading states
 const loadingAppointments = ref(false)
-const loadingQueue = computed(() => queueLoading.value || doctorsLoading.value)
+const loadingQueue = computed(() => queueLoading.value)
 
 // Live appointments data
 const appointments = ref<AppointmentResponse[]>([])
@@ -176,11 +168,6 @@ onMounted(async () => {
                 fetchAppointments(),
                 fetchPatientQueueInfo(patientId.value)
             ])
-            
-            // Only fetch doctor details if we have queue tickets
-            if (currentTicket.value.length > 0) {
-                await fetchDoctorDetails()
-            }
         } catch (error) {
             console.error('[Dashboard] Error loading data:', error)
         }
@@ -195,9 +182,6 @@ watch(() => patientId.value, async (newId) => {
                 fetchAppointments(),
                 fetchPatientQueueInfo(newId)
             ])
-            if (currentTicket.value.length > 0) {
-                await fetchDoctorDetails()
-            }
         } catch (error) {
             console.error('[Dashboard] Error loading data:', error)
         }
@@ -353,9 +337,9 @@ watch(() => patientId.value, async (newId) => {
                     </template>
                     
                     <!-- Case: Error fetching queue data -->
-                    <template v-else-if="queueError || doctorsError">
+                    <template v-else-if="queueError">
                         <div class="text-sm text-destructive">
-                            {{ queueError || doctorsError }}
+                            {{ queueError }}
                         </div>
                     </template>
 
@@ -388,24 +372,12 @@ watch(() => patientId.value, async (newId) => {
                                     <!-- Left: Doctor & Clinic Info -->
                                     <div class="flex-1">
                                         <p class="text-sm font-medium">
-                                            <template v-if="doctorsLoading">
-                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
-                                                Loading doctor...
-                                            </template>
-                                            <template v-else>
-                                                Dr. {{ getDoctorName(ticket.id) }}
-                                            </template>
+                                            Dr. {{ getDoctorName(ticket.id) }}
                                         </p>
                                         
                                         <!-- Clinic Name -->
                                         <p class="text-xs text-muted-foreground">
-                                            <template v-if="doctorsLoading">
-                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
-                                                Loading clinic...
-                                            </template>
-                                            <template v-else>
-                                                {{ getClinicName(ticket.id) }}
-                                            </template>
+                                            {{ getClinicName(ticket.id) }}
                                         </p>
                                     </div>
 
