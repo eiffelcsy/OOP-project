@@ -537,7 +537,7 @@ export const useViewAppointments = () => {
       console.log('Calling reschedule API for appointment', appointmentToReschedule.value.id)
       
       try {
-        await appointmentsApi.updateAppointment(
+        await appointmentsApi.updateAppointmentForPatient(
           Number(appointmentToReschedule.value.id),
           startIso,
           endIso

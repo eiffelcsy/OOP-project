@@ -336,6 +336,49 @@ public class AppointmentService {
         System.out.println("New times: " + saved.getStartTime() + " to " + saved.getEndTime());
         System.out.println("=== RESCHEDULE COMPLETED SUCCESSFULLY ===");
 
+        // Attempt to send notification email to patient (if we can resolve an email address)
+        try {
+            if (saved.getPatientId() != null) {
+                Optional<Patient> pOpt = patientRepository.findById(saved.getPatientId());
+                if (pOpt.isPresent()) {
+                    Patient p = pOpt.get();
+                    String userId = p.getUserId();
+                    if (userId != null) {
+                        Optional<Profile> prof = profileRepository.findByUserId(userId);
+                        if (prof.isPresent() && prof.get().getEmail() != null && !prof.get().getEmail().isBlank()) {
+                            String to = prof.get().getEmail();
+                            String name = prof.get().getFullName();
+                            try {
+                                String clinicName = null;
+                                String doctorName = null;
+                                try {
+                                    if (saved.getClinicId() != null) {
+                                        clinicName = clinicService.getClinicById(saved.getClinicId())
+                                                .map(c -> c.getName()).orElse(null);
+                                    }
+                                } catch (Exception _e) {
+                                }
+                                try {
+                                    if (saved.getDoctorId() != null) {
+                                        doctorName = doctorService.getDoctorById(saved.getDoctorId()).getName();
+                                    }
+                                } catch (Exception _e) {
+                                }
+
+                                emailService.sendAppointmentRescheduledEmail(saved, to, name, clinicName, doctorName);
+                            } catch (Exception e) {
+                                log.warn("Failed to send appointment reschedule email for appointment id={}", saved.getId(), e);
+                            }
+                        } else {
+                            log.debug("No profile/email found for patient userId={}", userId);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error while attempting to send appointment reschedule email for appointment id={}", saved.getId(), e);
+        }
+
         return saved;
     }
 

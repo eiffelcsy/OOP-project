@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useViewAppointments } from '../composables/useViewAppointments'
 import { useBookAppointment } from '../composables/useBookAppointment'
+import { doctorsApi } from '@/services/doctorsApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -121,6 +122,9 @@ const handleSlotSelect = (slot: any) => {
   if ((selectTimeSlot as any)) (selectTimeSlot as any)(slot)
 }
 
+// Doctors available for reschedule (same clinic)
+const rescheduleDoctors = ref<any[]>([])
+
 // Open reschedule and prime booking composable so calendar & slots populate
 const openReschedule = async (appointment: any) => {
   // reset wizard to first step and clear previous selection
@@ -131,7 +135,20 @@ const openReschedule = async (appointment: any) => {
   // open view's reschedule dialog and set appointment
   openRescheduleDialog(appointment)
 
-  // try to prime booking composable with doctor so it fetches schedules/slots when date is chosen
+  // Fetch doctors for the appointment's clinic so patient can choose another doctor in same clinic
+  try {
+    if (appointment?.clinic_id) {
+      const docs = await doctorsApi.getDoctorsByClinicId(Number(appointment.clinic_id))
+      rescheduleDoctors.value = docs || []
+    } else {
+      rescheduleDoctors.value = []
+    }
+  } catch (e) {
+    console.warn('Failed to fetch doctors for clinic', appointment?.clinic_id, e)
+    rescheduleDoctors.value = []
+  }
+
+  // Prime booking composable with the appointment's current doctor (if present)
   const docId = appointment?.doctor_id ?? appointment?.doctorId ?? appointment?.doctor_id
   if (docId && (bookSelectDoctor as any)) {
     try {
@@ -537,7 +554,7 @@ onMounted(async () => {
 
     <!-- Reschedule Dialog (two-step wizard) -->
     <Dialog v-model:open="isRescheduleDialogOpen">
-      <DialogContent class="max-w-[1000px] w-[96vw] mx-auto">
+  <DialogContent class="max-w-[1400px] w-[98vw] mx-auto">
         <DialogHeader>
           <DialogTitle>Reschedule Appointment</DialogTitle>
           <DialogDescription>
@@ -546,15 +563,45 @@ onMounted(async () => {
         </DialogHeader>
 
         <div v-if="appointmentToReschedule" class="p-6">
-          <!-- Step indicator -->
+          <!-- Step indicator (Doctor -> Date -> Time) -->
           <div class="flex items-center gap-4 mb-6">
             <div :class="['w-10 h-10 rounded-full flex items-center justify-center', wizardStep===1 ? 'bg-primary text-white' : 'bg-gray-100']">1</div>
             <div class="flex-1 border-t"></div>
             <div :class="['w-10 h-10 rounded-full flex items-center justify-center', wizardStep===2 ? 'bg-primary text-white' : 'bg-gray-100']">2</div>
+            <div class="flex-1 border-t"></div>
+            <div :class="['w-10 h-10 rounded-full flex items-center justify-center', wizardStep===3 ? 'bg-primary text-white' : 'bg-gray-100']">3</div>
           </div>
 
-          <!-- Step 1: Calendar -->
+          <!-- Step 1: Doctor selection -->
           <div v-if="wizardStep===1">
+            <div class="mb-4 p-4 bg-muted rounded">
+              <h4 class="font-medium mb-2">Choose Doctor</h4>
+              <p class="text-sm text-muted-foreground">Select a doctor from the same clinic for your rescheduled appointment.</p>
+            </div>
+
+            <!-- Vertical list of doctors -->
+            <div class="flex flex-col gap-3">
+              <div v-for="doc in rescheduleDoctors" :key="doc.id" class="w-full">
+                <Button :variant="(bookingData.doctor && bookingData.doctor.id === doc.id) ? 'default' : 'outline'"
+                  class="w-full text-left min-h-[6rem] p-4 flex items-start justify-between whitespace-normal" @click="() => { (bookSelectDoctor as any)(doc) }">
+                  <div class="break-words">
+                    <div class="font-semibold">{{ doc.name }}</div>
+                    <div class="text-sm text-muted-foreground">{{ doc.specialty }}</div>
+                    <div v-if="doc.bio" class="text-sm text-muted-foreground mt-1">{{ doc.bio }}</div>
+                  </div>
+                  <div class="text-sm text-muted-foreground ml-4">Dr.</div>
+                </Button>
+              </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+              <Button variant="outline" @click="closeRescheduleDialog" class="mr-2">Cancel</Button>
+              <Button :disabled="!bookingData.doctor" @click="wizardStep = 2">Next</Button>
+            </div>
+          </div>
+
+          <!-- Step 2: Calendar -->
+          <div v-else-if="wizardStep===2">
             <div class="mb-4 p-4 bg-muted rounded">
               <h4 class="font-medium mb-2">Pick a Date</h4>
               <p class="text-sm text-muted-foreground">Choose a date with available time slots.</p>
@@ -566,18 +613,18 @@ onMounted(async () => {
                 :min-value="today(getLocalTimeZone())"
                 :available-weekdays="availableWeekdaysArray"
                 :available-dates="availableDatesArray"
-                @update:model-value="(d) => { handleDateSelect(d); if (d) wizardStep = 2 }"
+                @update:model-value="(d) => { handleDateSelect(d); if (d) wizardStep = 3 }"
                 class="rounded-md border"
               />
             </div>
 
             <div class="mt-6 flex justify-end">
               <Button variant="outline" @click="closeRescheduleDialog" class="mr-2">Cancel</Button>
-              <Button :disabled="!selectedDate" @click="wizardStep = 2">Next</Button>
+              <Button :disabled="!selectedDate" @click="wizardStep = 3">Next</Button>
             </div>
           </div>
 
-          <!-- Step 2: Time slots (use same layout/logic as BookAppointment) -->
+          <!-- Step 3: Time slots (use same layout/logic as BookAppointment) -->
           <div v-else>
             <Card>
               <CardHeader>

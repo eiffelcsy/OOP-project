@@ -204,6 +204,24 @@ export const appointmentsApi = {
   },
 
   /**
+   * Update an appointment for the authenticated patient (reschedule)
+   * PUT /api/patient/appointments/{id}?newStartTime={start}&newEndTime={end}
+   */
+  async updateAppointmentForPatient(
+    id: number,
+    newStartTime?: string,
+    newEndTime?: string
+  ): Promise<AppointmentResponse> {
+    const params = new URLSearchParams()
+    if (newStartTime) params.append('newStartTime', newStartTime)
+    if (newEndTime) params.append('newEndTime', newEndTime)
+    const queryString = params.toString()
+    const endpoint = queryString ? `/api/patient/appointments/${id}?${queryString}` : `/api/patient/appointments/${id}`
+
+    return apiClient.put(endpoint, {})
+  },
+
+  /**
    * Cancel an appointment
    * DELETE /api/appointments/{id}
    */

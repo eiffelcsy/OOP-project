@@ -3,10 +3,8 @@ package com.clinic.management.controller;
 import com.clinic.management.model.Clinic;
 import com.clinic.management.model.Patient;
 import com.clinic.management.service.PatientService;
-import com.clinic.management.service.QueueService;
 import com.clinic.management.dto.response.ClinicResponse;
 import com.clinic.management.dto.response.PatientQueueResponse;
-import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.service.ClinicService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PutMapping;
 
 import java.util.Map;
 import java.util.List;
@@ -257,6 +256,58 @@ public class PatientController {
         } catch (Exception ex) {
             log.error("debugCheckAppointment failed", ex);
             return ResponseEntity.badRequest().body(Map.of("error", "invalid parameters", "message", ex.getMessage()));
+        }
+    }
+
+    /**
+     * PUT /api/patient/appointments/{id}
+     * Allow the authenticated patient to reschedule their own appointment only.
+     */
+    @PutMapping("/appointments/{id}")
+    public ResponseEntity<?> rescheduleMyAppointment(
+            @PathVariable Long id,
+            @RequestParam(required = false) String newStartTime,
+            @RequestParam(required = false) String newEndTime) {
+
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getPrincipal() == null) {
+                log.warn("rescheduleMyAppointment: no authentication principal");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String userId = auth.getPrincipal().toString();
+            Optional<com.clinic.management.model.Patient> pOpt = patientService.getPatientByUserId(userId);
+            if (pOpt.isEmpty()) {
+                log.warn("rescheduleMyAppointment: no patient record for userId={}", userId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No patient record for user"));
+            }
+
+            Long patientId = pOpt.get().getId();
+
+            if (newStartTime != null && newEndTime != null) {
+                OffsetDateTime start = OffsetDateTime.parse(newStartTime);
+                OffsetDateTime end = OffsetDateTime.parse(newEndTime);
+
+                // Ensure appointment belongs to this patient
+                List<Appointment> myAppts = appointmentService.getAppointmentsByPatientId(patientId);
+                boolean owns = myAppts.stream().anyMatch(a -> a.getId() != null && a.getId().equals(id));
+                if (!owns) {
+                    log.warn("rescheduleMyAppointment: user {} attempted to reschedule appointment {} not owned by them", userId, id);
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "Not allowed to modify this appointment"));
+                }
+
+                Appointment updated = appointmentService.rescheduleAppointment(id, start, end);
+                return ResponseEntity.ok(updated);
+            }
+
+            throw new IllegalArgumentException("newStartTime and newEndTime are required");
+        } catch (Exception e) {
+            log.warn("rescheduleMyAppointment error: {}", e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to reschedule appointment",
+                    "message", e.getMessage()));
         }
     }
 

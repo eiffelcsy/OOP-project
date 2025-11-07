@@ -148,6 +148,18 @@ export const useBookAppointment = () => {
 
       let dateHasFree = false
       for (const row of rows) {
+        // Respect per-row validity (valid_from / valid_to) when computing
+        // availability for a specific date. fetchedSchedules may have been
+        // filtered for a different reference date (e.g. today), so we must
+        // re-check the row's valid range for the candidate date.
+        try {
+          const vFrom = toSgtDate((row as any).valid_from ?? (row as any).validFrom ?? null)
+          const vTo = toSgtDate((row as any).valid_to ?? (row as any).validTo ?? null)
+          if (vFrom && dateStr < vFrom) continue
+          if (vTo && dateStr > vTo) continue
+        } catch (e) {
+          // if validity parsing fails, conservatively proceed to slot checks
+        }
         // get slots for this row
         const slots = Array.isArray(row.computed_slots) && row.computed_slots.length > 0
           ? row.computed_slots.map((s: string) => {
@@ -562,8 +574,12 @@ export const useBookAppointment = () => {
         const vFromRaw = (row as any).valid_from ?? (row as any).validFrom ?? null
         const vToRaw = (row as any).valid_to ?? (row as any).validTo ?? null
 
-        const vFromMs = vFromRaw ? new Date(String(vFromRaw)).getTime() : null
-        const vToMs = vToRaw ? new Date(String(vToRaw)).getTime() : null
+        // Use date-only (SGT) comparisons for per-row validity to match the
+        // calendar availability logic. Convert raw validity values to SGT
+        // 'YYYY-MM-DD' strings when possible and compare targetDateStr
+        // inclusively: targetDateStr >= vFrom && targetDateStr <= vTo.
+        const vFrom = vFromRaw ? toSgtDate(vFromRaw) : null
+        const vTo = vToRaw ? toSgtDate(vToRaw) : null
 
         const perRowSlots = Array.isArray(row.computed_slots) && row.computed_slots.length > 0
           ? row.computed_slots.map((s: string) => {
@@ -574,16 +590,31 @@ export const useBookAppointment = () => {
 
         for (const s of perRowSlots) {
           try {
-            const sgStartRaw = `${targetDateStr}T${s.start}`
-            const startWithOffset = ensureSgtOffset(sgStartRaw) || sgStartRaw
-            const slotStartIso = new Date(startWithOffset).toISOString()
-            const slotStartMs = new Date(slotStartIso).getTime()
+            // If the row has date-only validity bounds, enforce them using
+            // the SGT date string for the target date. This mirrors the
+            // earlier matching filter and ensures inclusive date comparison.
+            if (vFrom && targetDateStr < vFrom) continue
+            if (vTo && targetDateStr > vTo) continue
 
-            if (vFromMs && slotStartMs < vFromMs) continue
-            if (vToMs && slotStartMs > vToMs) continue
+            // If no date-only bounds exist, fall back to slot-level checks
+            // using the slot start instant (previous behavior). This handles
+            // cases where valid_from/valid_to are full timestamps and cannot
+            // be converted to SGT date strings.
+            if (!vFrom && !vTo) {
+              const sgStartRaw = `${targetDateStr}T${s.start}`
+              const startWithOffset = ensureSgtOffset(sgStartRaw) || sgStartRaw
+              const slotStartIso = new Date(startWithOffset).toISOString()
+              const slotStartMs = new Date(slotStartIso).getTime()
+              // try parse raw timestamps and compare (best-effort)
+              const vFromMsFallback = vFromRaw ? new Date(String(vFromRaw)).getTime() : null
+              const vToMsFallback = vToRaw ? new Date(String(vToRaw)).getTime() : null
+              if (vFromMsFallback && slotStartMs < vFromMsFallback) continue
+              if (vToMsFallback && slotStartMs > vToMsFallback) continue
+            }
 
             mergedSlots.push(s)
           } catch (e) {
+            // skip problematic slots conservatively
           }
         }
       }
