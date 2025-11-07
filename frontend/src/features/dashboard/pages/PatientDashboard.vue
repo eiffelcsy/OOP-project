@@ -106,19 +106,6 @@ const getStatusVariant = (status: string) => {
     }
 }
 
-// Get queue ticket status badge variant
-const getQueueStatusVariant = (status: string) => {
-    const statusLower = status.toLowerCase()
-    switch (statusLower) {
-        case 'called':
-            return 'destructive'
-        case 'checked in':
-            return 'default'
-        default:
-            return 'secondary'
-    }
-}
-
 // Get status display text
 const getStatusText = (status: string) => {
     const statusLower = status.toLowerCase()
@@ -178,15 +165,6 @@ const totalUpcomingCount = computed(() => {
         return isUpcoming && isActiveStatus
     }).length
 })
-
-// // Queue ticket data
-const myTicket = computed(() => currentTicket.value?.[0])
-const currentServing = computed(() => 
-    queueTickets.value.filter(t => t.ticket_status === 'Called')
-)
-const waiting = computed(() => 
-    queueTickets.value.filter(t => t.ticket_status === 'Checked In')
-)
 
 // Load data on mount
 onMounted(async () => {
@@ -351,15 +329,20 @@ watch(() => patientId.value, async (newId) => {
             <!-- Queue Ticket Card -->
             <Card>
                 <CardHeader class="border-b">
-                    <CardTitle class="flex items-center justify-between">
-                        <span>Active Queue Tickets</span>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Active Queue Tickets</CardTitle>
+                            <p class="text-sm text-muted-foreground mt-1">
+                                You have {{ currentTicket.length }} active queue {{ currentTicket.length === 1 ? 'ticket' : 'tickets' }}
+                            </p>
+                        </div>
                         <RouterLink to="/patient/queue">
                             <Button variant="link" size="sm" class="h-4">
                                 View Details
                                 <Icon icon="lucide:arrow-right" class="size-3 ml-1" />
                             </Button>
                         </RouterLink>
-                    </CardTitle>
+                    </div>
                 </CardHeader>
 
                 <CardContent>
@@ -378,13 +361,33 @@ watch(() => patientId.value, async (newId) => {
 
                     <!-- Case: Has Active Tickets -->
                     <template v-else-if="currentTicket.length">
-                        <div class="space-y-0">
-                            <div v-for="ticket in currentTicket" :key="ticket.id"
-                                class="flex items-center justify-between py-3 border-b last:border-0">
-                                <!-- Left: Doctor & Clinic Info -->
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <p class="text-sm text-muted-foreground">
+                        <div class="space-y-2">
+                            <div 
+                                v-for="ticket in currentTicket" 
+                                :key="ticket.id"
+                                class="rounded-lg border p-3 transition-all duration-200"
+                                :class="{
+                                    'border-green-200 bg-green-50': ticket.ticket_status === 'Called',
+                                    'border-blue-200 bg-blue-50': ticket.ticket_status === 'Checked In',
+                                    'border-gray-200 bg-gray-50': ticket.ticket_status !== 'Called' && ticket.ticket_status !== 'Checked In'
+                                }"
+                            >
+                                <!-- Fast Track Banner (if applicable) -->
+                                <div 
+                                    v-if="ticket.priority === 1"
+                                    class="bg-yellow-100 border border-yellow-200 rounded-md px-3 py-2 mb-3 flex items-center gap-2"
+                                >
+                                    <Icon icon="lucide:zap" class="size-4 flex-shrink-0 text-yellow-700" />
+                                    <div class="flex-1">
+                                        <p class="font-semibold text-xs text-yellow-900">Fast Track Priority</p>
+                                        <p class="text-xs text-yellow-700">Ahead of regular queue</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between">
+                                    <!-- Left: Doctor & Clinic Info -->
+                                    <div class="flex-1">
+                                        <p class="text-sm font-medium">
                                             <template v-if="doctorsLoading">
                                                 <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
                                                 Loading doctor...
@@ -393,40 +396,42 @@ watch(() => patientId.value, async (newId) => {
                                                 Dr. {{ getDoctorName(ticket.id) }}
                                             </template>
                                         </p>
-                                        <Badge
-                                            v-if="ticket.priority === 1"
-                                            variant="secondary"
-                                            class="text-amber-600 bg-amber-100"
-                                        >
-                                            Fast Track
-                                        </Badge>
+                                        
+                                        <!-- Clinic Name -->
+                                        <p class="text-xs text-muted-foreground">
+                                            <template v-if="doctorsLoading">
+                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
+                                                Loading clinic...
+                                            </template>
+                                            <template v-else>
+                                                {{ getClinicName(ticket.id) }}
+                                            </template>
+                                        </p>
                                     </div>
-                                    
-                                    <!-- Clinic Name -->
-                                    <p class="text-xs text-muted-foreground">
-                                        <template v-if="doctorsLoading">
-                                            <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
-                                            Loading clinic...
-                                        </template>
-                                        <template v-else>
-                                            {{ getClinicName(ticket.id) }}
-                                        </template>
-                                    </p>
-                                </div>
 
-                                <!-- Middle: Queue Number -->
-                                <div class="mx-4">
-                                    <span class="text-2xl font-bold text-primary">
-                                        Q{{ ticket.ticket_number }}
-                                    </span>
-                                </div>
+                                    <!-- Middle: Queue Number -->
+                                    <div class="mx-4">
+                                        <span class="text-2xl font-bold text-primary">
+                                            #{{ ticket.ticket_number }}
+                                        </span>
+                                    </div>
 
-                                <!-- Right: Status -->
-                                <Badge :variant="getQueueStatusVariant(ticket.ticket_status)"
-                                class="min-w-[100px] text-center"
-                                >
-                                    {{ ticket.ticket_status }}
-                                </Badge>
+                                    <!-- Right: Status Badge -->
+                                    <Badge 
+                                        class="min-w-[80px] text-center text-xs"
+                                        :class="{
+                                            'bg-green-100 text-green-800': ticket.ticket_status === 'Called',
+                                            'bg-blue-100 text-blue-800': ticket.ticket_status === 'Checked In',
+                                            'bg-gray-100 text-gray-800': ticket.ticket_status !== 'Called' && ticket.ticket_status !== 'Checked In'
+                                        }"
+                                    >
+                                        <Icon 
+                                            :icon="ticket.ticket_status === 'Called' ? 'lucide:bell-ring' : 'lucide:clock'" 
+                                            class="size-3 mr-1"
+                                        />
+                                        {{ ticket.ticket_status === 'Called' ? 'CALLED' : 'WAITING' }}
+                                    </Badge>
+                                </div>
                             </div>
                         </div>
                     </template>
@@ -435,7 +440,7 @@ watch(() => patientId.value, async (newId) => {
                     <template v-else>
                         <div class="flex flex-col items-center text-center py-6">
                             <Icon icon="lucide:ticket" class="size-6 mb-2 text-muted-foreground" />
-                            <p class="text-muted-foreground">
+                            <p class="text-sm text-muted-foreground">
                                 No active queue tickets
                             </p>
                         </div>

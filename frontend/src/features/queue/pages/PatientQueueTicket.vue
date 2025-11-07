@@ -1,177 +1,219 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { usePatientQueue } from '../composables/usePatientQueue'
+import { useQueueDoctors } from '../composables/useQueueDoctors'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { Icon } from '@iconify/vue'
+
 
 const { currentUser } = useAuth()
-const patientId = currentUser.value?.patient?.id
+const patientId = computed(() => currentUser.value?.patient?.id)
 
-// Dummy queue ticket data
-const dummyQueueTicketData = ref([
-    { appointment_id: 101, patient_id: 201, ticket_number: 0, 
-        priority: 1, ticket_status: 'No Show', doctor_name: 'John Doe'},
-    { appointment_id: 102, patient_id: 202, ticket_number: 1, 
-        priority: 0, ticket_status: 'Completed', doctor_name: 'Jane Smith'},
-    { appointment_id: 103, patient_id: 203, ticket_number: 2, 
-        priority: 0, ticket_status: 'Called', doctor_name: 'Emily Chen'},
-    { appointment_id: 104, patient_id: 204, ticket_number: 3,
-        priority: 1, ticket_status: 'Checked-in', doctor_name: 'Sarah Smith'},
-    { appointment_id: 105, patient_id: 205, ticket_number: 4, 
-        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Sarah Smith'},
-    { appointment_id: 106, patient_id: 206, ticket_number: 5,
-        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Emily Chen'},
-    { appointment_id: 107, patient_id: 207, ticket_number: 6, 
-        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Emily Chen'},
-    { appointment_id: 108, patient_id: 208, ticket_number: 7, 
-        priority: 1, ticket_status: 'Called', doctor_name: 'Jane Smith'},
-    { appointment_id: 109, patient_id: 209, ticket_number: 8, 
-        priority: 0, ticket_status: 'Checked-in', doctor_name: 'Jane Smith'},
-    { appointment_id: 110, patient_id: patientId, ticket_number: 9, 
-        priority: 1, ticket_status: 'Called', doctor_name: 'Sarah Smith'} // current user
-])
+// Queue Ticket data
+const { 
+    currentTicket, 
+    queueTickets, 
+    isLoading: queueLoading, 
+    error: queueError,
+    fetchPatientQueueInfo 
+} = usePatientQueue()
 
+// Queue Ticket Doctors data
+const {
+    doctorDetails,
+    isLoading: doctorsLoading,
+    error: doctorsError,
+    fetchDoctorDetails,
+    getDoctorName,
+    getClinicName
+} = useQueueDoctors(currentTicket)
 
-// Extract queue info
-const currentServing = dummyQueueTicketData.value.filter(q => q.ticket_status === 'Called')
-const waiting = dummyQueueTicketData.value.filter(q => q.ticket_status === 'Checked-in')
-const myTicket = dummyQueueTicketData.value.find(q => q.patient_id === patientId)
+// Loading states
+const loadingQueue = computed(() => queueLoading.value || doctorsLoading.value)
 
-// Dummy appointment details
-const appointment = ref({
-doctorName: 'Dr. Sarah Smith',
-type: 'General Checkup',
-date: '2025-10-30',
-time: '10:30 AM - 11:00 AM',
-location: 'Tan Tock Seng Hospital'
+// Currently serving and waiting computations
+const currentServing = computed(() => 
+    queueTickets.value.filter(t => t.ticket_status === 'Called')
+)
+
+// Get queue ticket status badge variant
+const getQueueStatusVariant = (status: string) => {
+    const statusLower = status.toLowerCase()
+    switch (statusLower) {
+        case 'called':
+            return 'destructive'
+        case 'checked in':
+            return 'default'
+        default:
+            return 'secondary'
+    }
+}
+
+// Load data on mount
+// Load data on mount
+onMounted(async () => {
+    console.log('[Dashboard] Loading with patientId:', patientId.value)
+    if (patientId.value) {
+        try {
+            // Fetch appointments and queue data in parallel
+            await Promise.all([
+                fetchPatientQueueInfo(patientId.value)
+            ])
+            
+            // Only fetch doctor details if we have queue tickets
+            if (currentTicket.value.length > 0) {
+                await fetchDoctorDetails()
+            }
+        } catch (error) {
+            console.error('[Dashboard] Error loading data:', error)
+        }
+    }
 })
-
-onMounted(() => {
-    console.log('Page loaded with dummy data')
-})
-
 </script>
 
 <template>
-    
     <div class="space-y-8 p-8">
         <!-- Page Title -->
         <div class="flex flex-col gap-1">
-            <h1 class="text-3xl font-bold tracking-tight">My Queue Ticket</h1>
+            <h1 class="text-3xl font-bold tracking-tight">My Queue Tickets</h1>
+            <p class="text-sm text-muted-foreground">
+                You have {{ currentTicket.length }} active queue ticket(s)
+            </p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Queue Ticket Card -->
-            <Card>
-                <CardHeader class="border-b">
-                    <CardTitle class="flex items-center justify-between">
-                        <span>My Queue Ticket</span>
-                        <Badge
-                            v-if="myTicket?.priority"
-                            variant="secondary"
-                            class="text-amber-600 bg-amber-100 dark:bg-amber-900/30"
-                        >
-                            Fast Track
-                        </Badge>
-                    </CardTitle>
-                </CardHeader>
+        <!-- Loading State -->
+        <Card v-if="loadingQueue">
+            <CardContent class="flex flex-col items-center text-center py-12">
+                <Icon icon="lucide:loader-2" class="size-12 mb-4 text-muted-foreground animate-spin" />
+                <p class="text-muted-foreground">Loading your queue tickets...</p>
+            </CardContent>
+        </Card>
 
-                <CardContent class="space-y-4">
-                    <!-- Case: In Queue -->
-                    <template v-if="myTicket">
-                    <div class="flex items-center justify-between">
-                        <div>
-                        <p class="text-sm text-muted-foreground">Your Ticket Number</p>
-                        <p class="text-3xl font-bold text-primary">
-                            {{ myTicket.ticket_number }}
-                        </p>
+        <!-- Error State -->
+        <Card v-else-if="queueError || doctorsError">
+            <CardContent class="flex flex-col items-center text-center py-12">
+                <Icon icon="lucide:alert-circle" class="size-12 mb-4 text-destructive" />
+                <p class="text-destructive font-medium mb-2">Error loading queue information</p>
+                <p class="text-sm text-muted-foreground">{{ queueError || doctorsError }}</p>
+                <Button @click="fetchPatientQueueInfo(patientId)" class="mt-4">
+                    Try Again
+                </Button>
+            </CardContent>
+        </Card>
+
+        <!-- No Tickets State -->
+        <Card v-else-if="currentTicket.length === 0">
+            <CardContent class="flex flex-col items-center text-center py-12">
+                <Icon icon="lucide:ticket" class="size-12 mb-4 text-muted-foreground" />
+                <p class="text-muted-foreground">
+                    You have not checked in yet. Please visit the counter to join the queue.
+                </p>
+            </CardContent>
+        </Card>
+
+        <!-- Tickets List - Compact View -->
+        <div v-else class="space-y-4">
+            <Card 
+                v-for="ticket in currentTicket" 
+                :key="ticket.id" 
+                class="overflow-hidden transition-all duration-200 hover:shadow-md"
+                :class="{
+                    'border-green-200 bg-green-50': ticket.ticket_status === 'Called',
+                    'border-blue-200 bg-blue-50': ticket.ticket_status === 'Checked In'
+                }"
+            >
+                <!-- Fast Track Banner -->
+                <div 
+                    v-if="ticket.priority"
+                    class="bg-yellow-100 border-b border-yellow-200 px-6 py-3 flex items-center gap-3"
+                >
+                    <Icon icon="lucide:zap" class="size-5 flex-shrink-0 text-yellow-700" />
+                    <div class="flex-1">
+                        <p class="font-semibold text-sm text-yellow-900">Fast Track Priority</p>
+                        <p class="text-xs text-yellow-700">You will be served ahead of regular queue patients</p>
+                    </div>
+                    <Badge class="bg-yellow-200 text-yellow-800 border-yellow-300 hover:bg-yellow-300">
+                        Priority
+                    </Badge>
+                </div>
+
+                <CardContent class="p-6">
+                    <div class="flex items-start justify-between">
+                        <!-- Left: Ticket Info -->
+                        <div class="flex gap-6">
+                            <div>
+                                <p class="text-xs text-muted-foreground mb-1">Your Number</p>
+                                <p class="text-3xl font-bold text-primary">#{{ ticket.ticket_number }}</p>
+                            </div>
+
+                            <Separator orientation="vertical" class="h-16" />
+
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <Icon icon="lucide:stethoscope" class="size-4 text-muted-foreground" />
+                                        <span class="font-medium">
+                                            <template v-if="doctorsLoading">
+                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
+                                                Loading...
+                                            </template>
+                                            <template v-else>
+                                                Dr. {{ getDoctorName(ticket.id) }}
+                                            </template>
+                                        </span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <Icon icon="lucide:building-2" class="size-4 text-muted-foreground" />
+                                        <span class="text-sm text-muted-foreground">
+                                            <template v-if="doctorsLoading">
+                                                <Icon icon="lucide:loader-2" class="size-3 animate-spin inline mr-1" />
+                                                Loading...
+                                            </template>
+                                            <template v-else>
+                                                {{ getClinicName(ticket.id) }}
+                                            </template>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <Badge 
+                                        :class="{
+                                            'bg-green-100 text-green-800': ticket.ticket_status === 'Called',
+                                            'bg-blue-100 text-blue-800': ticket.ticket_status === 'Checked In',
+                                            'bg-gray-100 text-gray-800': ticket.ticket_status !== 'Called' && ticket.ticket_status !== 'Checked In'
+                                        }"
+                                    >
+                                        <Icon 
+                                            :icon="ticket.ticket_status === 'Called' ? 'lucide:bell-ring' : 'lucide:clock'" 
+                                            class="size-3 mr-1"
+                                        />
+                                        {{ ticket.ticket_status === 'Called' ? 'CALLED' : 'WAITING' }}
+                                    </Badge>
+                                    <span 
+                                        class="text-sm"
+                                        :class="ticket.ticket_status === 'Called' ? 'text-green-700 font-medium' : 'text-muted-foreground'"
+                                    >
+                                        {{ ticket.ticket_status === 'Called' ? 'Please proceed to the doctor now' : 'Waiting in queue' }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
+                        <!-- Right: Currently Serving -->
                         <div class="text-right">
-                            <p class="text-sm text-muted-foreground">Currently Serving</p>
+                            <p class="text-xs text-muted-foreground mb-1">Now Serving</p>
                             <p class="text-2xl font-bold text-primary">
-                                {{ currentServing.length ? currentServing.map(t => t.ticket_number).join(', ') : '—' }}
+                                #{{ currentServing.length ? currentServing.map(t => t.ticket_number).join(', #') : '—' }}
                             </p>
                         </div>
                     </div>
-
-                    <Separator class="my-2" />
-
-                    <!-- Ticket Status Messages -->
-                    <div>
-                        <p
-                        v-if="myTicket.ticket_status === 'Called'"
-                        class="text-green-600 font-medium"
-                        >
-                        You are being served now.
-                        Proceed to <span class="font-semibold">{{ 'Dr. ' + myTicket.doctor_name || 'your assigned doctor' }}</span>.
-                        </p>
-
-                        <p
-                        v-else-if="myTicket.ticket_status === 'Checked-in'"
-                        class="text-blue-600 font-medium"
-                        >
-                        You are currently waiting.
-                        <span class="font-semibold">{{ waiting.length - 1 }}</span> patients ahead.
-                        </p>
-
-                        <p
-                        v-else-if="myTicket.ticket_status === 'Completed'"
-                        class="text-gray-500 font-medium"
-                        >
-                        Your consultation has been completed.
-                        </p>
-
-                        <p
-                        v-else-if="myTicket.ticket_status === 'No Show'"
-                        class="text-red-600 font-medium"
-                        >
-                        You missed your appointment.
-                        </p>
-                    </div>
-                    </template>
-
-                    <!-- Case: Not in Queue -->
-                    <template v-else>
-                    <div class="flex flex-col items-center text-center py-8">
-                        <Icon icon="lucide:ticket" class="size-6 mb-2 text-muted-foreground" />
-                        <p class="text-muted-foreground">
-                        You have not checked in yet. Please visit the counter to join the queue.
-                        </p>
-                    </div>
-                    </template>
                 </CardContent>
             </Card>
-
-        <!-- Appointment Info Card -->
-        <Card>
-            <CardHeader class="border-b">
-                <CardTitle>Appointment Details</CardTitle>
-            </CardHeader>
-
-            <CardContent>
-            <div v-if="appointment">
-                <p class="font-medium">{{ appointment.doctorName }}</p>
-                <p class="text-sm text-muted-foreground">{{ appointment.type }}</p>
-                <p class="mt-2">
-                <span class="text-sm text-muted-foreground">Date:</span>
-                {{ appointment.date }}
-                </p>
-                <p>
-                <span class="text-sm text-muted-foreground">Time:</span>
-                {{ appointment.time }}
-                </p>
-                <p>
-                <span class="text-sm text-muted-foreground">Location:</span>
-                {{ appointment.location }}
-                </p>
-            </div>
-            <div v-else>
-                <p class="text-muted-foreground">
-                No appointment linked to this queue ticket.
-                </p>
-            </div>
-            </CardContent>
-        </Card>
         </div>
     </div>
 </template>
