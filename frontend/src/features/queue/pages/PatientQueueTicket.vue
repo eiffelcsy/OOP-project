@@ -198,7 +198,7 @@ watch(() => patientId.value, async (newId) => {
                                 <div 
                                     class="bg-primary h-1.5 rounded-full transition-all duration-500"
                                     :style="{ width: `${calculateProgress(ticket)}%` }"
-                                />
+                                ></div>
                             </div>
                         </div>
                     </div>
