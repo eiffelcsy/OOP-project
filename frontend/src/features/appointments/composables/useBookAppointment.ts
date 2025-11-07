@@ -93,6 +93,23 @@ export const useBookAppointment = () => {
   const fetchedAppointments = ref<any[]>([])
   // Raw schedules fetched (with computed_slots) so calendar can highlight weekdays with availability
   const fetchedSchedules = ref<any[]>([])
+  // Preserve the raw schedule rows returned from API/Supabase (before validity filtering)
+  const fetchedSchedulesRaw = ref<any[]>([])
+
+  // Helper: convert a raw date/time value to SGT-local date string 'YYYY-MM-DD'
+  const toSgtDate = (raw: any): string | null => {
+    if (raw == null) return null
+    try {
+      const d = new Date(String(raw))
+      if (isNaN(d.getTime())) return null
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    } catch (_) {
+      return null
+    }
+  }
+
+  const scheduleFetchPromises = new Map<number, Promise<any[]>>()
+  const lastFetchedDoctorId = ref<number | null>(null)
 
   // Computed set of weekday numbers (1=Mon .. 7=Sun) that have at least one computed slot
   const availableWeekdays = computed(() => {
@@ -112,6 +129,10 @@ export const useBookAppointment = () => {
     if (!doctorId) return out
 
     const daysAhead = 60
+    // current instant in ms (UTC) for comparisons
+    const nowMs = Date.now()
+    // current date in Singapore (YYYY-MM-DD)
+    const todaySgt = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
     const today = new Date()
     for (let i = 0; i <= daysAhead; i++) {
       const d = new Date(today)
@@ -133,7 +154,7 @@ export const useBookAppointment = () => {
               const parts = s.split('-').map((p: string) => p.trim())
               return { start: parts[0], end: parts[1], display: s }
             })
-          : computeSlotsFromScheduleRow(row)
+          : computeSlotsFromScheduleRow(row, dateStr)
 
         for (const s of slots) {
           try {
@@ -164,19 +185,25 @@ export const useBookAppointment = () => {
               const eMs = new Date(slotEndUtc).getTime()
               const isOverlap = aStartMs < eMs && aEndMs > sMs
               if (isOverlap) {
-                // Helpful debug: why slot is greyed out — log the full appointment object
-                try {
-                  console.info('Slot greyed out due to appointment', a)
-                } catch (_) {}
+                // Slot overlap detected. Removed noisy console output in production flow.
               }
               return isOverlap
             })
             if (!overlap) {
+              // If this is today (SGT), ensure the slot start is in the future
+              if (dateStr === todaySgt) {
+                try {
+                  const slotStartMs = new Date(slotStartUtc).getTime()
+                  if (slotStartMs <= nowMs) continue
+                } catch (e) {
+                  // if parsing fails, conservatively skip
+                  continue
+                }
+              }
               dateHasFree = true
               break
             }
           } catch (e) {
-            // ignore parse errors
           }
         }
         if (dateHasFree) break
@@ -188,12 +215,10 @@ export const useBookAppointment = () => {
     return out
   })
 
-  // Array form for templates (easier to iterate / pass as prop)
   const availableDatesArray = computed(() => Array.from(availableDates.value || []))
 
 
 
-  // Computed properties
   const filteredClinics = computed(() => {
     let filtered = allClinics.value
 
@@ -225,7 +250,6 @@ export const useBookAppointment = () => {
   const availableDoctors = computed(() => {
     if (!bookingData.value.clinic) return []
 
-    // Base list: doctors for the selected clinic and active
     let doctors = allDoctors.value.filter((doctor: Doctor) => doctor.clinic_id === bookingData.value.clinic?.id && doctor.active)
 
     // Filter by selected specialty if set
@@ -263,15 +287,10 @@ export const useBookAppointment = () => {
   })
 
   const availableSlots = computed(() => {
-    // TODO: Replace with actual API call when backend is ready
-    // This should trigger fetchAvailableTimeSlots(doctorId, date) when both doctor and date are selected
-    // If we've computed scheduleSlots for the selected doctor/date, show those first
+
     if (scheduleSlots.value && scheduleSlots.value.length > 0) {
       // derive date string from bookingData if available so slot timestamps include the selected date
       const dateStr = bookingData.value.date ? bookingData.value.date.toString() : null
-      // map to a shape similar to TimeSlot expected by UI (slot_start, slot_end, id)
-      // Ensure generated timestamps include Singapore offset so parsing and display
-      // are consistent (avoid implicit conversion to UTC display in some browsers).
       return scheduleSlots.value.map((s, idx) => {
         const dayPrefix = dateStr ? `${dateStr}T` : ''
         const rawStart = `${dayPrefix}${s.start}${dateStr ? ':00' : ''}`
@@ -368,25 +387,27 @@ export const useBookAppointment = () => {
       try {
         const doctorId = doctor.id
 
-        // Fetch schedules (back-end or Supabase). This also populates fetchedSchedules.value
         await fetchSchedulesFromSupabase(doctorId)
 
-        // Fetch appointments for this doctor so we can mark booked slots
         await fetchAppointmentsForDoctor(doctorId)
 
-        // If user hasn't selected a date yet, pick the first available date
-        // computed from fetchedSchedules and appointments so timings appear immediately.
+        // If user hasn't selected a date yet, pick the earliest available date
+        // that actually has at least one bookable (non-past / non-booked) slot.
         if (!bookingData.value.date) {
-          const first = availableDatesArray.value && availableDatesArray.value.length > 0 ? availableDatesArray.value[0] : null
-          if (first) {
-            // availableDatesArray contains 'YYYY-MM-DD' strings. Convert to a
-            // DateValue (CalendarDate) so the Calendar and confirmation template
-            // can safely call methods like `toDate(...)`.
+          const candidates = availableDatesArray.value || []
+          for (const dateStr of candidates) {
             try {
-              bookingData.value.date = parseDate(String(first)) as any
+              const parsed = parseDate(String(dateStr)) as any
+              // loadSlotsForDate will populate scheduleSlots.value and apply
+              // the "today only future slots" filter we implemented above.
+              await loadSlotsForDate(doctorId, parsed)
+              if (scheduleSlots.value && scheduleSlots.value.length > 0) {
+                bookingData.value.date = parsed
+                break
+              }
             } catch (e) {
-              // fallback to assigning the raw string if parse fails (defensive)
-              bookingData.value.date = first as any
+              // move to next candidate
+              continue
             }
           }
         }
@@ -403,25 +424,17 @@ export const useBookAppointment = () => {
 
   const selectDate = (date: DateValue) => {
     bookingData.value.date = date
-    // Reset time slot when date changes
     bookingData.value.timeSlot = null
     // When user selects a date, compute available slots for the selected doctor (if any)
     if (bookingData.value.doctor && bookingData.value.doctor.id != null) {
       loadSlotsForDate(bookingData.value.doctor.id, date).catch(err => console.warn('loadSlotsForDate failed:', err))
     }
     
-    // TODO: Uncomment when backend is ready
-    // If doctor is already selected, load available slots
-    // if (bookingData.value.doctor) {
-    //   loadAvailableSlots(bookingData.value.doctor.id, date.toString())
-    // }
   }
 
   const selectTimeSlot = (timeSlot: TimeSlot) => {
-    // timeSlot can be either a TimeSlot object (from DB) or a simple slot {start,end,display}
     bookingData.value.timeSlot = (timeSlot as any) || null
 
-    // Attempt to normalize slot start/end and log them for debugging
     try {
       let start: string | null = null
       let end: string | null = null
@@ -452,14 +465,21 @@ export const useBookAppointment = () => {
     }
   }
 
-  // Helper: compute per-interval slots for a schedule row
-  const computeSlotsFromScheduleRow = (row: any) => {
-    const start = row.start_time
-    const end = row.end_time
-    const duration = Number(row.slot_duration_minutes) || 0
+  // Helper: compute per-interval slots for a schedule row.
+  // The DB stores schedule times as LocalTime that are interpreted by the backend
+  // as UTC-of-day and converted to clinic local time (SGT). To keep frontend
+  // and backend consistent (without changing DB), convert stored UTC-of-day
+  // to SGT and generate slots in SGT local times.
+  const computeSlotsFromScheduleRow = (row: any, targetDateStr?: string) => {
+    const storedStart = (row as any).start_time ?? (row as any).startTime
+    const storedEnd = (row as any).end_time ?? (row as any).endTime
+    const duration = Number(row.slot_duration_minutes ?? row.slotDurationMinutes) || 0
+
+    // Determine reference date in SGT for conversions
+    const refDate = targetDateStr || (bookingData.value.date ? String(bookingData.value.date) : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' }))
 
     const slots: Array<{ start: string; end: string; display: string }> = []
-    if (start && end && duration > 0) {
+    if (storedStart && storedEnd && duration > 0) {
       const parseToMinutes = (t: string) => {
         const parts = t.split(':').map((p: string) => parseInt(p, 10))
         const hh = parts[0] || 0
@@ -467,15 +487,28 @@ export const useBookAppointment = () => {
         return hh * 60 + mm
       }
 
-      const startMin = parseToMinutes(start)
-      const endMin = parseToMinutes(end)
+      // Stored schedule times are already clinic-local (SGT). Trim to HH:MM.
+      const toSgtHHMM = (storedTime: string) => {
+        return storedTime.split(':').slice(0,2).join(':')
+      }
+
+      const sStart = toSgtHHMM(storedStart)
+      const sEnd = toSgtHHMM(storedEnd)
+
+      const startMin = parseToMinutes(sStart)
+      let endMin = parseToMinutes(sEnd)
+
+      // If end is not after start in local SGT, assume it crosses midnight and add 24h
+      if (endMin <= startMin) endMin += 24 * 60
+
+      const toHHMM = (mins: number) => {
+        const m = mins % (24 * 60)
+        const h = Math.floor(m / 60).toString().padStart(2, '0')
+        const mm = (m % 60).toString().padStart(2, '0')
+        return `${h}:${mm}`
+      }
 
       for (let m = startMin; m + duration <= endMin; m += duration) {
-        const toHHMM = (mins: number) => {
-          const h = Math.floor(mins / 60).toString().padStart(2, '0')
-          const mm = (mins % 60).toString().padStart(2, '0')
-          return `${h}:${mm}`
-        }
         const s = toHHMM(m)
         const e = toHHMM(m + duration)
         slots.push({ start: s, end: e, display: `${s} - ${e}` })
@@ -493,34 +526,72 @@ export const useBookAppointment = () => {
       const jsDay = jsDate.getDay() // 0 (Sun) - 6 (Sat)
       const dayNum = jsDay === 0 ? 7 : jsDay
 
-      // Fetch schedule rows (this function already returns computed slots too)
       const rows = await fetchSchedulesFromSupabase(doctorId)
 
-      // rows may be scheduleWithSlots or raw schedule rows; normalize
-      const matching = (rows ?? []).filter((r: any) => Number(r.day_of_week) === Number(dayNum))
+      // Build SGT-local target date string 'YYYY-MM-DD' for validity checks
+      const targetDateStr = bookingData.value.date
+        ? String(bookingData.value.date)
+        : new Date(String(date)).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 
-      // For each matching schedule row, compute interval slots and merge
+      // Only include schedule rows that match the weekday AND whose valid_from/valid_to
+      // (normalized to SGT date) include the target date (inclusive).
+      const matching = (rows ?? []).filter((r: any) => {
+        try {
+          if (Number(r.day_of_week) !== Number(dayNum)) return false
+
+          const vFrom = toSgtDate((r as any).valid_from ?? (r as any).validFrom ?? null)
+          const vTo = toSgtDate((r as any).valid_to ?? (r as any).validTo ?? null)
+
+          // If vFrom exists and targetDateStr is before it, exclude
+          if (vFrom && targetDateStr < vFrom) return false
+          // If vTo exists and targetDateStr is after it, exclude
+          if (vTo && targetDateStr > vTo) return false
+
+          return true
+        } catch (e) {
+          return false
+        }
+      })
+
+      // Combine all valid schedule rows for the target date, compute per-row slots,
+      // filter out slots whose start falls outside the row's valid_from/valid_to bounds,
+      // then merge/dedupe and sort.
       const mergedSlots: Array<{ start: string; end: string; display: string }> = []
       for (const row of matching) {
-        // If row has computed_slots (strings), convert them; otherwise compute
-        if (Array.isArray(row.computed_slots) && row.computed_slots.length > 0) {
-          row.computed_slots.forEach((s: string) => {
-            const parts = s.split('-').map((p: string) => p.trim())
-            mergedSlots.push({ start: parts[0], end: parts[1], display: s })
-          })
-        } else {
-          const cs = computeSlotsFromScheduleRow(row)
-          cs.forEach(c => mergedSlots.push(c))
+        // per-row validity bounds (raw values may be null)
+        const vFromRaw = (row as any).valid_from ?? (row as any).validFrom ?? null
+        const vToRaw = (row as any).valid_to ?? (row as any).validTo ?? null
+
+        const vFromMs = vFromRaw ? new Date(String(vFromRaw)).getTime() : null
+        const vToMs = vToRaw ? new Date(String(vToRaw)).getTime() : null
+
+        const perRowSlots = Array.isArray(row.computed_slots) && row.computed_slots.length > 0
+          ? row.computed_slots.map((s: string) => {
+              const parts = s.split('-').map((p: string) => p.trim())
+              return { start: parts[0], end: parts[1], display: s }
+            })
+          : computeSlotsFromScheduleRow(row)
+
+        for (const s of perRowSlots) {
+          try {
+            const sgStartRaw = `${targetDateStr}T${s.start}`
+            const startWithOffset = ensureSgtOffset(sgStartRaw) || sgStartRaw
+            const slotStartIso = new Date(startWithOffset).toISOString()
+            const slotStartMs = new Date(slotStartIso).getTime()
+
+            if (vFromMs && slotStartMs < vFromMs) continue
+            if (vToMs && slotStartMs > vToMs) continue
+
+            mergedSlots.push(s)
+          } catch (e) {
+          }
         }
       }
 
-      // Optionally dedupe by display and sort by start
       const unique = Array.from(new Map(mergedSlots.map(s => [s.display, s])).values())
       unique.sort((a, b) => a.start.localeCompare(b.start))
 
-      // Annotate slots with `booked` flag by comparing to fetched appointments for this doctor
-  // Derive date string in Singapore local date (YYYY-MM-DD) to build SGT-local slot timestamps
-  const dateStr = bookingData.value.date ? bookingData.value.date.toString() : new Date(String(date)).toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+      const dateStr = targetDateStr
 
       const overlaps = (slotStartIso: string, slotEndIso: string, appts: any[]) => {
         if (!appts || appts.length === 0) return false
@@ -540,21 +611,16 @@ export const useBookAppointment = () => {
             const aEnd = new Date(aEndRaw).getTime()
             if (isNaN(aStart) || isNaN(aEnd)) continue
             if (aStart < e && aEnd > s) {
-              try {
-                console.info('Slot greyed out due to appointment', a)
-              } catch (_) {}
               return true
             }
           }
         } catch (e) {
-          // ignore
         }
         return false
       }
 
       const annotated = unique.map(s => {
         try {
-          // Ensure we interpret the times as Singapore-local before converting to ISO
           const sgStartRaw = `${dateStr}T${s.start}`
           const sgEndRaw = `${dateStr}T${s.end}`
           const startWithOffset = ensureSgtOffset(sgStartRaw) || sgStartRaw
@@ -568,8 +634,45 @@ export const useBookAppointment = () => {
         }
       })
 
-      scheduleSlots.value = annotated
-      console.log(`Computed ${scheduleSlots.value.length} available slots for doctor ${doctorId} on day ${dayNum}`, scheduleSlots.value)
+      // If the loaded date is today in SGT, filter out slots that already started or are ongoing
+      try {
+        const todaySgt = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+        const targetDateStr = dateStr
+        if (targetDateStr === todaySgt) {
+          const nowMs = Date.now()
+          const future = annotated.filter(a => {
+            try {
+              const sgStartRaw = `${dateStr}T${a.start}`
+              const slotStartUtc = sgtLocalToUtcIso(sgStartRaw)
+              if (!slotStartUtc) return false
+              return new Date(slotStartUtc).getTime() > nowMs
+            } catch (e) { return false }
+          })
+          scheduleSlots.value = future
+        } else {
+          scheduleSlots.value = annotated
+        }
+      } catch (e) {
+        scheduleSlots.value = annotated
+      }
+
+      try {
+        const computedSlotsCount = annotated.length
+        const bookedArr = annotated.filter(s => s.booked).map(s => `${s.start}-${s.end}`)
+        const remainingArr = annotated.filter(s => !s.booked).map(s => `${s.start}-${s.end}`)
+
+  const activeRowsCount = Array.isArray(matching) ? matching.length : 0
+  const mergedSlotsCount = computedSlotsCount
+
+  console.log(`[BOOKING][SLOTS] doctorId=${doctorId} date=${dateStr} (SGT)`)
+  console.log(` ├─ activeRows=${activeRowsCount}`)
+  console.log(` ├─ mergedSlots=${mergedSlotsCount}`)
+  console.log(` ├─ bookedSlots=${bookedArr.length} → ${bookedArr.join(', ')}`)
+  console.log(` └─ remainingAvailable=${remainingArr.length} → ${remainingArr.join(', ')}`)
+      } catch (e) {
+        console.log(`Computed ${scheduleSlots.value.length} available slots for doctor ${doctorId}`)
+      }
+
       return scheduleSlots.value
     } catch (err) {
       console.error('loadSlotsForDate error', err)
@@ -579,26 +682,19 @@ export const useBookAppointment = () => {
   }
 
   const nextStep = async () => {
-    // When advancing from Step 2 (doctor selected) to Step 3, fetch schedules
-    // and appointments for the selected doctor and log them for debugging.
     if (canProceedToNextStep.value && !isLastStep.value) {
-      // If we're on step 2 (selecting doctor) and a doctor is selected,
-      // fetch schedule rows and appointments and log them to console.
       try {
         const wasOnStep = currentStep.value
-  // Advance step immediately so UI state remains consistent
   currentStep.value++
-  // let Vue flush the DOM updates before doing additional reactive writes
   await import('vue').then(m => m.nextTick())
 
         if (wasOnStep === 2 && bookingData.value.doctor && bookingData.value.doctor.id != null) {
           const doctorId = bookingData.value.doctor.id
-          console.log('Next pressed after doctor selection - fetching schedules and appointments for doctorId=', doctorId)
+          console.log('>Next pressed after doctor selection - fetching schedules and appointments for doctorId=', doctorId)
 
           // Fetch schedules (uses existing helper which already logs details)
           try {
-            const schedules = await fetchSchedulesFromSupabase(doctorId)
-            console.log(`Schedules for doctor ${doctorId}:`, schedules)
+            await fetchSchedulesFromSupabase(doctorId)
           } catch (schErr) {
             console.warn('Failed to fetch schedules for doctor', doctorId, schErr)
           }
@@ -632,37 +728,51 @@ export const useBookAppointment = () => {
               }
             }
 
-            // Final log: what we ended up with
-            console.log(`Found ${ (appts ?? []).length } appointments for doctor ${doctorId}:`, appts)
-            // persist for UI reconciliation (marking slots as booked)
             fetchedAppointments.value = appts ?? []
           } catch (aerr) {
             console.error('Failed to query appointments for doctor', doctorId, aerr)
           }
 
-          // Also fetch booked time_slots for this doctor (useful to cross-check)
-          try {
-            const tsQ = await supabase
-              .from('time_slots')
-              .select('*')
-              .eq('doctor_id', doctorId)
-              .eq('status', 'scheduled')
 
-            if (tsQ.error) {
-              console.error('Error querying scheduled time_slots for doctor', doctorId, tsQ.error)
-            } else {
-              const bookedSlots = (tsQ.data ?? []) as any[]
-              console.log(`Found ${bookedSlots.length} scheduled time_slots for doctor ${doctorId}:`, bookedSlots)
+          try {
+            const raw = (fetchedSchedulesRaw.value && fetchedSchedulesRaw.value.length > 0) ? fetchedSchedulesRaw.value : (fetchedSchedules.value || [])
+            const total = raw.length
+            const targetDateStr = bookingData.value.date
+              ? String(bookingData.value.date)
+              : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+
+            let activeCount = 0
+            let skippedCount = 0
+            console.log(`[BOOKING][VALIDITY] doctorId=${doctorId} total=${total} active=<calculating> skipped=<calculating>`)
+
+            for (const row of raw) {
+              const id = (row as any).id
+              const day = (row as any).day_name ?? (row as any).day_of_week ?? (row as any).dayOfWeek ?? '?'
+              const start = (row as any).start_time ?? (row as any).startTime ?? '?'
+              const end = (row as any).end_time ?? (row as any).endTime ?? '?'
+              const vFrom = toSgtDate((row as any).valid_from ?? (row as any).validFrom ?? null)
+              const vTo = toSgtDate((row as any).valid_to ?? (row as any).validTo ?? null)
+
+              let isActive = true
+              if (vFrom && targetDateStr < vFrom) isActive = false
+              if (vTo && targetDateStr > vTo) isActive = false
+
+              if (isActive) {
+                activeCount++
+                console.log(` ├─ ${id} ${day} ${start}-${end} ✅ active (${vFrom ?? '-'}→${vTo ?? '-'})`)
+              } else {
+                skippedCount++
+                console.log(` ├─ ${id} ${day} ${start}-${end} ❌ inactive (${vFrom ?? '-'}→${vTo ?? '-'})`)
+              }
             }
-          } catch (tserr) {
-            console.error('Failed to query time_slots for doctor', doctorId, tserr)
+            console.log(` └─ Total active rows: ${activeCount}`)
+          } catch (e) {
           }
 
           // If a date is already selected, compute schedule slots for that date and log them
           if (bookingData.value.date) {
             try {
-              const computed = await loadSlotsForDate(doctorId, bookingData.value.date)
-              console.log(`Computed available slots for doctor ${doctorId} on ${bookingData.value.date}:`, computed)
+              await loadSlotsForDate(doctorId, bookingData.value.date)
             } catch (lsErr) {
               console.warn('Failed to compute slots for date after Next:', lsErr)
             }
@@ -676,7 +786,6 @@ export const useBookAppointment = () => {
     }
   }
 
-  // Fetch appointments for a given doctor and optionally compute slots for a date
   const fetchAppointmentsForDoctor = async (doctorId: number, date?: DateValue) => {
     try {
       let appts: any[] = []
@@ -684,7 +793,6 @@ export const useBookAppointment = () => {
       try {
         appts = await appointmentsApi.getDoctorAppointments(doctorId)
       } catch (backendErr) {
-        // fallback to Supabase if backend fails
         console.warn('fetchAppointmentsForDoctor: backend query failed, falling back to Supabase', backendErr)
         
         try {
@@ -701,7 +809,6 @@ export const useBookAppointment = () => {
 
       fetchedAppointments.value = appts ?? []
 
-      // If a date was provided, compute slots for that date so booked flags are annotated
       if (date && doctorId != null) {
         try {
           await loadSlotsForDate(doctorId, date)
@@ -742,21 +849,17 @@ export const useBookAppointment = () => {
     selectedRegion.value = 'All'
   }
 
-  // Fetch doctors via backend API (preferred).
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
       console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
-      // Use patient endpoint for appointment booking
       const doctorsFromApi = await apiClient.get(`/api/patient/doctors/clinic/${clinicId}`)
       console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
 
       if (doctorsFromApi.length > 0) {
-        // Merge into local list
         allDoctors.value = allDoctors.value.filter(d => d.clinic_id !== clinicId).concat(doctorsFromApi as Doctor[])
         return doctorsFromApi as Doctor[]
       }
 
-      // If backend returned empty array, return empty array
       return [] as Doctor[]
     } catch (err) {
       console.error('fetchDoctorsFromBackend error for clinic', clinicId, err)
@@ -764,56 +867,143 @@ export const useBookAppointment = () => {
     }
   }
 
-  // Fetch schedules for a doctor from Supabase and compute slot timings
   const fetchSchedulesFromSupabase = async (doctorId: number) => {
-    try {
-      console.log('fetchSchedulesFromSupabase: attempting to load schedules via backend API for doctorId=', doctorId)
+    if (lastFetchedDoctorId.value === doctorId && fetchedSchedules.value && fetchedSchedules.value.length > 0) {
+      return fetchedSchedules.value
+    }
 
-      // First try: backend API (admin endpoint used by doctor-management pages)
+    if (scheduleFetchPromises.has(doctorId)) {
+      return scheduleFetchPromises.get(doctorId)!
+    }
+
+    const p = (async () => {
       try {
-        const apiData = await schedulesApi.getSchedulesByDoctorId(doctorId)
-        console.log(`schedulesApi returned ${apiData?.length ?? 0} rows for doctor ${doctorId}:`, apiData)
+        console.log('fetchSchedulesFromSupabase: attempting to load schedules via backend API for doctorId=', doctorId)
 
-  if (apiData && apiData.length > 0) {
-          // Map API response shape (camelCase) to DB-style fields expected below
-          const rows = apiData.map(r => ({
-            ...r,
-            start_time: (r as any).startTime ?? (r as any).start_time,
-            end_time: (r as any).endTime ?? (r as any).end_time,
-            slot_duration_minutes: (r as any).slotDurationMinutes ?? (r as any).slot_duration_minutes,
-            day_of_week: (r as any).dayOfWeek ?? (r as any).day_of_week
-          })) as any[]
+        function weekday(n: number) {
+          const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+          return names[(n - 1 + 7) % 7]
+        }
 
-          // compute slots
-          const scheduleWithSlots = rows.map(row => {
-            // Backend returns LocalTime in Singapore timezone (configured in JacksonConfig)
-            // No timezone conversion needed - times are already in clinic local time
-            const start = row.start_time
-            const end = row.end_time
-            const duration = Number(row.slot_duration_minutes) || 0
-            const dayNum = Number(row.day_of_week) || 0
+        try {
+          const apiData = await schedulesApi.getSchedulesByDoctorId(doctorId)
+          console.log(`schedulesApi returned ${apiData?.length ?? 0} rows for doctor ${doctorId}:`, apiData)
 
-            const slots: string[] = []
-            if (start && end && duration > 0) {
-              const parseToMinutes = (t: string) => {
-                const parts = t.split(':').map((p: string) => parseInt(p, 10))
-                const hh = parts[0] || 0
-                const mm = parts[1] || 0
-                return hh * 60 + mm
+          if (apiData && apiData.length > 0) {
+           
+            const rows = apiData as any[]
+
+            // helper: convert various timestamp formats to Postgres-style
+            // 'YYYY-MM-DD HH:MM:SS+00' (UTC). If input already matches, leave as-is.
+            const toPgTzString = (raw: any): string | null => {
+              if (raw == null) return null
+              const s = String(raw)
+              // Already in postgres-like format e.g. '2025-10-31 00:00:00+00'
+              if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:[+-]\d{2})?$/.test(s)) return s
+              // Try parse as Date and format as UTC
+              const d = new Date(s)
+              if (isNaN(d.getTime())) return s
+              const YYYY = d.getUTCFullYear()
+              const MM = String(d.getUTCMonth() + 1).padStart(2, '0')
+              const DD = String(d.getUTCDate()).padStart(2, '0')
+              const hh = String(d.getUTCHours()).padStart(2, '0')
+              const mm = String(d.getUTCMinutes()).padStart(2, '0')
+              const ss = String(d.getUTCSeconds()).padStart(2, '0')
+              return `${YYYY}-${MM}-${DD} ${hh}:${mm}:${ss}+00`
+            }
+
+            // compute slots without mutating original objects
+            const scheduleWithSlots = rows.map(row => {
+              const start = (row as any).start_time ?? (row as any).startTime
+              const end = (row as any).end_time ?? (row as any).endTime
+              const duration = Number((row as any).slot_duration_minutes ?? (row as any).slotDurationMinutes) || 0
+              const dayNum = Number((row as any).day_of_week ?? (row as any).dayOfWeek) || 0
+
+              // Generate SGT-local slots using shared helper which converts stored
+              // UTC-of-day schedule times into SGT and returns per-interval slots.
+              const slotObjs = computeSlotsFromScheduleRow(row)
+              const slots: string[] = slotObjs.map(s => `${s.start} - ${s.end}`)
+
+              return {
+                // preserve original API fields exactly
+                ...row,
+                // also provide a DB-like UTC timezone string for valid_from/valid_to
+                db_valid_from: toPgTzString((row as any).valid_from ?? (row as any).validFrom ?? (row as any).validFrom),
+                db_valid_to: toPgTzString((row as any).valid_to ?? (row as any).validTo ?? (row as any).validTo),
+                day_name: dayNum ? weekday(dayNum) : null,
+                computed_slots: slots
               }
+            })
 
-              const startMin = parseToMinutes(start)
-              const endMin = parseToMinutes(end)
+            // Determine target date in SGT for validity checks: use selected booking date if available,
+            // otherwise use today's date in Singapore time.
+            const targetDateStr = bookingData.value.date
+              ? String(bookingData.value.date)
+              : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 
-              for (let m = startMin; m + duration <= endMin; m += duration) {
-                const toHHMM = (mins: number) => {
-                  const h = Math.floor(mins / 60).toString().padStart(2, '0')
-                  const mm = (mins % 60).toString().padStart(2, '0')
-                  return `${h}:${mm}`
-                }
-                slots.push(`${toHHMM(m)} - ${toHHMM(m + duration)}`)
+            // Helper: convert various valid_from/valid_to raw values to SGT date string 'YYYY-MM-DD'
+            const toSgtDate = (raw: any): string | null => {
+              if (raw == null) return null
+              try {
+                // Parse raw into a Date and convert to SGT-local date string
+                const d = new Date(String(raw))
+                if (isNaN(d.getTime())) return null
+                return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+              } catch (_) {
+                return null
               }
             }
+
+            // preserve raw rows for later structured logging in nextStep
+            fetchedSchedulesRaw.value = scheduleWithSlots
+
+            // Build activeRows by filtering schedules whose validity range includes targetDateStr
+            const activeRows: any[] = []
+            for (const row of scheduleWithSlots) {
+              const vFrom = toSgtDate((row as any).valid_from ?? (row as any).validFrom ?? null)
+              const vTo = toSgtDate((row as any).valid_to ?? (row as any).validTo ?? null)
+              let isActive = true
+              if (vFrom && targetDateStr < vFrom) isActive = false
+              if (vTo && targetDateStr > vTo) isActive = false
+              if (isActive) activeRows.push(row)
+            }
+
+            // persist active schedules for calendar availability checks
+            fetchedSchedules.value = activeRows
+            lastFetchedDoctorId.value = doctorId
+            return activeRows
+          }
+        } catch (apiErr) {
+          console.warn('schedulesApi.getSchedulesByDoctorId failed, will fall back to Supabase DB query:', apiErr)
+        }
+
+        console.log('fetchSchedulesFromSupabase: querying Supabase directly for doctorId=', doctorId)
+
+        // Fallback: query Supabase directly (try numeric and string equality)
+        const q1 = await supabase
+          .from('schedules')
+          .select('*', { count: 'exact' })
+          .eq('doctor_id', doctorId)
+
+        if (q1.error) console.error('Supabase schedules numeric query error', q1.error)
+        const rows1 = (q1.data ?? []) as any[]
+        console.log(`Fetched ${rows1.length} schedule rows for doctor ${doctorId} (numeric eq):`, rows1)
+
+        const q2 = await supabase
+          .from('schedules')
+          .select('*', { count: 'exact' })
+          .eq('doctor_id', String(doctorId) as any)
+
+        if (q2.error) console.error('Supabase schedules string query error', q2.error)
+        const rows2 = (q2.data ?? []) as any[]
+        console.log(`Fetched ${rows2.length} schedule rows for doctor ${doctorId} (string eq):`, rows2)
+
+        const rows = rows1.length > 0 ? rows1 : rows2
+        if (rows.length > 0) {
+          const scheduleWithSlots = rows.map(row => {
+            const dayNum = Number(row.day_of_week) || 0
+            const slotObjs = computeSlotsFromScheduleRow(row)
+            const slots = slotObjs.map(s => `${s.start} - ${s.end}`)
 
             return {
               ...row,
@@ -822,136 +1012,59 @@ export const useBookAppointment = () => {
             }
           })
 
-          console.log('Computed schedules with slots (from API):', scheduleWithSlots)
-          // persist fetched schedules for calendar availability checks
-          fetchedSchedules.value = scheduleWithSlots
-          return scheduleWithSlots
-        }
-      } catch (apiErr) {
-        console.warn('schedulesApi.getSchedulesByDoctorId failed, will fall back to Supabase DB query:', apiErr)
-      }
+          // Determine target date in SGT for validity checks
+          const targetDateStr = bookingData.value.date
+            ? String(bookingData.value.date)
+            : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
 
-      console.log('fetchSchedulesFromSupabase: querying Supabase directly for doctorId=', doctorId)
-
-      // Fallback: query Supabase directly (try numeric and string equality)
-      const q1 = await supabase
-        .from('schedules')
-        .select('*', { count: 'exact' })
-        .eq('doctor_id', doctorId)
-
-      if (q1.error) console.error('Supabase schedules numeric query error', q1.error)
-      const rows1 = (q1.data ?? []) as any[]
-      console.log(`Fetched ${rows1.length} schedule rows for doctor ${doctorId} (numeric eq):`, rows1)
-
-      const q2 = await supabase
-        .from('schedules')
-        .select('*', { count: 'exact' })
-        .eq('doctor_id', String(doctorId) as any)
-
-      if (q2.error) console.error('Supabase schedules string query error', q2.error)
-      const rows2 = (q2.data ?? []) as any[]
-      console.log(`Fetched ${rows2.length} schedule rows for doctor ${doctorId} (string eq):`, rows2)
-
-      const rows = rows1.length > 0 ? rows1 : rows2
-  if (rows.length > 0) {
-        const scheduleWithSlots = rows.map(row => {
-          const start = row.start_time
-          const end = row.end_time
-          const duration = Number(row.slot_duration_minutes) || 0
-          const dayNum = Number(row.day_of_week) || 0
-
-          const slots: string[] = []
-          if (start && end && duration > 0) {
-            const parseToMinutes = (t: string) => {
-              const parts = t.split(':').map((p: string) => parseInt(p, 10))
-              const hh = parts[0] || 0
-              const mm = parts[1] || 0
-              return hh * 60 + mm
-            }
-
-            const startMin = parseToMinutes(start)
-            const endMin = parseToMinutes(end)
-
-            for (let m = startMin; m + duration <= endMin; m += duration) {
-              const toHHMM = (mins: number) => {
-                const h = Math.floor(mins / 60).toString().padStart(2, '0')
-                const mm = (mins % 60).toString().padStart(2, '0')
-                return `${h}:${mm}`
-              }
-              slots.push(`${toHHMM(m)} - ${toHHMM(m + duration)}`)
+          const toSgtDate = (raw: any): string | null => {
+            if (raw == null) return null
+            try {
+              const d = new Date(String(raw))
+              if (isNaN(d.getTime())) return null
+              return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+            } catch (_) {
+              return null
             }
           }
 
-          return {
-            ...row,
-            day_name: dayNum ? weekday(dayNum) : null,
-            computed_slots: slots
-          }
-        })
+          // preserve raw rows for later structured logging in nextStep
+          fetchedSchedulesRaw.value = scheduleWithSlots
 
-        console.log('Computed schedules with slots (from Supabase):', scheduleWithSlots)
-        // persist fetched schedules for calendar availability checks
-        fetchedSchedules.value = scheduleWithSlots
-        return scheduleWithSlots
-      }
-
-      // Final fallback: show a sample of schedules to help debugging
-      const sampleQ = await supabase.from('schedules').select('*').limit(50)
-      if (sampleQ.error) console.error('Supabase schedules sample query error', sampleQ.error)
-      const sampleRows = (sampleQ.data ?? []) as any[]
-      console.warn('Schedules table sample (first 50 rows):', sampleRows)
-      return [] as any[]
-
-      // Helper to map day_of_week (1-7) to name
-      // Declared as a function so it's hoisted and safe to use above
-      function weekday(n: number) {
-        const names = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
-        return names[(n - 1 + 7) % 7]
-      }
-
-      // Compute slot intervals for each schedule row
-      const scheduleWithSlots = rows.map(row => {
-        const start = row.start_time // expected 'HH:MM:SS' or 'HH:MM'
-        const end = row.end_time
-        const duration = Number(row.slot_duration_minutes) || 0
-        const dayNum = Number(row.day_of_week) || 0
-
-        const slots: string[] = []
-        if (start && end && duration > 0) {
-          // parse times into minutes since midnight
-          const parseToMinutes = (t: string) => {
-            const parts = t.split(':').map((p: string) => parseInt(p, 10))
-            const hh = parts[0] || 0
-            const mm = parts[1] || 0
-            return hh * 60 + mm
+          // Build activeRows by filtering schedules whose validity range includes targetDateStr
+          const activeRows: any[] = []
+          for (const row of scheduleWithSlots) {
+            const vFrom = toSgtDate((row as any).valid_from ?? (row as any).validFrom ?? null)
+            const vTo = toSgtDate((row as any).valid_to ?? (row as any).validTo ?? null)
+            let isActive = true
+            if (vFrom && targetDateStr < vFrom) isActive = false
+            if (vTo && targetDateStr > vTo) isActive = false
+            if (isActive) activeRows.push(row)
           }
 
-          const startMin = parseToMinutes(start)
-          const endMin = parseToMinutes(end)
-
-          for (let m = startMin; m + duration <= endMin; m += duration) {
-            const toHHMM = (mins: number) => {
-              const h = Math.floor(mins / 60).toString().padStart(2, '0')
-              const mm = (mins % 60).toString().padStart(2, '0')
-              return `${h}:${mm}`
-            }
-            slots.push(`${toHHMM(m)} - ${toHHMM(m + duration)}`)
-          }
+          // persist active schedules for calendar availability checks
+          fetchedSchedules.value = activeRows
+          lastFetchedDoctorId.value = doctorId
+          return activeRows
         }
 
-          return {
-            ...row,
-            day_name: dayNum ? weekday(dayNum) : null,
-            computed_slots: slots
-          }
-      })
+        // Final fallback: show a sample of schedules to help debugging
+        const sampleQ = await supabase.from('schedules').select('*').limit(50)
+        if (sampleQ.error) console.error('Supabase schedules sample query error', sampleQ.error)
+        const sampleRows = (sampleQ.data ?? []) as any[]
+        console.warn('Schedules table sample (first 50 rows):', sampleRows)
+        return [] as any[]
+      } catch (err: any) {
+        console.error('Error fetching schedules from Supabase for doctor', doctorId, err)
+        return [] as any[]
+      } finally {
+        // remove promise holder once done
+        scheduleFetchPromises.delete(doctorId)
+      }
+    })()
 
-      console.log('Computed schedules with slots:', scheduleWithSlots)
-      return scheduleWithSlots
-    } catch (err: any) {
-      console.error('Error fetching schedules from Supabase for doctor', doctorId, err)
-      return [] as any[]
-    }
+    scheduleFetchPromises.set(doctorId, p)
+    return p
   }
 
   // New: load clinics from backend API
@@ -1166,23 +1279,28 @@ export const useBookAppointment = () => {
       let status = 0
       
       try {
-        json = await appointmentsApi.createAppointment(payload, idempotencyKeyRef.value)
+        json = await appointmentsApi.createPatientAppointment(payload, idempotencyKeyRef.value)
         status = 201 // Success
       } catch (error: any) {
-        // Parse error message to extract status and response
-        const errorMsg = error.message || String(error)
-        
-        // Try to determine status from error message
-        if (errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
-          status = 409
-        } else if (errorMsg.includes('422')) {
-          status = 422
-        } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
-          status = error.message.includes('401') ? 401 : 403
+        // Normalize an error message string for later parsing
+        const errorMsg = (error && (error.message || String(error))) || String(error)
+
+        // Prefer explicit status property from the thrown error (set by API client)
+        if (error && typeof error.status === 'number') {
+          status = error.status
         } else {
-          status = 500
+          // Try to determine status from error message
+          if (errorMsg.includes('409') || errorMsg.toLowerCase().includes('conflict')) {
+            status = 409
+          } else if (errorMsg.includes('422')) {
+            status = 422
+          } else if (errorMsg.includes('401') || errorMsg.includes('403')) {
+            status = errorMsg.includes('401') ? 401 : 403
+          } else {
+            status = 500
+          }
         }
-        
+
         // Try to parse JSON from error message
         try {
           const jsonMatch = errorMsg.match(/\{[\s\S]*\}/)

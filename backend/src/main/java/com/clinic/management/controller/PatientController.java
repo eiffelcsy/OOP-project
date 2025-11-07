@@ -9,6 +9,9 @@ import com.clinic.management.dto.response.PatientQueueResponse;
 import com.clinic.management.dto.response.QueueTicketResponse;
 import com.clinic.management.service.ClinicService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +21,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import java.time.OffsetDateTime;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
 import org.slf4j.Logger;
@@ -50,6 +55,44 @@ public class PatientController {
         this.appointmentService = appointmentService;
         this.doctorService = doctorService;
         this.patientQueueService = patientQueueService;
+    }
+
+    /**
+     * POST /api/patient/appointments
+     * Create an appointment on behalf of the authenticated patient.
+     * The authenticated user's Supabase UUID will be resolved to a Patient row and
+     * set as the appointment.patientId. Returns clearer 400/500 responses for
+     * validation and business-rule errors.
+     */
+    @PostMapping("/appointments")
+    public ResponseEntity<?> createAppointment(@RequestBody Appointment appointment) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || auth.getPrincipal() == null) {
+                log.warn("createAppointment: no authentication principal");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String userId = auth.getPrincipal().toString();
+            Optional<com.clinic.management.model.Patient> pOpt = patientService.getPatientByUserId(userId);
+            if (pOpt.isEmpty()) {
+                log.warn("createAppointment: no patient record for userId={}", userId);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "No patient record for user"));
+            }
+
+            // Ensure the appointment is associated with the authenticated patient
+            appointment.setPatientId(pOpt.get().getId());
+
+            Appointment saved = appointmentService.addAppointment(appointment);
+            boolean queued = appointmentService.isEmailConfigured();
+            return ResponseEntity.status(HttpStatus.CREATED).header("X-Email-Queued", String.valueOf(queued)).body(saved);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            log.warn("createAppointment failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid appointment", "message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("createAppointment unexpected error", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal server error"));
+        }
     }
 
     /**
@@ -197,6 +240,23 @@ public class PatientController {
         } catch (Exception ex) {
             log.error("getMyAppointments: unexpected error", ex);
             return ResponseEntity.status(500).build();
+        }
+    }
+
+    /**
+     * DEBUG: Check schedules and overlaps for a proposed appointment slot
+     * GET /api/patient/appointments/debug?doctorId={id}&start={iso}&end={iso}
+     */
+    @GetMapping("/appointments/debug")
+    public ResponseEntity<?> debugCheckAppointment(@RequestParam Long doctorId, @RequestParam String start, @RequestParam String end) {
+        try {
+            OffsetDateTime s = OffsetDateTime.parse(start);
+            OffsetDateTime e = OffsetDateTime.parse(end);
+            Map<String, Object> out = appointmentService.debugCheckAppointment(doctorId, s, e);
+            return ResponseEntity.ok(out);
+        } catch (Exception ex) {
+            log.error("debugCheckAppointment failed", ex);
+            return ResponseEntity.badRequest().body(Map.of("error", "invalid parameters", "message", ex.getMessage()));
         }
     }
 

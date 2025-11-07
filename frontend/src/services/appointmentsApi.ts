@@ -132,7 +132,53 @@ export const appointmentsApi = {
       } catch (e) {
         // If response body is not JSON, use default message
       }
-      throw new Error(errorMessage)
+      const err: any = new Error(errorMessage)
+      err.status = response.status
+      throw err
+    }
+
+    return response.json()
+  },
+
+  /**
+   * Create appointment specifically for patient-facing flow
+   * POST /api/patient/appointments
+   */
+  async createPatientAppointment(appointmentData: CreateAppointmentRequest, idempotencyKey?: string): Promise<AppointmentResponse> {
+    // Duplicate of createAppointment but posts to patient endpoint
+    const token = await apiClient.ensureToken()
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey
+    }
+
+    const API_BASE = (import.meta.env as any).VITE_API_BASE_URL || 'http://localhost:8080'
+    const response = await fetch(`${API_BASE}/api/patient/appointments`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(appointmentData)
+    })
+
+    if (!response.ok) {
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        } else if (errorData.error) {
+          errorMessage = errorData.error
+        }
+      } catch (e) {
+        // If response body is not JSON, use default message
+      }
+      const err: any = new Error(errorMessage)
+      err.status = response.status
+      throw err
     }
 
     return response.json()

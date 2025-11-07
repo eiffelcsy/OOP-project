@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBookAppointment } from '../composables/useBookAppointment'
 import { TIME_ZONE } from '@/lib/utils'
@@ -101,6 +101,29 @@ const formatLabel = (val: string) => {
 
 const calendarValue = ref<CalendarDate>()
 
+// Keep the calendar's v-model in sync with bookingData.date so programmatic
+// selections (auto-selected earliest date) render exactly like a user click.
+watch(() => bookingData.value.date, (d) => {
+    try {
+        if (d && (d as any) instanceof CalendarDate) {
+            calendarValue.value = d as CalendarDate
+        } else if (d) {
+            // If bookingData.date is a DateValue-like object, attempt to parse
+            // it into a CalendarDate instance via parseDate.
+            try {
+                const parsed = parseDate(String(d)) as any
+                calendarValue.value = parsed
+            } catch (_) {
+                calendarValue.value = undefined
+            }
+        } else {
+            calendarValue.value = undefined
+        }
+    } catch (e) {
+        calendarValue.value = undefined
+    }
+}, { immediate: true })
+
 // Helper to convert a value (ref, Set, Array, iterable, plain object) into a safe array
 const toIterableArray = (maybeRef: any) => {
     // unwrap ref-like values
@@ -184,10 +207,10 @@ const totalDoctorPages = computed(() => Math.ceil(availableDoctors.value.length 
         <!-- Navigation Buttons -->
         <div class="grid grid-cols-2 gap-4 mb-6" v-if="!isBookingConfirmed">
             <Button variant="outline" @click="previousStep" :disabled="isFirstStep">
-                Previous
+                Previous step
             </Button>
             <Button @click="nextStep" :disabled="!canProceedToNextStep || isLastStep">
-                Next
+                Next step
             </Button>
         </div>
 

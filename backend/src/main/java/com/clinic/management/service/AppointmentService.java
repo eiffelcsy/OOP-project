@@ -20,9 +20,7 @@ import java.util.stream.Collectors;
 import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+
 
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -160,23 +158,15 @@ public class AppointmentService {
         }
 
         for (Schedule s : schedules) {
-            // Schedule stores LocalTime for start/end. Historically some schedules
-            // were stored as UTC-of-day in the backend DB. To be robust, convert
-            // the stored LocalTime (treated as UTC-of-day) to the clinic local
-            // time before comparing to the requested local times.
-            LocalTime sStartUtc = s.getStartTime();
-            LocalTime sEndUtc = s.getEndTime();
+        // Schedule stores LocalTime for start/end. These times are stored
+        // in the clinic's local wall-clock time (Asia/Singapore). Interpret
+        // the stored LocalTime directly as clinic-local (no UTC conversion)
+        // when comparing to the requested times.
+        LocalTime sStartLocal = s.getStartTime();
+        LocalTime sEndLocal = s.getEndTime();
 
-            java.time.ZonedDateTime zSStart = java.time.ZonedDateTime.of(apptDate, sStartUtc, java.time.ZoneOffset.UTC)
-                    .withZoneSameInstant(clinicZone);
-            java.time.ZonedDateTime zSEnd = java.time.ZonedDateTime.of(apptDate, sEndUtc, java.time.ZoneOffset.UTC)
-                    .withZoneSameInstant(clinicZone);
-
-            LocalTime sStartLocal = zSStart.toLocalTime();
-            LocalTime sEndLocal = zSEnd.toLocalTime();
-
-            log.debug("Comparing requested {}-{} against schedule (UTC) {}-{} -> (SGT) {}-{} (scheduleId={})",
-                    timeOfDayStart, timeOfDayEnd, sStartUtc, sEndUtc, sStartLocal, sEndLocal, s.getId());
+        log.debug("Comparing requested {}-{} against schedule (SGT) {}-{} (scheduleId={})",
+            timeOfDayStart, timeOfDayEnd, sStartLocal, sEndLocal, s.getId());
 
             if (!timeOfDayStart.isBefore(sStartLocal) && !timeOfDayEnd.isAfter(sEndLocal)) {
                 fitsSchedule = true;
@@ -255,6 +245,50 @@ public class AppointmentService {
         }
 
         return saved;
+    }
+
+    /**
+     * Debug helper: return schedule rows and overlap count for a proposed appointment
+     * This is useful for frontend debugging when a requested slot is rejected.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> debugCheckAppointment(Long doctorId, OffsetDateTime start, OffsetDateTime end) {
+    final java.time.ZoneId clinicZone = TimezoneConfig.CLINIC_ZONE;
+    java.time.ZonedDateTime zstart = start.atZoneSameInstant(clinicZone);
+    java.time.LocalDate apptDate = zstart.toLocalDate();
+    int weekday = zstart.getDayOfWeek().getValue();
+
+    List<Schedule> schedules = scheduleRepository.findValidSchedulesForDate(doctorId, apptDate);
+
+    List<Map<String, Object>> scheduleRows = schedules.stream().map(s -> {
+        java.time.LocalTime sStartLocal = s.getStartTime();
+        java.time.LocalTime sEndLocal = s.getEndTime();
+
+        java.util.Map<String, Object> row = new java.util.HashMap<>();
+        row.put("scheduleId", s.getId());
+        row.put("storedStartLocal", sStartLocal.toString());
+        row.put("storedEndLocal", sEndLocal.toString());
+        row.put("startLocal", sStartLocal.toString());
+        row.put("endLocal", sEndLocal.toString());
+        row.put("validFrom", s.getValidFrom());
+        row.put("validTo", s.getValidTo());
+        row.put("dayOfWeek", s.getDayOfWeek());
+        return row;
+    }).collect(Collectors.toList());
+
+    long conflicts = repository.countOverlapping(doctorId, start, end);
+
+    Map<String, Object> out = Map.of(
+        "doctorId", doctorId,
+        "apptDate", apptDate.toString(),
+        "weekday", weekday,
+        "startLocal", zstart.toLocalTime().toString(),
+        "endLocal", end.atZoneSameInstant(clinicZone).toLocalTime().toString(),
+        "schedules", scheduleRows,
+        "conflicts", conflicts
+    );
+
+    return out;
     }
 
     /**
