@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue'
+import { ref, computed, watch, type Ref } from 'vue'
 import { appointmentsApi } from '@/services/appointmentsApi'
 import { doctorsApi } from '@/services/doctorsApi'
 import type { QueueTicketResponse } from '@/services/patientsApi'
@@ -17,6 +17,14 @@ export function useQueueDoctors(currentTicket: Ref<QueueTicketResponse[]>) {
 
     async function fetchDoctorDetails() {
         console.log('[QueueDoctors] Fetching doctor details for tickets:', currentTicket.value)
+        
+        // Don't fetch if no tickets
+        if (!currentTicket.value || currentTicket.value.length === 0) {
+            console.log('[QueueDoctors] No tickets to fetch details for')
+            doctorDetails.value.clear()
+            return
+        }
+
         isLoading.value = true
         error.value = null
         doctorDetails.value.clear()
@@ -65,6 +73,22 @@ export function useQueueDoctors(currentTicket: Ref<QueueTicketResponse[]>) {
             isLoading.value = false
         }
     }
+
+    // Watch for changes in currentTicket and automatically refetch
+    watch(
+        () => currentTicket.value,
+        async (newTickets, oldTickets) => {
+            console.log('[QueueDoctors] Tickets changed, refetching doctor details')
+            console.log('[QueueDoctors] Old tickets:', oldTickets)
+            console.log('[QueueDoctors] New tickets:', newTickets)
+            
+            // Only refetch if tickets actually changed
+            if (JSON.stringify(newTickets) !== JSON.stringify(oldTickets)) {
+                await fetchDoctorDetails()
+            }
+        },
+        { deep: true, immediate: false } // deep: true to detect changes within the array
+    )
 
     const getDoctorName = computed(() => (ticketId: number) => 
         doctorDetails.value.get(ticketId)?.name ?? 'Not available'
