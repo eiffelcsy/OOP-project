@@ -91,6 +91,8 @@ export const useBookAppointment = () => {
   const scheduleSlots = ref<Array<{ start: string; end: string; display: string; booked?: boolean }>>([])
   // Appointments fetched for the currently-selected doctor (used to mark slots as booked)
   const fetchedAppointments = ref<any[]>([])
+  // Appointments fetched for the current patient (used to mark slots that conflict with patient's other appts)
+  const fetchedPatientAppointments = ref<any[]>([])
   // Raw schedules fetched (with computed_slots) so calendar can highlight weekdays with availability
   const fetchedSchedules = ref<any[]>([])
   // Preserve the raw schedule rows returned from API/Supabase (before validity filtering)
@@ -322,13 +324,107 @@ export const useBookAppointment = () => {
     if (!bookingData.value.doctor || !bookingData.value.date) return []
     return availableTimeSlots.value
       .filter((slot: TimeSlot) => slot.doctor_id === bookingData.value.doctor?.id)
-      .map((slot: TimeSlot) => ({
-        id: slot.id,
-        slot_start: slot.slot_start,
-        slot_end: slot.slot_end,
-  display: `${new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}`,
-  booked: slot.status === 'scheduled'
-      }))
+      .map((slot: TimeSlot) => {
+        try {
+          const startIso = ensureSgtOffset(String(slot.slot_start)) || String(slot.slot_start)
+          const endIso = ensureSgtOffset(String(slot.slot_end)) || String(slot.slot_end)
+          const slotStartIso = new Date(startIso).toISOString()
+          const slotEndIso = new Date(endIso).toISOString()
+
+          // Consider the slot booked if the time_slot row is marked scheduled OR
+          // if the doctor has an overlapping appointment OR the current patient has an overlapping appointment
+          const blockingStatuses = ['scheduled', 'checked_in', 'confirmed']
+          const slotMarkedScheduled = String(slot.status ?? '').toString().toLowerCase() === 'scheduled'
+
+          const doctorOverlap = (fetchedAppointments.value || []).some(a => {
+            try {
+              const aStartRaw = a.start_time ?? a.startTime ?? a.start
+              const aEndRaw = a.end_time ?? a.endTime ?? a.end
+              const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+              if (status && !blockingStatuses.includes(status)) return false
+              const aStart = new Date(aStartRaw).getTime()
+              const aEnd = new Date(aEndRaw).getTime()
+              const sMs = new Date(slotStartIso).getTime()
+              const eMs = new Date(slotEndIso).getTime()
+              return !isNaN(aStart) && !isNaN(aEnd) && aStart < eMs && aEnd > sMs
+            } catch (e) { return false }
+          })
+
+          const patientOverlap = (fetchedPatientAppointments.value || []).some(a => {
+            try {
+              const aStartRaw = a.start_time ?? a.startTime ?? a.start
+              const aEndRaw = a.end_time ?? a.endTime ?? a.end
+              const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+              if (status && !blockingStatuses.includes(status)) return false
+              const aStart = new Date(aStartRaw).getTime()
+              const aEnd = new Date(aEndRaw).getTime()
+              const sMs = new Date(slotStartIso).getTime()
+              const eMs = new Date(slotEndIso).getTime()
+              return !isNaN(aStart) && !isNaN(aEnd) && aStart < eMs && aEnd > sMs
+            } catch (e) { return false }
+          })
+          // If the patient has an overlapping appointment, log details for debugging
+          if (patientOverlap) {
+            try {
+              const { currentUser } = useAuth()
+              const patientId = currentUser.value?.patient?.id ?? currentUser.value?.profile?.id ?? null
+              const selectedDate = bookingData.value.date ? String(bookingData.value.date) : null
+              const conflicting = (fetchedPatientAppointments.value || []).filter(a => {
+                try {
+                  const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+                  if (status && !blockingStatuses.includes(status)) return false
+                  const aStart = new Date(a.start_time ?? a.startTime ?? a.start).toISOString()
+                  const aEnd = new Date(a.end_time ?? a.endTime ?? a.end).toISOString()
+                  const s = new Date(slotStartIso).toISOString()
+                  const e = new Date(slotEndIso).toISOString()
+                  const aStartMs = new Date(aStart).getTime()
+                  const aEndMs = new Date(aEnd).getTime()
+                  const sMs = new Date(s).getTime()
+                  const eMs = new Date(e).getTime()
+                  return !isNaN(aStartMs) && !isNaN(aEndMs) && aStartMs < eMs && aEndMs > sMs
+                } catch (err) { return false }
+              }).map(a => ({
+                id: a.id,
+                doctor: a.doctor_name ?? a.doctorName ?? a.doctor_id ?? null,
+                clinic: a.clinic_name ?? a.clinicName ?? a.clinic_id ?? null,
+                status: a.status ?? a.appointment_status ?? null,
+                start: a.start_time ?? a.startTime ?? a.start,
+                end: a.end_time ?? a.endTime ?? a.end
+              }))
+
+              console.log('[BOOKING][PATIENT-CONFLICT] slot blocked for patient due to existing appointment', {
+                patientId,
+                selectedDate,
+                slotStart: slotStartIso,
+                slotEnd: slotEndIso,
+                bookingDoctor: bookingData.value.doctor ? { id: bookingData.value.doctor.id, name: bookingData.value.doctor.name } : null,
+                bookingClinic: bookingData.value.clinic ? { id: bookingData.value.clinic.id, name: bookingData.value.clinic.name } : null,
+                conflictingAppointments: conflicting
+              })
+            } catch (logErr) {
+              console.warn('Failed to log patient conflict details', logErr)
+            }
+          }
+
+          const booked = slotMarkedScheduled || doctorOverlap || patientOverlap
+
+          return {
+            id: slot.id,
+            slot_start: slot.slot_start,
+            slot_end: slot.slot_end,
+            display: `${new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}`,
+            booked
+          }
+        } catch (e) {
+          return {
+            id: slot.id,
+            slot_start: slot.slot_start,
+            slot_end: slot.slot_end,
+            display: `${new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })} - ${new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' })}`,
+            booked: String(slot.status ?? '').toLowerCase() === 'scheduled'
+          }
+        }
+      })
   })
 
   const canProceedToNextStep = computed(() => {
@@ -658,7 +754,60 @@ export const useBookAppointment = () => {
           const endWithOffset = ensureSgtOffset(sgEndRaw) || sgEndRaw
           const slotStartIso = new Date(startWithOffset).toISOString()
           const slotEndIso = new Date(endWithOffset).toISOString()
-          const booked = overlaps(slotStartIso, slotEndIso, fetchedAppointments.value)
+          // Booked if doctor has overlapping appointment OR the current patient has an overlapping appointment
+          const doctorOverlap = overlaps(slotStartIso, slotEndIso, fetchedAppointments.value)
+          // For patient conflicts only consider statuses: scheduled, checked_in, confirmed
+          const patientBlocking = ['scheduled', 'checked_in', 'confirmed']
+          const patientOverlap = (fetchedPatientAppointments.value || []).some(a => {
+            try {
+              const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+              if (status && !patientBlocking.includes(status)) return false
+              const aStartRaw = a.start_time ?? a.startTime ?? a.start
+              const aEndRaw = a.end_time ?? a.endTime ?? a.end
+              const aStartMs = new Date(aStartRaw).getTime()
+              const aEndMs = new Date(aEndRaw).getTime()
+              const sMs = new Date(slotStartIso).getTime()
+              const eMs = new Date(slotEndIso).getTime()
+              return !isNaN(aStartMs) && !isNaN(aEndMs) && aStartMs < eMs && aEndMs > sMs
+            } catch (e) { return false }
+          })
+          if (patientOverlap) {
+            try {
+              const { currentUser } = useAuth()
+              const patientId = currentUser.value?.patient?.id ?? currentUser.value?.profile?.id ?? null
+              const conflicting = (fetchedPatientAppointments.value || []).filter(a => {
+                try {
+                  const status = (a.status ?? a.appointment_status ?? '')?.toString?.() || ''
+                  if (status && !patientBlocking.includes(status)) return false
+                  const aStartMs = new Date(a.start_time ?? a.startTime ?? a.start).getTime()
+                  const aEndMs = new Date(a.end_time ?? a.endTime ?? a.end).getTime()
+                  const sMs = new Date(slotStartIso).getTime()
+                  const eMs = new Date(slotEndIso).getTime()
+                  return !isNaN(aStartMs) && !isNaN(aEndMs) && aStartMs < eMs && aEndMs > sMs
+                } catch (err) { return false }
+              }).map(a => ({
+                id: a.id,
+                doctor: a.doctor_name ?? a.doctorName ?? a.doctor_id ?? null,
+                clinic: a.clinic_name ?? a.clinicName ?? a.clinic_id ?? null,
+                status: a.status ?? a.appointment_status ?? null,
+                start: a.start_time ?? a.startTime ?? a.start,
+                end: a.end_time ?? a.endTime ?? a.end
+              }))
+
+              console.log('[BOOKING][PATIENT-CONFLICT] schedule slot blocked for patient', {
+                patientId,
+                selectedDate: bookingData.value.date ? String(bookingData.value.date) : null,
+                slotStart: slotStartIso,
+                slotEnd: slotEndIso,
+                bookingDoctor: bookingData.value.doctor ? { id: bookingData.value.doctor.id, name: bookingData.value.doctor.name } : null,
+                bookingClinic: bookingData.value.clinic ? { id: bookingData.value.clinic.id, name: bookingData.value.clinic.name } : null,
+                conflictingAppointments: conflicting
+              })
+            } catch (logErr) {
+              console.warn('Failed to log patient schedule conflict', logErr)
+            }
+          }
+          const booked = doctorOverlap || patientOverlap
           return { ...s, booked }
         } catch (e) {
           return { ...s, booked: false }
@@ -760,6 +909,12 @@ export const useBookAppointment = () => {
             }
 
             fetchedAppointments.value = appts ?? []
+            // Also fetch current patient's appointments so we can detect patient-level conflicts
+            try {
+              await fetchPatientAppointments()
+            } catch (fpErr) {
+              console.warn('fetchPatientAppointments failed after fetching doctor appointments', fpErr)
+            }
           } catch (aerr) {
             console.error('Failed to query appointments for doctor', doctorId, aerr)
           }
@@ -839,6 +994,12 @@ export const useBookAppointment = () => {
       }
 
       fetchedAppointments.value = appts ?? []
+      // Ensure we also have the patient's appointments loaded so per-slot patient conflicts are detected
+      try {
+        await fetchPatientAppointments()
+      } catch (e) {
+        console.warn('fetchPatientAppointments failed in fetchAppointmentsForDoctor', e)
+      }
 
       if (date && doctorId != null) {
         try {
@@ -851,6 +1012,55 @@ export const useBookAppointment = () => {
       return fetchedAppointments.value
     } catch (err) {
       console.error('fetchAppointmentsForDoctor error', err)
+      return [] as any[]
+    }
+  }
+
+  // Fetch current patient's appointments (backend-first, fallback to Supabase)
+  const fetchPatientAppointments = async () => {
+    try {
+      let appts: any[] = []
+      try {
+        appts = await appointmentsApi.getPatientAppointments()
+      } catch (backendErr) {
+        console.warn('fetchPatientAppointments: backend query failed, falling back to Supabase', backendErr)
+        try {
+          // Try to resolve patient id from auth
+          const { currentUser } = useAuth()
+          let pId: number | null = null
+          if (currentUser.value?.patient?.id) {
+            pId = currentUser.value.patient.id
+          } else if (currentUser.value?.id) {
+            // lookup patients row by auth user id
+            try {
+              const { data: pRow } = await supabase
+                .from('patients')
+                .select('id')
+                .eq('user_id', currentUser.value.id)
+                .maybeSingle()
+              if (pRow && (pRow as any).id) pId = (pRow as any).id
+            } catch (e) {
+              // ignore
+            }
+          }
+
+          if (pId) {
+            const apptQ = await supabase
+              .from('appointments')
+              .select('*')
+              .eq('patient_id', pId)
+            if (!apptQ.error) appts = (apptQ.data ?? []) as any[]
+          }
+        } catch (serr) {
+          console.warn('fetchPatientAppointments: Supabase query failed', serr)
+        }
+      }
+
+      fetchedPatientAppointments.value = appts ?? []
+      return fetchedPatientAppointments.value
+    } catch (err) {
+      console.error('fetchPatientAppointments error', err)
+      fetchedPatientAppointments.value = []
       return [] as any[]
     }
   }
