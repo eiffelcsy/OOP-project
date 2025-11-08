@@ -419,7 +419,7 @@ export function useAllAppointments() {
       try {
         const dateStr = typeof date === 'string' ? date : date.toString()
         const generatedSlots = await generateTimeSlots(doctor.id, dateStr)
-        const selectedDateStr = new Date(dateStr).toISOString().split('T')[0]
+        const selectedDateStr = dateStr // Already in YYYY-MM-DD format
 
         const bookedAppointments = allAppointments.value.filter(
           (appt) =>
@@ -429,11 +429,13 @@ export function useAllAppointments() {
         )
 
         rescheduleAvailableSlots.value = generatedSlots.map((slot) => {
-          const slotStart = new Date(`${selectedDateStr}T${slot.slot_start}:00`)
-          const slotEnd = new Date(`${selectedDateStr}T${slot.slot_end}:00`)
+          // slot.slot_start and slot.slot_end are now full ISO timestamps like "2024-11-08T09:00:00+08:00"
+          const slotStart = new Date(slot.slot_start)
+          const slotEnd = new Date(slot.slot_end)
 
           const isBooked = bookedAppointments.some((appt) => {
-            const apptStart = new Date(`${appt.date}T${appt.time}:00`)
+            // appt.time is in HH:MM format, combine with date to create SGT timestamp
+            const apptStart = new Date(`${appt.date}T${appt.time}:00+08:00`)
             const apptEnd = new Date(apptStart)
             apptEnd.setMinutes(apptEnd.getMinutes() + 30)
             return slotStart < apptEnd && slotEnd > apptStart
