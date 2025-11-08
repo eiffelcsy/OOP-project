@@ -260,7 +260,7 @@ public class EmailService {
     }
 
     @Async
-    public void sendQueueApproachingEmail(String toEmail, String patientName, int queueNumber, String clinicName) {
+    public void sendQueueApproachingEmail(String toEmail, String patientName, int queueNumber, String doctorName, String clinicName, String clinicAddress) {
         if (!isConfigured()) {
             log.warn("EmailService not configured - skipping queue notification for patient {}", patientName);
             return;
@@ -268,16 +268,26 @@ public class EmailService {
 
         try {
             String from = String.format("clinic@%s", domain);
-            String subject = "Your turn is approaching";
+            String subject = String.format("Queue Update — Your Turn is Approaching — %s", 
+                    clinicName == null ? "Clinic" : clinicName);
+            
             String html = String.format(
                 "<html><body>" +
-                "<p>Hi %s,</p>" +
-                "<p>Your queue number %d will be called soon at %s.</p>" +
-                "<p>Please ensure you are in the clinic.</p>" +
+                "<h2>🩺 Queue Update</h2>" +
+                "<p>Dear %s,</p>" +
+                "<p>Your queue number <strong>#%d</strong> will be called soon.</p>" +
+                "<p><strong>Doctor:</strong> Dr. %s<br/>" +
+                "<strong>Clinic:</strong> %s</p>" +
+                "<p>Please ensure you are in the clinic and ready to be called.<br/>" +
+                "We appreciate your patience and look forward to serving you.</p>" +
+                "<p>Warm regards,<br/>%s<br/>%s</p>" +
                 "</body></html>",
-                patientName,
+                (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
                 queueNumber,
-                clinicName
+                (doctorName == null || doctorName.isBlank()) ? "the doctor" : doctorName,
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicAddress == null ? "" : clinicAddress)
             );
 
             Map<String, Object> body = new HashMap<>();
@@ -307,7 +317,7 @@ public class EmailService {
     }
 
     @Async
-    public void sendQueueCalledEmail(String toEmail, String patientName, String doctorName, String clinicName) {
+    public void sendQueueCalledEmail(String toEmail, String patientName, int queueNumber, String doctorName, String clinicName, String clinicAddress) {
         if (!isConfigured()) {
             log.warn("EmailService not configured - skipping queue called notification for patient {}", patientName);
             return;
@@ -315,16 +325,29 @@ public class EmailService {
 
         try {
             String from = String.format("clinic@%s", domain);
-            String subject = "Please proceed to your doctor";
+            String subject = String.format("Queue #%d Called — Please Proceed to Doctor — %s", 
+                    queueNumber,
+                    clinicName == null ? "Clinic" : clinicName);
+            
             String html = String.format(
                 "<html><body>" +
-                "<p>Hi %s,</p>" +
-                "<p>It's your turn! Please proceed to Dr. %s at %s.</p>" +
-                "<p>If you are not present, you may be marked as 'No Show' after a brief waiting period.</p>" +
+                "<h2>🩺 Your Turn — Please Proceed</h2>" +
+                "<p>Dear %s,</p>" +
+                "<p>Your queue number <strong>#%d</strong> has been called.<br/>" +
+                "Please proceed to the consultation room immediately.</p>" +
+                "<p><strong>Doctor:</strong> Dr. %s<br/>" +
+                "<strong>Clinic:</strong> %s</p>" +
+                "<p>If you are not present within the next few minutes, you may be marked as 'No Show' " +
+                "and the queue will proceed to the next patient.</p>" +
+                "<p>If you need assistance locating the consultation room, please approach our staff at the reception.</p>" +
+                "<p>Warm regards,<br/>%s<br/>%s</p>" +
                 "</body></html>",
-                patientName,
-                doctorName,
-                clinicName
+                (patientName == null || patientName.isBlank()) ? "Patient" : patientName,
+                queueNumber,
+                (doctorName == null || doctorName.isBlank()) ? "the doctor" : doctorName,
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicName == null ? "Clinic" : clinicName),
+                (clinicAddress == null ? "" : clinicAddress)
             );
 
             Map<String, Object> body = new HashMap<>();
@@ -344,7 +367,7 @@ public class EmailService {
 
             HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-                log.info("Sent queue called email to {} for doctor {}", toEmail, doctorName);
+                log.info("Sent queue called email to {} for queue number {}", toEmail, queueNumber);
             } else {
                 log.warn("Failed to send queue called email (status={}): {}", resp.statusCode(), resp.body());
             }

@@ -319,6 +319,15 @@ public class QueueService {
                         .orElse(null);
                     if (profile == null || profile.getEmail() == null) continue;
 
+                    // Get doctor information (needed for both email types)
+                    Long doctorId = appointment.getDoctorId();
+                    Doctor doctor = doctorId != null ? 
+                        doctorRepository.findById(doctorId).orElse(null) : null;
+                    String doctorName = doctor != null ? doctor.getName() : "the doctor";
+                    
+                    // Build clinic address from components
+                    String clinicAddress = buildClinicAddress(clinic);
+
                     // Check position for Checked In tickets
                     if ("Checked In".equals(ticketStatus)) {
                         int position = calculateQueuePosition(ticket.getId());
@@ -327,22 +336,21 @@ public class QueueService {
                                 profile.getEmail(),
                                 profile.getFullName(),
                                 ticket.getTicketNumber(),
-                                clinic.getName()
+                                doctorName,
+                                clinic.getName(),
+                                clinicAddress
                             );
                         }
                     }
                     // Handle Called tickets
                     else if ("Called".equals(ticketStatus)) {
-                        Long doctorId = appointment.getDoctorId();
-                        Doctor doctor = doctorId != null ? 
-                            doctorRepository.findById(doctorId).orElse(null) : null;
-                        String doctorName = doctor != null ? doctor.getName() : "your doctor";
-
                         emailService.sendQueueCalledEmail(
                             profile.getEmail(),
                             profile.getFullName(),
+                            ticket.getTicketNumber(),
                             doctorName,
-                            clinic.getName()
+                            clinic.getName(),
+                            clinicAddress
                         );
                     }
                 } catch (Exception e) {
@@ -353,8 +361,6 @@ public class QueueService {
             log.error("Failed to process queue notifications for queue {}", queueId, e);
         }
     }
-
-
 
     // ==================== Helper Methods ====================
     
@@ -406,4 +412,29 @@ public class QueueService {
             default -> "createdAt"; // safe default
         };
     }
+
+    /**
+     * Helper method to build a complete address string from clinic components
+     */
+    private String buildClinicAddress(Clinic clinic) {
+        StringBuilder address = new StringBuilder();
+        
+        if (clinic.getAddressLine() != null && !clinic.getAddressLine().isBlank()) {
+            address.append(clinic.getAddressLine());
+        }
+        
+        if (clinic.getArea() != null && !clinic.getArea().isBlank()) {
+            if (address.length() > 0) address.append(", ");
+            address.append(clinic.getArea());
+        }
+        
+        if (clinic.getRegion() != null && !clinic.getRegion().isBlank()) {
+            if (address.length() > 0) address.append(", ");
+            address.append(clinic.getRegion());
+        }
+        
+        return address.length() > 0 ? address.toString() : "";
+    }
+
+
 }
