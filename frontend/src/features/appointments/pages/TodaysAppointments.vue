@@ -153,17 +153,6 @@ const handleCompleted = async (appointmentId: number) => {
 
       <Card>
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle class="text-sm font-medium">In Progress</CardTitle>
-          <Icon icon="lucide:clock" class="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div class="text-2xl font-bold">{{ inProgressCount }}</div>
-          <p class="text-xs text-muted-foreground">Currently being seen</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Completed</CardTitle>
           <Icon icon="lucide:check-circle" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
@@ -224,7 +213,6 @@ const handleCompleted = async (appointmentId: number) => {
         <div class="grid gap-4">
           <Card v-for="appointment in appointments" :key="appointment.id" :class="[
             'transition-all duration-200 hover:shadow-md',
-            appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
             appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
             appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
             appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
@@ -236,7 +224,6 @@ const handleCompleted = async (appointmentId: number) => {
                   <Badge :class="{
                     'bg-gray-100 text-gray-800': appointment.status === 'scheduled',
                     'bg-yellow-100 text-yellow-800': appointment.status === 'checked-in',
-                    'bg-blue-100 text-blue-800': appointment.status === 'in-progress',
                     'bg-green-100 text-green-800': appointment.status === 'completed',
                     'bg-red-100 text-red-800': appointment.status === 'no-show',
                     'bg-gray-200 text-gray-800': appointment.status === 'cancelled'
@@ -270,7 +257,7 @@ const handleCompleted = async (appointmentId: number) => {
                   Check In
                 </Button>
 
-                <Button v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+                <Button v-if="appointment.status === 'checked-in'"
                   @click="handleCompleted(appointment.id)" size="sm" variant="outline" class="min-w-[100px]">
                   <Icon icon="lucide:check-circle" class="h-3 w-3 mr-1" />
                   Complete
@@ -298,7 +285,6 @@ const handleCompleted = async (appointmentId: number) => {
 
       <Card v-for="appointment in filteredAppointmentsList" :key="appointment.id" :class="[
         'transition-all duration-200 hover:shadow-md',
-        appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
         appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
         appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
         appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
@@ -310,7 +296,6 @@ const handleCompleted = async (appointmentId: number) => {
               <Badge :class="{
                 'bg-gray-100 text-gray-800': appointment.status === 'scheduled',
                 'bg-yellow-100 text-yellow-800': appointment.status === 'checked-in',
-                'bg-blue-100 text-blue-800': appointment.status === 'in-progress',
                 'bg-green-100 text-green-800': appointment.status === 'completed',
                 'bg-red-100 text-red-800': appointment.status === 'no-show',
                 'bg-gray-200 text-gray-800': appointment.status === 'cancelled'
@@ -331,7 +316,7 @@ const handleCompleted = async (appointmentId: number) => {
             <Button v-if="appointment.status === 'scheduled'" @click="handleCheckIn(appointment.id)" size="sm">
               Check In
             </Button>
-            <Button v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+            <Button v-if="appointment.status === 'checked-in'"
               @click="handleCompleted(appointment.id)" size="sm" variant="outline">
               Complete
             </Button>

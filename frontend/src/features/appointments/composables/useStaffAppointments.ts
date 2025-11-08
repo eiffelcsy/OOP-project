@@ -11,7 +11,7 @@ const { currentUser, initializeAuth } = useAuth()
 
 // Type aliases from database
 type Doctor = Tables<'doctors'>
-type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'completed' | 'cancelled' | 'no-show'
 
 // Extended appointment interface for staff view
 export interface StaffAppointment {
@@ -128,7 +128,7 @@ export const useStaffAppointments = () => {
 
         // Map backend status to frontend status
         // Backend uses: scheduled, confirmed, cancelled
-        // Frontend uses: scheduled, checked-in, in-progress, completed, cancelled, no-show
+        // Frontend uses: scheduled, checked-in, completed, cancelled, no-show
         let mappedStatus: AppointmentStatus = 'scheduled'
         if (appt.status) {
           const backendStatus = appt.status.toLowerCase()
@@ -136,7 +136,7 @@ export const useStaffAppointments = () => {
             mappedStatus = 'scheduled'
           } else if (backendStatus === 'cancelled') {
             mappedStatus = 'cancelled'
-          } else if (backendStatus === 'checked-in' || backendStatus === 'in-progress' ||
+          } else if (backendStatus === 'checked-in' ||
             backendStatus === 'completed' || backendStatus === 'no-show') {
             mappedStatus = appt.status as AppointmentStatus
           }
@@ -226,9 +226,6 @@ export const useStaffAppointments = () => {
   )
   const noShowCount = computed(() =>
     todaysAppointments.value.filter(apt => apt.status === 'no-show').length
-  )
-  const inProgressCount = computed(() =>
-    todaysAppointments.value.filter(apt => apt.status === 'in-progress').length
   )
 
   // Actions
@@ -387,7 +384,6 @@ export const useStaffAppointments = () => {
     checkedInCount,
     completedCount,
     noShowCount,
-    inProgressCount,
 
     // Actions
     checkInPatient,
