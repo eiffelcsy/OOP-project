@@ -276,7 +276,7 @@ const handleCompleted = async (appointmentId: number) => {
                   Complete
                 </Button>
 
-                <Button v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
+                <Button v-if="appointment.status === 'scheduled'"
                   @click="handleNoShow(appointment.id)" size="sm" variant="destructive" class="min-w-[100px]">
                   <Icon icon="lucide:x-circle" class="h-3 w-3 mr-1" />
                   No Show
