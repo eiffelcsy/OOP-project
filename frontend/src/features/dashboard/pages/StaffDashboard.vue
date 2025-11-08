@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
+import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 
 // expose current user for template
 const { currentUser } = useAuth()
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { Icon } from '@iconify/vue'
 
 // Staff Dashboard Data
@@ -17,13 +17,21 @@ const todaysOverview = ref({
   nextAppointmentTime: '2:30 PM'
 })
 
-// Queue Control Data
-const queueControl = ref({
-  nowServing: 5,
-  patientsWaiting: 8,
-  queueStatus: 'active', // 'active', 'paused', 'stopped'
-  lastCalledTime: '2:15 PM'
-})
+// Hook into shared queue management (backend fetch + realtime)
+const {
+  queueState,
+  waitingPatients,
+  currentPatient,
+  hasCalledTicket,
+  initializeQueueState,
+  startQueue,
+  pauseQueue,
+  resumeQueue,
+  endQueue,
+  callNext,
+  endQueueMarkRemainingNoShow,
+  updatePatientStatus
+} = useQueueManagement()
 
 // Today's Appointments Data
 const todaysAppointments = ref([
@@ -119,50 +127,32 @@ const todaysAppointments = ref([
   }
 ])
 
-// Computed properties
-const queueWaitingList = computed(() => {
-  return todaysAppointments.value.filter(apt => apt.status === 'checked-in')
-})
+// Computed properties related to queue
+const currentQueueLength = computed(() => waitingPatients.value.length)
+const nowServingNumber = computed(() => currentPatient.value ? currentPatient.value.queueNumber : (queueState.currentNumber || '-'))
+const lastCalledTime = computed(() => currentPatient.value?.calledTime || '-')
+const queueStatusLabel = computed(() => (!queueState.isActive ? 'Stopped' : (queueState.isPaused ? 'Paused' : 'Active')))
+const queueStatusIcon = computed(() => (!queueState.isActive ? 'lucide:stop-circle' : (queueState.isPaused ? 'lucide:pause-circle' : 'lucide:play-circle')))
+const queueStatusClass = computed(() => (!queueState.isActive ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : (queueState.isPaused ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200')))
 
-const upcomingAppointments = computed(() => {
-  return todaysAppointments.value.filter(apt => apt.status === 'scheduled')
-})
-
-// Queue Control Functions
-const callNext = () => {
-  if (queueWaitingList.value.length > 0) {
-    const nextPatient = queueWaitingList.value[0]
-    queueControl.value.nowServing = nextPatient.queueNumber
-    queueControl.value.lastCalledTime = new Date().toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
-      minute: '2-digit',
-      hour12: true 
-    })
-    
-    // Update appointment status to completed for demonstration
-    const appointmentIndex = todaysAppointments.value.findIndex(apt => apt.id === nextPatient.id)
-    if (appointmentIndex !== -1) {
-      todaysAppointments.value[appointmentIndex].status = 'completed'
-    }
-    
-    // Update queue metrics
-    todaysOverview.value.patientsCheckedIn++
-    todaysOverview.value.currentQueueLength--
-    queueControl.value.patientsWaiting--
+// End Queue modal state (same behaviour as queue page)
+const showEndModal = ref(false)
+const pendingCount = computed(() => (waitingPatients.value.length + (currentPatient.value ? 1 : 0)))
+const handleStopQueueClick = () => {
+  if (pendingCount.value > 0) {
+    showEndModal.value = true
+  } else {
+    endQueue()
   }
 }
-
-const startQueue = () => {
-  queueControl.value.queueStatus = 'active'
+const confirmEndQueue = async () => {
+  try {
+    await endQueueMarkRemainingNoShow()
+  } finally {
+    showEndModal.value = false
+  }
 }
-
-const pauseQueue = () => {
-  queueControl.value.queueStatus = 'paused'
-}
-
-const stopQueue = () => {
-  queueControl.value.queueStatus = 'stopped'
-}
+const cancelEndQueue = () => { showEndModal.value = false }
 
 // Appointment Actions
 const checkInPatient = (appointmentId: number) => {
@@ -170,8 +160,7 @@ const checkInPatient = (appointmentId: number) => {
   if (appointment && appointment.status === 'scheduled') {
     appointment.status = 'checked-in'
     todaysOverview.value.patientsCheckedIn++
-    todaysOverview.value.currentQueueLength++
-    queueControl.value.patientsWaiting++
+  todaysOverview.value.currentQueueLength++
   }
 }
 
@@ -221,38 +210,9 @@ const getStatusConfig = (status: string) => {
   return configs[status] || configs.scheduled
 }
 
-const getQueueStatusConfig = (status: string) => {
-  const configs: Record<string, { label: string; class: string; icon: string }> = {
-    'active': { 
-      label: 'Active', 
-      class: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      icon: 'lucide:play-circle'
-    },
-    'paused': { 
-      label: 'Paused', 
-      class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      icon: 'lucide:pause-circle'
-    },
-    'stopped': { 
-      label: 'Stopped', 
-      class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-      icon: 'lucide:stop-circle'
-    }
-  }
-  return configs[status] || configs.active
-}
-
-onMounted(() => {
-  console.log('Staff dashboard loaded with dummy data')
-  
-  // Simulate real-time updates
-  setInterval(() => {
-    // Simulate next appointment time updates
-    const now = new Date()
-    const nextHour = now.getHours() + 1
-    const randomMinute = Math.floor(Math.random() * 60)
-    todaysOverview.value.nextAppointmentTime = `${nextHour}:${randomMinute.toString().padStart(2, '0')} ${nextHour >= 12 ? 'PM' : 'AM'}`
-  }, 60000) // Update every minute
+// Initialize queue data on mount (backend fetch + realtime subs handled inside)
+onMounted(async () => {
+  try { await initializeQueueState() } catch {}
 })
 </script>
 
@@ -294,7 +254,7 @@ onMounted(() => {
           <Icon icon="lucide:users" class="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <p class="text-2xl font-bold mb-1">{{ todaysOverview.currentQueueLength }}</p>
+          <p class="text-2xl font-bold mb-1">{{ currentQueueLength }}</p>
           <p class="text-xs text-muted-foreground">Patients waiting</p>
         </CardContent>
       </Card>
@@ -326,28 +286,31 @@ onMounted(() => {
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">Now Serving:</span>
               <div class="flex flex-col items-center gap-2">
-                <span class="text-xl font-bold">Queue #{{ queueControl.nowServing }}</span>
-                <div class="text-xs text-muted-foreground">
-                  Called at {{ queueControl.lastCalledTime }}
-                </div>
+                <template v-if="queueState.isActive">
+                  <template v-if="currentPatient">
+                    <span class="text-xl font-bold">Queue #{{ nowServingNumber }}</span>
+                    <div class="text-xs text-muted-foreground">Called at {{ lastCalledTime }}</div>
+                  </template>
+                  <template v-else>
+                    <span class="text-sm text-muted-foreground">No Patients Called</span>
+                  </template>
+                </template>
+                <template v-else>
+                  <span class="text-sm text-muted-foreground">No Queue Started</span>
+                </template>
               </div>
             </div>
             
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">Patients Waiting:</span>
-              <span class="text-xl font-semibold">{{ queueControl.patientsWaiting }}</span>
+              <span class="text-xl font-semibold">{{ currentQueueLength }}</span>
             </div>
 
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium">Queue Status:</span>
               <div class="flex items-center gap-2">
-                <Icon :icon="getQueueStatusConfig(queueControl.queueStatus).icon" class="h-4 w-4" />
-                <span 
-                  class="px-2 py-1 rounded-full text-xs font-medium"
-                  :class="getQueueStatusConfig(queueControl.queueStatus).class"
-                >
-                  {{ getQueueStatusConfig(queueControl.queueStatus).label }}
-                </span>
+                <Icon :icon="queueStatusIcon" class="h-4 w-4" />
+                <span class="px-2 py-1 rounded-full text-xs font-medium" :class="queueStatusClass">{{ queueStatusLabel }}</span>
               </div>
             </div>
           </div>
@@ -355,44 +318,71 @@ onMounted(() => {
           <!-- Quick Actions -->
           <div class="space-y-4">
             <div class="grid gap-4">
-              <Button 
-                @click="callNext" 
-                variant="outline" 
-                class="w-full" 
-                :disabled="queueWaitingList.length === 0 || queueControl.queueStatus !== 'active'"
-              >
-                <Icon icon="lucide:phone-call" class="mr-2 h-4 w-4" />
-                Call Next Patient
-              </Button>
+              <template v-if="currentPatient && queueState.isActive">
+                <div class="grid grid-cols-2 gap-2 w-full">
+                  <Button 
+                    @click="updatePatientStatus(currentPatient.id, 'Completed', { setCompletedAtNow: true })" 
+                    variant="outline" 
+                    class="w-full"
+                    :disabled="queueState.isPaused"
+                  >
+                    <Icon icon="lucide:check" class="mr-2 h-4 w-4" />
+                    Mark Patient as Complete
+                  </Button>
+                  <Button 
+                    @click="updatePatientStatus(currentPatient.id, 'No Show', { setNoShowAtNow: true })" 
+                    variant="outline" 
+                    class="w-full"
+                    :disabled="queueState.isPaused"
+                  >
+                    <Icon icon="lucide:user-x" class="mr-2 h-4 w-4" />
+                    Mark Patient as No Show
+                  </Button>
+                </div>
+              </template>
+              <template v-else>
+                <Button 
+                  @click="callNext()" 
+                  variant="outline" 
+                  class="w-full" 
+                  :disabled="(!queueState.isActive) || queueState.isPaused || waitingPatients.length === 0"
+                >
+                  <Icon icon="lucide:phone-call" class="mr-2 h-4 w-4" />
+                  Call Next Patient
+                </Button>
+              </template>
               
-              <div class="grid grid-cols-3 gap-2">
+              <template v-if="queueState.isActive">
+                <div class="grid grid-cols-2 gap-2">
+                  <Button 
+                    @click="queueState.isPaused ? resumeQueue() : pauseQueue()" 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    <Icon :icon="queueState.isPaused ? 'lucide:play' : 'lucide:pause'" class="mr-1 h-3 w-3" />
+                    {{ queueState.isPaused ? 'Resume' : 'Pause' }}
+                  </Button>
+                  <Button 
+                    @click="handleStopQueueClick" 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    <Icon icon="lucide:stop-circle" class="mr-1 h-3 w-3" />
+                    Stop Queue
+                  </Button>
+                </div>
+              </template>
+              <template v-else>
                 <Button 
                   @click="startQueue" 
                   variant="outline" 
                   size="sm"
-                  :disabled="queueControl.queueStatus === 'active'"
+                  class="w-full"
                 >
                   <Icon icon="lucide:play" class="mr-1 h-3 w-3" />
-                  Start
+                  Start Queue
                 </Button>
-                <Button 
-                  @click="pauseQueue" 
-                  variant="outline" 
-                  size="sm"
-                  :disabled="queueControl.queueStatus !== 'active'"
-                >
-                  <Icon icon="lucide:pause" class="mr-1 h-3 w-3" />
-                  Pause
-                </Button>
-                <Button 
-                  @click="stopQueue" 
-                  variant="outline" 
-                  size="sm"
-                >
-                  <Icon icon="lucide:stop-circle" class="mr-1 h-3 w-3" />
-                  Stop
-                </Button>
-              </div>
+              </template>
             </div>
 
             <Button variant="outline" class="w-full">
@@ -498,5 +488,22 @@ onMounted(() => {
         </div>
       </CardContent>
     </Card>
+  </div>
+
+  <!-- End Queue Modal -->
+  <div v-if="showEndModal" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" @click="cancelEndQueue" />
+    <div class="relative bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+      <div class="p-6 border-b">
+        <h3 class="text-xl font-semibold">End Queue</h3>
+      </div>
+      <div class="p-6">
+        <p class="text-gray-700">There are {{ pendingCount }} patient(s) remaining. End queue now and mark them as No Show?</p>
+      </div>
+      <div class="p-4 border-t flex justify-end gap-2">
+        <Button variant="outline" @click="cancelEndQueue">No</Button>
+        <Button variant="destructive" @click="confirmEndQueue">Yes</Button>
+      </div>
+    </div>
   </div>
 </template>
