@@ -203,6 +203,10 @@ export const appointmentsApi = {
     return apiClient.put(endpoint, {})
   },
 
+  /*
+    * Update appointment status
+    * PUT /api/appointments/{id}/status
+  */
   async updateAppointmentStatus(id: number, status: string): Promise<AppointmentResponse> {
     console.log(`[API] Calling PUT /api/appointments/${id}/status with status:`, status)
     try {

@@ -107,7 +107,8 @@ const handleCompleted = async (appointmentId: number) => {
         <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
         <p class="text-muted-foreground">{{ new Date().toLocaleDateString('en-SG', {
           weekday: 'long', year: 'numeric',
-          month: 'long', day: 'numeric' }) }}</p>
+          month: 'long', day: 'numeric'
+        }) }}</p>
       </div>
       <div class="flex items-center gap-4">
         <div class="text-sm text-muted-foreground">

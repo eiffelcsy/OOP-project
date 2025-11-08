@@ -43,6 +43,7 @@ import com.clinic.management.repository.AppointmentRepository;
  * - POST /api/appointments - Schedule walk-in
  * - PUT /api/appointments/{id} - Reschedule appointment
  * - DELETE /api/appointments/{id} - Cancel appointment
+ * - PUT /api/appointments/{id}/status - Update appointment status
  * 
  * Queue Endpoints:
  * - POST /api/queues - Create queue

@@ -289,7 +289,7 @@ export const useStaffAppointments = () => {
 
       await queueTicketsApi.create(payload)
 
-      // 5) Update appointment status locally; realtime will update the queue UI elsewhere
+      // Update appointment status locally
       appointment.status = 'checked-in'
 
       return true
@@ -306,7 +306,10 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status locally (backend doesn't support this status yet)
+      // Update appointment status in backend to 'no-show'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'no-show')
+
+      // Update appointment status locally
       appointment.status = 'no-show'
 
       // Update queue management system
@@ -326,7 +329,10 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status locally (backend doesn't support this status yet)
+      // Update appointment status in backend to 'completed'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'completed')
+
+      // Update appointment status locally
       appointment.status = 'completed'
 
       // Update queue management system
