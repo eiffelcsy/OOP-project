@@ -370,31 +370,25 @@ export function useAllAppointments() {
 
       console.log("[RESCHEDULE] Starting reschedule for appointment:", appointmentId)
       console.log("[RESCHEDULE] Selected date:", newDate)
-      console.log("[RESCHEDULE] Selected time:", newTime)
+      console.log("[RESCHEDULE] Selected time (raw):", newTime)
 
-      // Parse selected date
-      const selectedDateObj = typeof newDate === "string"
-        ? new Date(newDate)
-        : new Date(newDate.toString())
-
-      const selectedDateStr = selectedDateObj.toISOString().split("T")[0]
-
-      // Convert SGT time to UTC properly
-      const [hours, minutes] = newTime.split(":").map(Number)
-
-      // Create date in SGT timezone (UTC+8)
-      const sgtDateString = `${selectedDateStr}T${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00+08:00`
-      const sgtDate = new Date(sgtDateString)
-
-      // Convert to UTC
-      const newStartTime = sgtDate.toISOString()
+      // newTime is now a full ISO timestamp like "2024-11-08T09:00:00+08:00"
+      // We need to use it directly as the start time
+      const newStartTime = newTime
+      
+      // Parse the ISO timestamp to calculate end time
+      const startDate = new Date(newStartTime)
+      
+      if (isNaN(startDate.getTime())) {
+        throw new Error(`Invalid start time: ${newTime}`)
+      }
 
       // Use 30 minutes as default duration
       const slotDuration = 30
-      const endDateTime = new Date(sgtDate.getTime() + slotDuration * 60 * 1000)
-      const newEndTime = endDateTime.toISOString()
+      const endDate = new Date(startDate.getTime() + slotDuration * 60 * 1000)
+      const newEndTime = endDate.toISOString()
 
-      console.log("[RESCHEDULE] Final UTC times:")
+      console.log("[RESCHEDULE] Final times:")
       console.log("  - Start:", newStartTime)
       console.log("  - End:", newEndTime)
       console.log("[RESCHEDULE] Calling appointmentsApi.updateAppointment with params:", { appointmentId, newStartTime, newEndTime })

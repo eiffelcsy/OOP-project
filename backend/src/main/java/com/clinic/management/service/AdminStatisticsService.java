@@ -64,10 +64,10 @@ public class AdminStatisticsService {
         stats.put("metrics", getKeyMetrics());
         
         // System Status
-        stats.put("systemStatus", getSystemStatus());
+        stats.put("system_status", getSystemStatus());
         
         // System Usage
-        stats.put("systemUsage", getSystemUsage());
+        stats.put("system_usage", getSystemUsage());
         
         return stats;
     }
@@ -81,15 +81,15 @@ public class AdminStatisticsService {
         
         // Total users (from profiles table)
         long totalUsers = profileRepository.count();
-        metrics.put("totalUsers", totalUsers);
+        metrics.put("total_users", totalUsers);
         
         // Active clinics
         long activeClinics = clinicRepository.count();
-        metrics.put("activeClinics", activeClinics);
+        metrics.put("active_clinics", activeClinics);
         
         // System health - simplified for now
-        metrics.put("systemHealth", "Healthy");
-        metrics.put("healthStatus", "good");
+        metrics.put("system_health", "Healthy");
+        metrics.put("health_status", "good");
         
         return metrics;
     }
@@ -103,16 +103,16 @@ public class AdminStatisticsService {
         
         // For now, we'll return basic status
         // In production, you might integrate with actual monitoring tools
-        status.put("serverUptime", "99.9%");
-        status.put("uptimeDays", 127);
-        status.put("databaseConnectivity", "Connected");
-        status.put("dbStatus", "good");
-        status.put("lastBackup", "2 hours ago");
+        status.put("server_uptime", "99.9%");
+        status.put("uptime_days", 127);
+        status.put("database_connectivity", "Connected");
+        status.put("db_status", "good");
+        status.put("last_backup", "2 hours ago");
         
         // Count active database connections (approximate using patient count as proxy)
         // In production, you'd query actual connection pools
         long activeConnections = patientRepository.count() + doctorRepository.count();
-        status.put("activeConnections", activeConnections);
+        status.put("active_connections", activeConnections);
         
         return status;
     }
@@ -140,7 +140,7 @@ public class AdminStatisticsService {
                        startTime.isBefore(todayEnd);
             })
             .count();
-        usage.put("appointmentsToday", appointmentsToday);
+        usage.put("appointments_today", appointmentsToday);
         
         long appointmentsThisWeek = appointmentRepository.findAll().stream()
             .filter(a -> {
@@ -148,7 +148,7 @@ public class AdminStatisticsService {
                 return startTime != null && !startTime.isBefore(weekStart);
             })
             .count();
-        usage.put("appointmentsThisWeek", appointmentsThisWeek);
+        usage.put("appointments_this_week", appointmentsThisWeek);
         
         long appointmentsLastWeek = appointmentRepository.findAll().stream()
             .filter(a -> {
@@ -163,7 +163,7 @@ public class AdminStatisticsService {
             ? ((double)(appointmentsThisWeek - appointmentsLastWeek) / appointmentsLastWeek * 100)
             : 0;
         String trendStr = String.format("%+.1f%%", trend);
-        usage.put("appointmentsTrend", trendStr);
+        usage.put("appointments_trend", trendStr);
         
         long cancellationsToday = appointmentRepository.findAll().stream()
             .filter(a -> {
@@ -174,25 +174,25 @@ public class AdminStatisticsService {
                        startTime.isBefore(todayEnd);
             })
             .count();
-        usage.put("cancellationsToday", cancellationsToday);
+        usage.put("cancellations_today", cancellationsToday);
         
         // Cancellation rate
         double cancellationRate = appointmentsToday > 0 
             ? ((double)cancellationsToday / appointmentsToday * 100)
             : 0;
-        usage.put("cancellationRate", String.format("%.1f%%", cancellationRate));
+        usage.put("cancellation_rate", String.format("%.1f%%", cancellationRate));
         
         // Queue statistics
         Map<String, Object> queueStats = getQueueStatistics();
-        usage.put("queueStats", queueStats);
+        usage.put("queue_stats", queueStats);
         
         // System load (placeholder - in production, integrate with actual monitoring)
         Map<String, Object> systemLoad = new HashMap<>();
         systemLoad.put("cpu", 23);
         systemLoad.put("memory", 67);
-        systemLoad.put("diskUsage", 45);
-        systemLoad.put("networkTraffic", "Normal");
-        usage.put("systemLoad", systemLoad);
+        systemLoad.put("disk_usage", 45);
+        systemLoad.put("network_traffic", "Normal");
+        usage.put("system_load", systemLoad);
         
         return usage;
     }
@@ -206,16 +206,16 @@ public class AdminStatisticsService {
         
         // Current waiting (active queues)
         long currentWaiting = queueRepository.countByQueueStatus(QueueStatus.ACTIVE);
-        queueStats.put("currentWaiting", currentWaiting);
+        queueStats.put("current_waiting", currentWaiting);
         
         // Average wait time - simplified calculation
         // In production, you'd calculate actual wait times from queue timestamps
         String averageWaitTime = currentWaiting > 30 ? "20 min" : "15 min";
-        queueStats.put("averageWaitTime", averageWaitTime);
+        queueStats.put("average_wait_time", averageWaitTime);
         
         // Longest wait
         String longestWait = currentWaiting > 50 ? "60 min" : "45 min";
-        queueStats.put("longestWait", longestWait);
+        queueStats.put("longest_wait", longestWait);
         
         // Queue status
         String queueStatus;
@@ -226,7 +226,7 @@ public class AdminStatisticsService {
         } else {
             queueStatus = "normal";
         }
-        queueStats.put("queueStatus", queueStatus);
+        queueStats.put("queue_status", queueStatus);
         
         return queueStats;
     }
