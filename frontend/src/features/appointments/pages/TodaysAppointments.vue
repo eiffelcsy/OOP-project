@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Icon } from '@iconify/vue'
+import { Input } from '@/components/ui/input'
 
 const {
   todaysAppointments,
@@ -14,7 +15,6 @@ const {
   checkedInCount,
   completedCount,
   noShowCount,
-  inProgressCount,
   checkInPatient,
   markNoShow,
   markCompleted,
@@ -46,15 +46,32 @@ setInterval(() => {
   })
 }, 60000)
 
-// Filtered appointments based on selected doctor
+// Filtered appointments based on selected doctor AND search
 const filteredAppointmentsByDoctor = computed(() => {
   if (!selectedDoctorId.value) {
-    return appointmentsByDoctor.value
+    // Apply search filter to all doctors
+    const filtered = new Map()
+    appointmentsByDoctor.value.forEach((appointments, doctorId) => {
+      const filteredAppointments = appointments.filter(appt =>
+        appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase())
+      )
+      if (filteredAppointments.length > 0) {
+        filtered.set(doctorId, filteredAppointments)
+      }
+    })
+    return filtered
   }
 
+  // Apply search filter to selected doctor only
   const filtered = new Map()
   if (appointmentsByDoctor.value.has(selectedDoctorId.value)) {
-    filtered.set(selectedDoctorId.value, appointmentsByDoctor.value.get(selectedDoctorId.value))
+    const appointments = appointmentsByDoctor.value.get(selectedDoctorId.value)
+    const filteredAppointments = appointments.filter(appt =>
+      appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase())
+    )
+    if (filteredAppointments.length > 0) {
+      filtered.set(selectedDoctorId.value, filteredAppointments)
+    }
   }
   return filtered
 })
@@ -63,10 +80,9 @@ const filteredAppointmentsByDoctor = computed(() => {
 const filteredAppointmentsList = computed(() => {
   return todaysAppointments.value
     .filter(appt => {
-      const matchesSearch = appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-        appt.doctorName.toLowerCase().includes(searchQuery.value.toLowerCase())
+      const matchesPatient = appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase())
       const matchesDoctor = selectedDoctorId.value === null || appt.doctorId === selectedDoctorId.value
-      return matchesSearch && matchesDoctor
+      return matchesPatient && matchesDoctor
     })
     .sort((a, b) => a.time.localeCompare(b.time))
 })
@@ -176,9 +192,10 @@ const handleCompleted = async (appointmentId: number) => {
 
     <!-- Filters -->
     <div class="flex items-center gap-4">
+      <!--search-->
       <div class="w-64">
-        <input v-model="searchQuery" type="text" placeholder="Search patient or doctor..."
-          class="w-full h-10 border rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-primary" />
+        <Input v-model="searchQuery" placeholder="Search patient..."
+          class="w-full h-10 border border-gray-300 rounded-md px-3" />
       </div>
       <span class="text-sm font-medium">Filter by Doctor:</span>
       <div class="flex gap-2 flex-wrap">
@@ -257,14 +274,14 @@ const handleCompleted = async (appointmentId: number) => {
                   Check In
                 </Button>
 
-                <Button v-if="appointment.status === 'checked-in'"
-                  @click="handleCompleted(appointment.id)" size="sm" variant="outline" class="min-w-[100px]">
+                <Button v-if="appointment.status === 'checked-in'" @click="handleCompleted(appointment.id)" size="sm"
+                  variant="outline" class="min-w-[100px]">
                   <Icon icon="lucide:check-circle" class="h-3 w-3 mr-1" />
                   Complete
                 </Button>
 
-                <Button v-if="appointment.status === 'scheduled'"
-                  @click="handleNoShow(appointment.id)" size="sm" variant="destructive" class="min-w-[100px]">
+                <Button v-if="appointment.status === 'scheduled'" @click="handleNoShow(appointment.id)" size="sm"
+                  variant="destructive" class="min-w-[100px]">
                   <Icon icon="lucide:x-circle" class="h-3 w-3 mr-1" />
                   No Show
                 </Button>
@@ -316,8 +333,8 @@ const handleCompleted = async (appointmentId: number) => {
             <Button v-if="appointment.status === 'scheduled'" @click="handleCheckIn(appointment.id)" size="sm">
               Check In
             </Button>
-            <Button v-if="appointment.status === 'checked-in'"
-              @click="handleCompleted(appointment.id)" size="sm" variant="outline">
+            <Button v-if="appointment.status === 'checked-in'" @click="handleCompleted(appointment.id)" size="sm"
+              variant="outline">
               Complete
             </Button>
             <Button v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
