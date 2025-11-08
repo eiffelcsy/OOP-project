@@ -1,5 +1,6 @@
 package com.clinic.management.controller;
 
+import com.clinic.management.config.TimezoneConfig;
 import com.clinic.management.dto.request.CreateQueueRequest;
 import com.clinic.management.dto.request.ListQueuesOptions;
 import com.clinic.management.dto.request.CreateQueueTicketRequest;
@@ -27,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+
+import com.clinic.management.repository.AppointmentRepository;
 
 /**
  * REST Controller for Staff, Appointment, Queue, and Patient management
@@ -39,6 +43,7 @@ import java.time.OffsetDateTime;
  * - POST /api/appointments - Schedule walk-in
  * - PUT /api/appointments/{id} - Reschedule appointment
  * - DELETE /api/appointments/{id} - Cancel appointment
+ * - PUT /api/appointments/{id}/status - Update appointment status
  * 
  * Queue Endpoints:
  * - POST /api/queues - Create queue
@@ -63,20 +68,21 @@ import java.time.OffsetDateTime;
 @Validated
 public class StaffController {
 
-    
-
     private final AppointmentService appointmentService;
     private final QueueService queueService;
     private final QueueTicketService queueTicketService;
     private final PatientService patientService;
+    private final AppointmentRepository appointmentRepository;
 
     @Autowired
     public StaffController(AppointmentService appointmentService, QueueService queueService,
-            QueueTicketService queueTicketService, PatientService patientService) {
+            QueueTicketService queueTicketService, PatientService patientService,
+            AppointmentRepository appointmentRepository) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
         this.patientService = patientService;
+        this.appointmentRepository = appointmentRepository;
     }
 
     // =========================
@@ -94,8 +100,10 @@ public class StaffController {
 
     /**
      * Get today's appointments for a clinic with enriched data
-     * This endpoint returns appointments with patient names, doctor names, clinic info, etc.
-     * Filters appointments to only show those scheduled for today (in Asia/Singapore timezone)
+     * This endpoint returns appointments with patient names, doctor names, clinic
+     * info, etc.
+     * Filters appointments to only show those scheduled for today (in
+     * Asia/Singapore timezone)
      * 
      * GET /api/staff/appointments/today/{clinicId}
      * 
@@ -155,6 +163,66 @@ public class StaffController {
             return ResponseEntity.badRequest().body(Map.of(
                     "error", "Failed to reschedule appointment",
                     "message", e.getMessage()));
+        }
+    }
+
+    // # Update Appointment Status
+    @PutMapping("/appointments/{id}/status")
+    public ResponseEntity<?> updateAppointmentStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> statusUpdate) {
+
+        try {
+            System.out.println("=== UPDATE APPOINTMENT STATUS ===");
+            System.out.println("Appointment ID: " + id);
+            System.out.println("Status update request: " + statusUpdate);
+
+            // Validate request
+            if (statusUpdate == null || !statusUpdate.containsKey("status")) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Missing status field",
+                        "message", "Request body must contain 'status' field"));
+            }
+
+            String newStatus = statusUpdate.get("status");
+            if (newStatus == null || newStatus.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Invalid status",
+                        "message", "Status cannot be null or empty"));
+            }
+
+            // Find appointment
+            Appointment appointment = appointmentRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
+
+            System.out.println("Found appointment:");
+            System.out.println("  - Current status: " + appointment.getStatus());
+            System.out.println("  - Patient ID: " + appointment.getPatientId());
+            System.out.println("  - Doctor ID: " + appointment.getDoctorId());
+
+            // Update appointment
+            appointment.setStatus(newStatus);
+            appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+
+            Appointment saved = appointmentRepository.save(appointment);
+
+            System.out.println("Successfully updated appointment status:");
+            System.out.println("  - New status: " + saved.getStatus());
+            System.out.println("  - Updated at: " + saved.getUpdatedAt());
+
+            return ResponseEntity.ok(saved);
+
+        } catch (RuntimeException e) {
+            System.out.println("Appointment not found error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "error", "Appointment not found",
+                    "message", e.getMessage()));
+        } catch (Exception e) {
+            System.out.println("Unexpected error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Internal server error",
+                    "message", "Failed to update appointment status: " + e.getMessage()));
         }
     }
 

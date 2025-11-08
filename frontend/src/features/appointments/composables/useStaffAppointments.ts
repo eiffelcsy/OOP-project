@@ -11,7 +11,7 @@ const { currentUser, initializeAuth } = useAuth()
 
 // Type aliases from database
 type Doctor = Tables<'doctors'>
-type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
+type AppointmentStatus = 'scheduled' | 'checked-in' | 'completed' | 'cancelled' | 'no-show'
 
 // Extended appointment interface for staff view
 export interface StaffAppointment {
@@ -116,11 +116,11 @@ export const useStaffAppointments = () => {
       todaysAppointments.value = data.map((appt) => {
         // Parse timestamps for formatting in 24-hour format (HH:mm)
         // The backend returns ISO 8601 strings with timezone info
-        const start = appt.start_time 
+        const start = appt.start_time
           ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
           : null
-        
-        const timeStr = start 
+
+        const timeStr = start
           ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`
           : '-'
 
@@ -128,7 +128,7 @@ export const useStaffAppointments = () => {
 
         // Map backend status to frontend status
         // Backend uses: scheduled, confirmed, cancelled
-        // Frontend uses: scheduled, checked-in, in-progress, completed, cancelled, no-show
+        // Frontend uses: scheduled, checked-in, completed, cancelled, no-show
         let mappedStatus: AppointmentStatus = 'scheduled'
         if (appt.status) {
           const backendStatus = appt.status.toLowerCase()
@@ -136,8 +136,8 @@ export const useStaffAppointments = () => {
             mappedStatus = 'scheduled'
           } else if (backendStatus === 'cancelled') {
             mappedStatus = 'cancelled'
-          } else if (backendStatus === 'checked-in' || backendStatus === 'in-progress' || 
-                     backendStatus === 'completed' || backendStatus === 'no-show') {
+          } else if (backendStatus === 'checked-in' ||
+            backendStatus === 'completed' || backendStatus === 'no-show') {
             mappedStatus = appt.status as AppointmentStatus
           }
         }
@@ -227,9 +227,6 @@ export const useStaffAppointments = () => {
   const noShowCount = computed(() =>
     todaysAppointments.value.filter(apt => apt.status === 'no-show').length
   )
-  const inProgressCount = computed(() =>
-    todaysAppointments.value.filter(apt => apt.status === 'in-progress').length
-  )
 
   // Actions
   const checkInPatient = async (appointmentId: number) => {
@@ -239,7 +236,12 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // 1) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
+      console.log('Starting check-in process for appointment:', appointmentId)
+
+      // 1) Update appointment status in backend to 'checked-in'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'checked-in')
+
+      // 2) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
       const clinicId = currentUser.value?.staff?.clinic_id
       if (!clinicId) {
         console.warn('Missing clinic_id on current user; cannot check in.')
@@ -265,12 +267,12 @@ export const useStaffAppointments = () => {
         return false
       }
 
-      // 2) Compute next ticket number by listing current tickets for this queue
+      // 3) Compute next ticket number by listing current tickets for this queue
       const existingTickets = await queueTicketsApi.list(activeQueue.id)
       const maxNumber = existingTickets.reduce((max, t) => Math.max(max, t.ticket_number || 0), 0)
       const nextNumber = (maxNumber || 0) + 1
 
-      // 3) Create the queue ticket via backend only
+      // 4) Create the queue ticket via backend only
       const payload: CreateQueueTicketRequest = {
         queue_id: activeQueue.id,
         appointment_id: appointment.id,
@@ -284,7 +286,7 @@ export const useStaffAppointments = () => {
 
       await queueTicketsApi.create(payload)
 
-      // 4) Update appointment status locally; realtime will update the queue UI elsewhere
+      // Update appointment status locally
       appointment.status = 'checked-in'
 
       return true
@@ -301,7 +303,10 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status locally (backend doesn't support this status yet)
+      // Update appointment status in backend to 'no-show'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'no-show')
+
+      // Update appointment status locally
       appointment.status = 'no-show'
 
       // Update queue management system
@@ -321,7 +326,10 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // Update appointment status locally (backend doesn't support this status yet)
+      // Update appointment status in backend to 'completed'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'completed')
+
+      // Update appointment status locally
       appointment.status = 'completed'
 
       // Update queue management system
@@ -376,7 +384,6 @@ export const useStaffAppointments = () => {
     checkedInCount,
     completedCount,
     noShowCount,
-    inProgressCount,
 
     // Actions
     checkInPatient,

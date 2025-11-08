@@ -259,19 +259,40 @@ export function useAllAppointments() {
     if (!doctorId || !selectedDate) return []
 
     try {
-      const selectedDateObj = typeof selectedDate === 'string'
-        ? new Date(selectedDate)
-        : new Date(selectedDate.toString())
-
-      const dayOfWeek = selectedDateObj.getDay() === 0 ? 7 : selectedDateObj.getDay()
-      const selectedDateStr = selectedDateObj.toISOString().split('T')[0]
+      // Get date string in YYYY-MM-DD format (SGT local date)
+      const selectedDateStr = typeof selectedDate === 'string'
+        ? selectedDate
+        : selectedDate.toString()
+      
+      const jsDate = new Date(selectedDateStr)
+      const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
       const schedules = await apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
 
+      // Helper: convert validity dates to SGT date strings for comparison
+      const toSgtDate = (raw: any): string | null => {
+        if (raw == null) return null
+        try {
+          const d = new Date(String(raw))
+          if (isNaN(d.getTime())) return null
+          return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+        } catch (_) {
+          return null
+        }
+      }
+
       const validSchedules = schedules.filter((sch: any) => {
-        const validFrom = new Date(sch.valid_from)
-        const validTo = new Date(sch.valid_to)
-        return sch.day_of_week === dayOfWeek && selectedDateObj >= validFrom && selectedDateObj <= validTo
+        if (sch.day_of_week !== dayOfWeek) return false
+        
+        const vFrom = toSgtDate(sch.valid_from)
+        const vTo = toSgtDate(sch.valid_to)
+        
+        // If vFrom exists and selectedDateStr is before it, exclude
+        if (vFrom && selectedDateStr < vFrom) return false
+        // If vTo exists and selectedDateStr is after it, exclude
+        if (vTo && selectedDateStr > vTo) return false
+        
+        return true
       })
 
       const slots: Tables<'time_slots'>[] = []
@@ -279,33 +300,50 @@ export function useAllAppointments() {
 
       validSchedules.forEach((schedule: any) => {
         const slotDuration = schedule.slot_duration_minutes
+        
+        // Backend returns LocalTime as "HH:MM:SS" in Singapore timezone
+        // Simply combine with the selected date to create SGT timestamps
+        const startTime = schedule.start_time.substring(0, 5) // HH:MM
+        const endTime = schedule.end_time.substring(0, 5) // HH:MM
 
-        const toSGTDate = (timeStr: string) => {
-          const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-          const d = new Date(selectedDateStr)
-          d.setHours(hours + 8, minutes, seconds || 0, 0) // add +8 for SGT
-          return d
+        // Parse time strings to minutes for iteration
+        const parseToMinutes = (t: string) => {
+          const [hh, mm] = t.split(':').map(Number)
+          return hh * 60 + mm
         }
 
-        let current = toSGTDate(schedule.start_time)
-        const endTime = toSGTDate(schedule.end_time)
+        const startMin = parseToMinutes(startTime)
+        let endMin = parseToMinutes(endTime)
+        
+        // Handle overnight schedules
+        if (endMin <= startMin) endMin += 24 * 60
 
-        while (current < endTime) {
-          const slotEnd = new Date(current)
-          slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
+        const toHHMM = (mins: number) => {
+          const m = mins % (24 * 60)
+          const h = Math.floor(m / 60).toString().padStart(2, '0')
+          const mm = (m % 60).toString().padStart(2, '0')
+          return `${h}:${mm}`
+        }
+
+        // Generate slots
+        for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
+          const slotStartTime = toHHMM(m)
+          const slotEndTime = toHHMM(m + slotDuration)
+          
+          // Create Singapore local datetime strings (no timezone conversion needed)
+          const slotStartIso = `${selectedDateStr}T${slotStartTime}:00+08:00`
+          const slotEndIso = `${selectedDateStr}T${slotEndTime}:00+08:00`
 
           slots.push({
             id: slotIndex++,
             doctor_id: doctorId,
             clinic_id: currentUser.value?.staff?.clinic_id ?? 0,
-            slot_start: `${current.getHours().toString().padStart(2, '0')}:${current.getMinutes().toString().padStart(2, '0')}`,
-            slot_end: `${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`,
+            slot_start: slotStartIso,
+            slot_end: slotEndIso,
             status: 'available',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-
-          current = slotEnd
         }
       })
 
@@ -332,31 +370,25 @@ export function useAllAppointments() {
 
       console.log("[RESCHEDULE] Starting reschedule for appointment:", appointmentId)
       console.log("[RESCHEDULE] Selected date:", newDate)
-      console.log("[RESCHEDULE] Selected time:", newTime)
+      console.log("[RESCHEDULE] Selected time (raw):", newTime)
 
-      // Parse selected date
-      const selectedDateObj = typeof newDate === "string"
-        ? new Date(newDate)
-        : new Date(newDate.toString())
-
-      const selectedDateStr = selectedDateObj.toISOString().split("T")[0]
-
-      // Convert SGT time to UTC properly
-      const [hours, minutes] = newTime.split(":").map(Number)
-
-      // Create date in SGT timezone (UTC+8)
-      const sgtDateString = `${selectedDateStr}T${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00+08:00`
-      const sgtDate = new Date(sgtDateString)
-
-      // Convert to UTC
-      const newStartTime = sgtDate.toISOString()
+      // newTime is now a full ISO timestamp like "2024-11-08T09:00:00+08:00"
+      // We need to use it directly as the start time
+      const newStartTime = newTime
+      
+      // Parse the ISO timestamp to calculate end time
+      const startDate = new Date(newStartTime)
+      
+      if (isNaN(startDate.getTime())) {
+        throw new Error(`Invalid start time: ${newTime}`)
+      }
 
       // Use 30 minutes as default duration
       const slotDuration = 30
-      const endDateTime = new Date(sgtDate.getTime() + slotDuration * 60 * 1000)
-      const newEndTime = endDateTime.toISOString()
+      const endDate = new Date(startDate.getTime() + slotDuration * 60 * 1000)
+      const newEndTime = endDate.toISOString()
 
-      console.log("[RESCHEDULE] Final UTC times:")
+      console.log("[RESCHEDULE] Final times:")
       console.log("  - Start:", newStartTime)
       console.log("  - End:", newEndTime)
       console.log("[RESCHEDULE] Calling appointmentsApi.updateAppointment with params:", { appointmentId, newStartTime, newEndTime })
@@ -387,7 +419,7 @@ export function useAllAppointments() {
       try {
         const dateStr = typeof date === 'string' ? date : date.toString()
         const generatedSlots = await generateTimeSlots(doctor.id, dateStr)
-        const selectedDateStr = new Date(dateStr).toISOString().split('T')[0]
+        const selectedDateStr = dateStr // Already in YYYY-MM-DD format
 
         const bookedAppointments = allAppointments.value.filter(
           (appt) =>
@@ -397,11 +429,13 @@ export function useAllAppointments() {
         )
 
         rescheduleAvailableSlots.value = generatedSlots.map((slot) => {
-          const slotStart = new Date(`${selectedDateStr}T${slot.slot_start}:00`)
-          const slotEnd = new Date(`${selectedDateStr}T${slot.slot_end}:00`)
+          // slot.slot_start and slot.slot_end are now full ISO timestamps like "2024-11-08T09:00:00+08:00"
+          const slotStart = new Date(slot.slot_start)
+          const slotEnd = new Date(slot.slot_end)
 
           const isBooked = bookedAppointments.some((appt) => {
-            const apptStart = new Date(`${appt.date}T${appt.time}:00`)
+            // appt.time is in HH:MM format, combine with date to create SGT timestamp
+            const apptStart = new Date(`${appt.date}T${appt.time}:00+08:00`)
             const apptEnd = new Date(apptStart)
             apptEnd.setMinutes(apptEnd.getMinutes() + 30)
             return slotStart < apptEnd && slotEnd > apptStart

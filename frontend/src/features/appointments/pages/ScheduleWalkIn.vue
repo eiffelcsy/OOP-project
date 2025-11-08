@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useScheduleWalkIn } from '../composables/useScheduleWalkIn'
 import { Stepper, StepperItem, StepperIndicator, StepperTitle, StepperDescription, StepperSeparator } from '@/components/ui/stepper'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +17,7 @@ const {
     staffClinic,
     availableDoctors,
     availableSlots,
+    availableDates,
     canProceedToNextStep,
     isLastStep,
     isFirstStep,
@@ -29,6 +30,22 @@ const {
     scheduleWalkIn,
     formatTime,
 } = useScheduleWalkIn()
+
+// Helper to convert a value (ref, Set, Array, iterable, plain object) into a safe array
+const toIterableArray = (maybeRef: any) => {
+    // unwrap ref-like values
+    const raw = (maybeRef && (maybeRef as any).value !== undefined) ? (maybeRef as any).value : maybeRef
+    if (!raw) return []
+    if (Array.isArray(raw)) return raw
+    if (raw instanceof Set) return Array.from(raw)
+    if (typeof raw === 'object' && typeof (raw as any)[Symbol.iterator] === 'function') {
+        try { return Array.from(raw) } catch { /* fallthrough */ }
+    }
+    if (typeof raw === 'object') return Object.values(raw)
+    return []
+}
+
+const availableDatesArray = computed(() => toIterableArray(availableDates))
 
 const isBookingConfirmed = ref(false)
 const bookingResult = ref<any>(null)
@@ -158,16 +175,13 @@ const updatePatient = () => {
                 <!-- Doctor Selection -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-semibold">Available Doctors</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         <Card v-for="doctor in availableDoctors.filter(d => d.active)" :key="doctor.id"
                             class="cursor-pointer transition-colors hover:bg-muted/50"
                             :class="{ 'ring-2 ring-primary': bookingData.doctor?.id === doctor.id }"
                             @click="selectDoctor(doctor)">
                             <CardHeader>
-                                <CardTitle class="text-lg flex items-center gap-2">
-                                    {{ doctor.name }}
-                                    <Badge variant="outline" class="text-xs">Available</Badge>
-                                </CardTitle>
+                                <CardTitle class="text-lg">{{ doctor.name }}</CardTitle>
                                 <CardDescription>
                                     <div class="space-y-1">
                                         <p class="font-medium">{{ doctor.specialty }}</p>
@@ -187,7 +201,14 @@ const updatePatient = () => {
                         </CardHeader>
                         <CardContent>
                             <Calendar v-model="calendarValue" :min-value="today(getLocalTimeZone())"
+                                :available-dates="availableDatesArray"
                                 @update:model-value="handleDateSelect" class="rounded-md border p-6" />
+                            
+                            <!-- Legend explaining the green highlight -->
+                            <p class="text-sm text-muted-foreground mt-3 flex items-center gap-2">
+                                <span class="inline-block size-4 rounded-full bg-green-100 border border-green-200 shrink-0" aria-hidden="true"></span>
+                                Days highlighted in light green have available time slots — select one to view times.
+                            </p>
                         </CardContent>
                     </Card>
 
@@ -201,13 +222,12 @@ const updatePatient = () => {
                         </CardHeader>
                         <CardContent>
                             <div v-if="bookingData.date" class="grid grid-cols-2 gap-2">
-                                <Button v-for="slot in availableSlots" :key="slot.id" :variant="slot.status === 'available'
-                                    ? (bookingData.timeSlot?.id === slot.id ? 'default' : 'outline')
-                                    : 'ghost'" size="sm" class="w-full" :disabled="slot.status !== 'available'"
+                                <Button v-for="slot in availableSlots" :key="slot.id"
+                                    :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
+                                    :disabled="slot.status !== 'available'"
                                     @click="slot.status === 'available' && selectTimeSlot(slot)">
-                                    {{ formatTime(slot.slot_start) }}
+                                    {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
                                 </Button>
-
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
                                 Select a date to view available time slots
@@ -254,8 +274,7 @@ const updatePatient = () => {
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{
-                                        formatTime(bookingData.timeSlot?.slot_start || '') }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start ? new Date(bookingData.timeSlot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }} - {{ bookingData.timeSlot?.slot_end ? new Date(bookingData.timeSlot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }}</p>
                                 </div>
                             </div>
                         </div>

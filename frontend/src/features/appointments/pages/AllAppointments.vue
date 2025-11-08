@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Icon } from '@iconify/vue'
+import { toast } from 'vue-sonner'
 
 // Composable
 const {
@@ -74,17 +75,29 @@ const handleCancel = async (appointmentId: number) => {
   const appt = allAppointments.value.find(a => a.id === appointmentId)
   if (!appt) return
 
-  const confirmed = confirm(`Are you sure you want to cancel the appointment for ${appt.patientName}?`)
-  if (confirmed) {
-    const success = await cancelAppointment(appointmentId)
-    if (success) {
-      // Success - UI should update automatically
-      console.log('Appointment cancelled successfully')
-    } else {
-      // Show error message from composable
-      alert('Failed to cancel appointment: ' + (error.value || 'Unknown error'))
+  // Show confirmation toast with action
+  toast('Cancel Appointment', {
+    description: `Are you sure you want to cancel the appointment for ${appt.patientName}?`,
+    action: {
+      label: 'Confirm',
+      onClick: async () => {
+        const success = await cancelAppointment(appointmentId)
+        if (success) {
+          toast.success('Appointment Cancelled', {
+            description: `The appointment for ${appt.patientName} has been cancelled successfully.`
+          })
+        } else {
+          toast.error('Cancellation Failed', {
+            description: error.value || 'Failed to cancel appointment. Please try again.'
+          })
+        }
+      }
+    },
+    cancel: {
+      label: 'Cancel',
+      onClick: () => {}
     }
-  }
+  })
 }
 
 // Open reschedule modal
@@ -92,7 +105,9 @@ const openReschedule = (appointmentId: number) => {
   const appt = allAppointments.value.find(a => a.id === appointmentId)
   if (!appt) return
   if (appt.status === 'completed') {
-    alert("Completed appointments cannot be rescheduled.")
+    toast.error('Cannot Reschedule', {
+      description: 'Completed appointments cannot be rescheduled.'
+    })
     return
   }
   rescheduleAppointmentId.value = appointmentId
@@ -109,9 +124,21 @@ const openReschedule = (appointmentId: number) => {
 // Confirm reschedule
 const confirmReschedule = async () => {
   if (!rescheduleAppointmentId.value || !rescheduleDoctorId.value) return
-  await rescheduleAppointment(rescheduleAppointmentId.value, rescheduleDate.value, rescheduleTime.value)
+  
+  const appt = allAppointments.value.find(a => a.id === rescheduleAppointmentId.value)
+  const success = await rescheduleAppointment(rescheduleAppointmentId.value, rescheduleDate.value, rescheduleTime.value)
+  
   showReschedule.value = false
-  alert("Appointment rescheduled successfully.")
+  
+  if (success) {
+    toast.success('Appointment Rescheduled', {
+      description: `The appointment for ${appt?.patientName || 'the patient'} has been rescheduled successfully.`
+    })
+  } else {
+    toast.error('Reschedule Failed', {
+      description: error.value || 'Failed to reschedule appointment. Please try again.'
+    })
+  }
 }
 
 // Add this function to your script section
@@ -273,12 +300,12 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
               </div>
 
               <div
-                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
+                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
                 <Button v-for="slot in rescheduleAvailableSlots" :key="slot.id"
                   :variant="rescheduleTime === slot.slot_start ? 'default' : 'outline'" class="h-11 font-medium"
                   :class="slot.status !== 'available' ? 'opacity-40 cursor-not-allowed' : ''"
                   :disabled="slot.status !== 'available'" @click="rescheduleTime = slot.slot_start">
-                  {{ slot.slot_start }}
+                  {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
                 </Button>
               </div>
             </div>

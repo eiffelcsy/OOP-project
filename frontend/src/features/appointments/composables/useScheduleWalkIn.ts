@@ -58,6 +58,8 @@ export const useScheduleWalkIn = () => {
   const availableDoctors = ref<Doctor[]>([])
   const clinicAppointments = ref<AppointmentResponse[]>([])
   const availableSlots = ref<TimeSlot[]>([])
+  const fetchedSchedules = ref<any[]>([])
+  const fetchedSchedulesRaw = ref<any[]>([])
 
   const fetchClinic = async (clinicId: number) => {
     try {
@@ -101,6 +103,18 @@ export const useScheduleWalkIn = () => {
     }
   }
 
+  // Helper: convert various timestamp formats to SGT date string 'YYYY-MM-DD'
+  const toSgtDate = (raw: any): string | null => {
+    if (raw == null) return null
+    try {
+      const d = new Date(String(raw))
+      if (isNaN(d.getTime())) return null
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    } catch (_) {
+      return null
+    }
+  }
+
   onMounted(async () => {
     await initializeAuth()
 
@@ -118,20 +132,64 @@ export const useScheduleWalkIn = () => {
     )
   })
 
+  // Fetch and store schedules for a doctor (used for calendar availability)
+  const fetchSchedulesForDoctor = async (doctorId: number) => {
+    try {
+      const schedules = await schedulesApi.getSchedulesByDoctorId(doctorId)
+
+      // Store raw schedules
+      fetchedSchedulesRaw.value = schedules
+
+      // Determine target date in SGT for validity checks
+      const targetDateStr = bookingData.value.date
+        ? String(bookingData.value.date)
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+
+      // Filter schedules that are valid for the target date
+      const activeSchedules = schedules.filter((sch: any) => {
+        const vFrom = toSgtDate(sch.valid_from)
+        const vTo = toSgtDate(sch.valid_to)
+
+        if (vFrom && targetDateStr < vFrom) return false
+        if (vTo && targetDateStr > vTo) return false
+
+        return true
+      })
+
+      fetchedSchedules.value = activeSchedules
+      return schedules
+    } catch (err) {
+      console.error('Error fetching schedules:', err)
+      return []
+    }
+  }
+
   // --- Slot generation ---
   const generateTimeSlots = async (doctorId: number, selectedDate: DateValue) => {
     if (!doctorId || !selectedDate) return []
 
-    const selectedDateStr = new Date(selectedDate.toString()).toISOString().split('T')[0]
-    const dayOfWeek = new Date(selectedDate.toString()).getDay() === 0 ? 7 : new Date(selectedDate.toString()).getDay()
+    // Get date string in YYYY-MM-DD format (SGT local date)
+    const selectedDateStr = selectedDate.toString()
+    const jsDate = new Date(selectedDateStr)
+    const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
-    const schedules = await schedulesApi.getSchedulesByDoctorId(doctorId)
+    // Use cached schedules if available, otherwise fetch
+    const schedules = fetchedSchedulesRaw.value.length > 0
+      ? fetchedSchedulesRaw.value
+      : await fetchSchedulesForDoctor(doctorId)
 
     const validSchedules = schedules.filter((sch: any) => {
-      const validFrom = new Date(sch.valid_from)
-      const validTo = new Date(sch.valid_to)
-      const selected = new Date(selectedDate.toString())
-      return sch.day_of_week === dayOfWeek && selected >= validFrom && selected <= validTo
+      if (sch.day_of_week !== dayOfWeek) return false
+
+      const vFrom = toSgtDate(sch.valid_from)
+      const vTo = toSgtDate(sch.valid_to)
+
+      // If vFrom exists and selectedDateStr is before it, exclude
+      if (vFrom && selectedDateStr < vFrom) return false
+      // If vTo exists and selectedDateStr is after it, exclude
+      if (vTo && selectedDateStr > vTo) return false
+
+      return true
     })
 
     const slots: TimeSlot[] = []
@@ -140,32 +198,49 @@ export const useScheduleWalkIn = () => {
     validSchedules.forEach((schedule: any) => {
       const slotDuration = schedule.slot_duration_minutes
 
-      const toUtcDate = (timeStr: string) => {
-        const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-        const d = new Date(`${selectedDateStr}T00:00:00Z`)
-        d.setUTCHours(hours, minutes, seconds || 0)
-        return d
+      // Backend returns LocalTime as "HH:MM:SS" in Singapore timezone
+      // Simply combine with the selected date to create SGT timestamps
+      const startTime = schedule.start_time.substring(0, 5) // HH:MM
+      const endTime = schedule.end_time.substring(0, 5) // HH:MM
+
+      // Parse time strings to minutes for iteration
+      const parseToMinutes = (t: string) => {
+        const [hh, mm] = t.split(':').map(Number)
+        return hh * 60 + mm
       }
 
-      let current = toUtcDate(schedule.start_time)
-      const endTime = toUtcDate(schedule.end_time)
+      const startMin = parseToMinutes(startTime)
+      let endMin = parseToMinutes(endTime)
 
-      while (current < endTime) {
-        const slotEnd = new Date(current)
-        slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
+      // Handle overnight schedules
+      if (endMin <= startMin) endMin += 24 * 60
+
+      const toHHMM = (mins: number) => {
+        const m = mins % (24 * 60)
+        const h = Math.floor(m / 60).toString().padStart(2, '0')
+        const mm = (m % 60).toString().padStart(2, '0')
+        return `${h}:${mm}`
+      }
+
+      // Generate slots
+      for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
+        const slotStartTime = toHHMM(m)
+        const slotEndTime = toHHMM(m + slotDuration)
+
+        // Create Singapore local datetime strings (no timezone conversion needed)
+        const slotStartIso = `${selectedDateStr}T${slotStartTime}:00+08:00`
+        const slotEndIso = `${selectedDateStr}T${slotEndTime}:00+08:00`
 
         slots.push({
           id: slotIndex++,
           doctor_id: doctorId,
           clinic_id: staffClinic.value.id,
-          slot_start: current.toISOString(),
-          slot_end: slotEnd.toISOString(),
+          slot_start: slotStartIso,
+          slot_end: slotEndIso,
           status: 'available',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-
-        current = slotEnd
       }
     })
 
@@ -173,16 +248,124 @@ export const useScheduleWalkIn = () => {
   }
 
 
+  // Computed: available dates with at least one free slot
+  const availableDates = computed(() => {
+    const out = new Set<string>()
+    const doctorId = bookingData.value.doctor?.id
+    if (!doctorId || fetchedSchedulesRaw.value.length === 0) return out
+
+    const daysAhead = 60
+    const nowMs = Date.now()
+    const todaySgt = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+    const today = new Date()
+
+    for (let i = 0; i <= daysAhead; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const jsDay = d.getDay()
+      const dayNum = jsDay === 0 ? 7 : jsDay
+
+      const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+
+      // Find schedule rows for this weekday
+      const rows = fetchedSchedulesRaw.value.filter((r: any) => Number(r.day_of_week) === Number(dayNum))
+      if (!rows || rows.length === 0) continue
+
+      let dateHasFree = false
+      for (const row of rows) {
+        // Check validity for this specific date
+        const vFrom = toSgtDate(row.valid_from)
+        const vTo = toSgtDate(row.valid_to)
+        if (vFrom && dateStr < vFrom) continue
+        if (vTo && dateStr > vTo) continue
+
+        // Generate slots for this row
+        const startTime = row.start_time.substring(0, 5)
+        const endTime = row.end_time.substring(0, 5)
+        const slotDuration = row.slot_duration_minutes
+
+        const parseToMinutes = (t: string) => {
+          const [hh, mm] = t.split(':').map(Number)
+          return hh * 60 + mm
+        }
+
+        const startMin = parseToMinutes(startTime)
+        let endMin = parseToMinutes(endTime)
+        if (endMin <= startMin) endMin += 24 * 60
+
+        const toHHMM = (mins: number) => {
+          const m = mins % (24 * 60)
+          const h = Math.floor(m / 60).toString().padStart(2, '0')
+          const mm = (m % 60).toString().padStart(2, '0')
+          return `${h}:${mm}`
+        }
+
+        // Check if any slot is free
+        for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
+          const slotStartTime = toHHMM(m)
+          const slotStartIso = `${dateStr}T${slotStartTime}:00+08:00`
+
+          // If today, check if slot is in the future
+          if (dateStr === todaySgt) {
+            const slotStartMs = new Date(slotStartIso).getTime()
+            if (slotStartMs <= nowMs) continue
+          }
+
+          // Check if slot is booked
+          const slotEndTime = toHHMM(m + slotDuration)
+          const slotEndIso = `${dateStr}T${slotEndTime}:00+08:00`
+
+          const blockingStatuses = ['checked_in', 'completed', 'scheduled', 'confirmed']
+          const isBooked = clinicAppointments.value.some(appt => {
+            if (appt.doctor_id !== doctorId) return false
+            const status = appt.status || ''
+            if (!blockingStatuses.includes(status)) return false
+
+            const apptStart = new Date(appt.start_time).getTime()
+            const apptEnd = new Date(appt.end_time).getTime()
+            const sMs = new Date(slotStartIso).getTime()
+            const eMs = new Date(slotEndIso).getTime()
+
+            return apptStart < eMs && apptEnd > sMs
+          })
+
+          if (!isBooked) {
+            dateHasFree = true
+            break
+          }
+        }
+
+        if (dateHasFree) break
+      }
+
+      if (dateHasFree) out.add(dateStr)
+    }
+
+    return out
+  })
+
   watch(
     [() => bookingData.value.doctor, () => bookingData.value.date],
     async ([doctor, date]) => {
-      if (!doctor || !date) {
+      if (!doctor) {
+        availableSlots.value = []
+        fetchedSchedules.value = []
+        fetchedSchedulesRaw.value = []
+        return
+      }
+
+      // Fetch schedules when doctor changes
+      if (doctor && fetchedSchedulesRaw.value.length === 0) {
+        await fetchSchedulesForDoctor(doctor.id)
+      }
+
+      if (!date) {
         availableSlots.value = []
         return
       }
 
       const generatedSlots = await generateTimeSlots(doctor.id, date as DateValue)
-      const selectedDateStr = new Date(date.toString()).toISOString().split('T')[0]
+      const selectedDateStr = date.toString()
 
       const bookedAppointments = clinicAppointments.value.filter(
         (appt) =>
@@ -255,18 +438,40 @@ export const useScheduleWalkIn = () => {
         throw new Error('Incomplete booking data')
       }
 
-      // Fetch patient ID by NRIC
+      // Check if patient exists by NRIC using only available methods
       const patients = await patientsApi.getAllPatients()
-      const patient = patients.find(
-        (p: any) => p.nric.trim().toUpperCase() === bookingData.value.patient?.nric.trim().toUpperCase()
-      )
-      if (!patient) throw new Error('Patient not found')
-      const patientId = patient.id
 
-      // Prepare start and end time in UTC
-      const startTime = new Date(bookingData.value.timeSlot.slot_start).toISOString()
-      const slotDurationMinutes = (new Date(bookingData.value.timeSlot.slot_end).getTime() - new Date(bookingData.value.timeSlot.slot_start).getTime()) / 60000
-      const endTime = new Date(new Date(startTime).getTime() + slotDurationMinutes * 60 * 1000).toISOString()
+      // SAFE VERSION: Handle null/undefined NRIC values
+      const existingPatient = patients.find((p: any) => {
+        // Check if patient NRIC exists and is not null/undefined
+        if (!p.nric) return false
+
+        // Check if booking data NRIC exists and is not null/undefined  
+        if (!bookingData.value.patient?.nric) return false
+
+        // Compare both NRICs safely
+        return p.nric.trim().toUpperCase() === bookingData.value.patient!.nric.trim().toUpperCase()
+      })
+
+      if (!existingPatient) {
+        throw new Error(`Patient with NRIC ${bookingData.value.patient.nric} not found. Please use an existing patient.`)
+      }
+
+      const patientId = existingPatient.id
+      console.log('Using existing patient:', existingPatient)
+
+      // DEBUG: Check patient details for email
+      console.log('🔍 Patient details for email:', {
+        id: existingPatient.id,
+        nric: existingPatient.nric,
+        user_id: existingPatient.user_id,
+        email: existingPatient.email, // Check if email exists
+        full_name: existingPatient.full_name
+      })
+
+      // Use the timestamps directly from the slot
+      const startTime = bookingData.value.timeSlot.slot_start
+      const endTime = bookingData.value.timeSlot.slot_end
 
       // Build appointment payload
       const appointmentPayload = {
@@ -280,7 +485,6 @@ export const useScheduleWalkIn = () => {
       }
       console.log('Appointment payload:', appointmentPayload)
 
-
       // Add Idempotency-Key to prevent duplicate bookings
       const idempotencyKeyRef = (bookingData as any)._idempotencyKey ||= ref<string | null>(null)
       if (!idempotencyKeyRef.value) {
@@ -290,21 +494,26 @@ export const useScheduleWalkIn = () => {
       // POST to backend using appointmentsApi
       const appointment = await appointmentsApi.createAppointment(appointmentPayload, idempotencyKeyRef.value)
 
+      console.log('Appointment created successfully. Email should be sent automatically by backend.')
+
       return {
         success: true,
         appointmentId: appointment.id,
-        queueNumber: Math.floor(Math.random() * 50) + 1
+        queueNumber: Math.floor(Math.random() * 50) + 1,
+        message: 'Appointment scheduled successfully! A confirmation email has been sent.'
       }
     } catch (err: any) {
-      console.error(err)
-      return { success: false, error: err.message || 'Failed to schedule walk-in appointment' }
+      console.error('Error scheduling walk-in:', err)
+      return {
+        success: false,
+        error: err.message || 'Failed to schedule walk-in appointment'
+      }
     }
   }
 
-
   return {
     currentStep, bookingData, staffClinic, availableDoctors,
-    availableSlots, canProceedToNextStep, isLastStep, isFirstStep,
+    availableSlots, availableDates, canProceedToNextStep, isLastStep, isFirstStep,
     updatePatientInfo, selectDoctor, selectDate, selectTimeSlot,
     nextStep, previousStep, goToStep, resetBooking, scheduleWalkIn,
     formatTime

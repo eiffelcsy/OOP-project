@@ -36,7 +36,31 @@ import com.clinic.management.model.Doctor;
 
 
 
-
+/**
+ * REST Controller for Patient-facing operations
+ * Provides endpoints for patient self-service, appointment management, and clinic information
+ * 
+ * Base path: /api/patient
+ * 
+ * Appointment Endpoints:
+ * - POST /api/patient/appointments - Book appointment (authenticated patient)
+ * - GET /api/patient/appointments - View patient's appointments
+ * - PUT /api/patient/appointments/{id} - Reschedule own appointment
+ * - DELETE /api/patient/appointments/{id} - Cancel own appointment
+ * - GET /api/patient/appointments/debug - Debug appointment scheduling (check overlaps)
+ * 
+ * Clinic & Doctor Endpoints:
+ * - GET /api/patient/clinics - List all clinics
+ * - GET /api/patient/doctors/clinic/{clinicId} - Get doctors by clinic
+ * 
+ * Queue Endpoints:
+ * - GET /api/patient/{patientId}/queue - Get patient's current queue information
+ * 
+ * Patient Profile Endpoints:
+ * - GET /api/patient/all - Get all patients
+ * - GET /api/patient/{id} - Get patient by ID
+ * - GET /api/patient/user/{userId} - Get patient by Supabase user UUID
+ */
 @RestController
 @RequestMapping("/api/patient")
 public class PatientController {

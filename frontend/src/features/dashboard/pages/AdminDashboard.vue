@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -7,6 +8,8 @@ import { Icon } from '@iconify/vue'
 import { statisticsApi } from '@/services/statisticsApi'
 import type { SystemMetrics, SystemStatus, SystemUsage } from '@/services/statisticsApi'
 import { toast } from 'vue-sonner'
+
+const router = useRouter()
 
 // Key Metrics Data
 const metrics = ref<SystemMetrics>({
@@ -62,52 +65,27 @@ const quickActions = [
     title: 'Create User Account',
     description: 'Add new system user',
     icon: 'lucide:user-plus',
-    action: () => handleCreateUser()
+    route: '/admin/users/create'
   },
   {
     title: 'Add New Clinic',
     description: 'Register new healthcare facility',
     icon: 'lucide:plus',
-    action: () => handleAddClinic()
+    route: '/admin/clinics/create'
   },
   {
-    title: 'View System Alerts',
-    description: 'Check system notifications',
-    icon: 'lucide:alert-triangle',
-    action: () => handleViewAlerts()
-  },
-  {
-    title: 'Search Users',
+    title: 'All Users',
     description: 'Find and manage users',
     icon: 'lucide:search',
-    action: () => handleUserSearch()
+    route: '/admin/users'
+  },
+  {
+    title: 'All Clinics',
+    description: 'View and manage clinics',
+    icon: 'lucide:building-2',
+    route: '/admin/clinics'
   }
 ]
-
-// Action handlers (dummy implementations)
-const handleCreateUser = () => {
-  console.log('Opening create user dialog...')
-  // TODO: Implement user creation dialog
-  alert('Create User Account feature - Coming Soon!')
-}
-
-const handleAddClinic = () => {
-  console.log('Opening add clinic dialog...')
-  // TODO: Implement clinic creation dialog
-  alert('Add New Clinic feature - Coming Soon!')
-}
-
-const handleViewAlerts = () => {
-  console.log('Opening system alerts...')
-  // TODO: Navigate to alerts page
-  alert('System Alerts view - Coming Soon!')
-}
-
-const handleUserSearch = () => {
-  console.log('Opening user search...')
-  // TODO: Navigate to user search page
-  alert('User Search feature - Coming Soon!')
-}
 
 /**
  * Fetch system statistics from the backend
@@ -117,10 +95,14 @@ const fetchStatistics = async () => {
     // Fetch main statistics
     const stats = await statisticsApi.getSystemStatistics()
     
+    console.log('Fetched statistics:', stats)
+    
     // Update reactive refs with fetched data
     metrics.value = stats.metrics
     systemStatus.value = stats.system_status
     systemUsage.value = stats.system_usage
+    
+    console.log('Updated systemUsage:', systemUsage.value)
     
     // Fetch new registrations (last 24 hours)
     const registrations = await statisticsApi.getNewRegistrations(24)
@@ -344,9 +326,12 @@ onUnmounted(() => {
         </CardHeader>
         <CardContent>
           <div class="flex flex-col gap-4">
-            <Button v-for="action in quickActions" :key="action.title" variant="outline"
+            <Button 
+              v-for="action in quickActions" 
+              :key="action.title" 
+              variant="outline"
               class="h-auto p-4 flex flex-col items-start gap-2 hover:bg-accent hover:text-accent-foreground"
-              @click="action.action">
+              @click="router.push(action.route)">
               <Icon :icon="action.icon" class="h-5 w-5 text-muted-foreground" />
               <div class="text-left">
                 <div class="font-medium">{{ action.title }}</div>
