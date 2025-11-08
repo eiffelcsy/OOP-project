@@ -31,18 +31,18 @@ const selectedDoctorId = ref<number | null>(null)
 const searchQuery = ref('')
 
 // Current time tracking
-const currentTime = ref(new Date().toLocaleTimeString('en-SG', { 
-  hour: '2-digit', 
+const currentTime = ref(new Date().toLocaleTimeString('en-SG', {
+  hour: '2-digit',
   minute: '2-digit',
-  hour12: false 
+  hour12: false
 }))
 
 // Update time every minute
 setInterval(() => {
-  currentTime.value = new Date().toLocaleTimeString('en-SG', { 
-    hour: '2-digit', 
+  currentTime.value = new Date().toLocaleTimeString('en-SG', {
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: false 
+    hour12: false
   })
 }, 60000)
 
@@ -51,7 +51,7 @@ const filteredAppointmentsByDoctor = computed(() => {
   if (!selectedDoctorId.value) {
     return appointmentsByDoctor.value
   }
-  
+
   const filtered = new Map()
   if (appointmentsByDoctor.value.has(selectedDoctorId.value)) {
     filtered.set(selectedDoctorId.value, appointmentsByDoctor.value.get(selectedDoctorId.value))
@@ -64,7 +64,7 @@ const filteredAppointmentsList = computed(() => {
   return todaysAppointments.value
     .filter(appt => {
       const matchesSearch = appt.patientName.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-                           appt.doctorName.toLowerCase().includes(searchQuery.value.toLowerCase())
+        appt.doctorName.toLowerCase().includes(searchQuery.value.toLowerCase())
       const matchesDoctor = selectedDoctorId.value === null || appt.doctorId === selectedDoctorId.value
       return matchesSearch && matchesDoctor
     })
@@ -105,26 +105,20 @@ const handleCompleted = async (appointmentId: number) => {
     <div class="flex items-center justify-between">
       <div class="flex flex-col gap-1">
         <h1 class="text-3xl font-bold tracking-tight">Today's Appointments</h1>
-        <p class="text-muted-foreground">{{ new Date().toLocaleDateString('en-SG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</p>
+        <p class="text-muted-foreground">{{ new Date().toLocaleDateString('en-SG', {
+          weekday: 'long', year: 'numeric',
+          month: 'long', day: 'numeric' }) }}</p>
       </div>
       <div class="flex items-center gap-4">
         <div class="text-sm text-muted-foreground">
           Current Time: <span class="font-mono font-medium">{{ formatTime(currentTime) }}</span>
         </div>
         <div class="flex gap-2">
-          <Button 
-            :variant="viewMode === 'doctor' ? 'default' : 'outline'"
-            @click="viewMode = 'doctor'"
-            size="sm"
-          >
+          <Button :variant="viewMode === 'doctor' ? 'default' : 'outline'" @click="viewMode = 'doctor'" size="sm">
             <Icon icon="lucide:users" class="h-4 w-4 mr-2" />
             By Doctor
           </Button>
-          <Button 
-            :variant="viewMode === 'list' ? 'default' : 'outline'"
-            @click="viewMode = 'list'"
-            size="sm"
-          >
+          <Button :variant="viewMode === 'list' ? 'default' : 'outline'" @click="viewMode = 'list'" size="sm">
             <Icon icon="lucide:list" class="h-4 w-4 mr-2" />
             List View
           </Button>
@@ -193,29 +187,17 @@ const handleCompleted = async (appointmentId: number) => {
     <!-- Filters -->
     <div class="flex items-center gap-4">
       <div class="w-64">
-        <input 
-          v-model="searchQuery" 
-          type="text" 
-          placeholder="Search patient or doctor..." 
-          class="w-full h-10 border rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-primary"
-        />
+        <input v-model="searchQuery" type="text" placeholder="Search patient or doctor..."
+          class="w-full h-10 border rounded-md px-3 focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
       <span class="text-sm font-medium">Filter by Doctor:</span>
       <div class="flex gap-2 flex-wrap">
-        <Button 
-          :variant="selectedDoctorId === null ? 'default' : 'outline'"
-          @click="selectedDoctorId = null"
-          size="sm"
-        >
+        <Button :variant="selectedDoctorId === null ? 'default' : 'outline'" @click="selectedDoctorId = null" size="sm">
           All Doctors
         </Button>
-        <Button 
-          v-for="doctor in doctors"
-          :key="doctor.id"
-          :variant="selectedDoctorId === doctor.id ? 'default' : 'outline'"
-          @click="selectedDoctorId = doctor.id"
-          size="sm"
-        >
+        <Button v-for="doctor in doctors" :key="doctor.id"
+          :variant="selectedDoctorId === doctor.id ? 'default' : 'outline'" @click="selectedDoctorId = doctor.id"
+          size="sm">
           {{ doctor.name }}
         </Button>
       </div>
@@ -228,7 +210,7 @@ const handleCompleted = async (appointmentId: number) => {
         <h3 class="text-lg font-medium text-muted-foreground">No appointments found</h3>
         <p class="text-sm text-muted-foreground">There are no appointments for the selected criteria.</p>
       </div>
-      
+
       <div v-for="[doctorId, appointments] in filteredAppointmentsByDoctor" :key="doctorId" class="space-y-4">
         <div class="flex items-center gap-3">
           <h2 class="text-xl font-semibold">Dr. {{ getDoctorById(doctorId)?.name }}</h2>
@@ -237,19 +219,15 @@ const handleCompleted = async (appointmentId: number) => {
           </Badge>
           <Badge variant="secondary">{{ appointments.length }} appointments</Badge>
         </div>
-        
+
         <div class="grid gap-4">
-          <Card 
-            v-for="appointment in appointments" 
-            :key="appointment.id"
-            :class="[
-              'transition-all duration-200 hover:shadow-md',
-              appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
-              appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
-              appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
-              appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
-            ]"
-          >
+          <Card v-for="appointment in appointments" :key="appointment.id" :class="[
+            'transition-all duration-200 hover:shadow-md',
+            appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
+            appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
+            appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
+            appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
+          ]">
             <CardHeader class="flex flex-row items-start justify-between space-y-0">
               <div class="space-y-3 flex-1">
                 <div class="flex items-center gap-3">
@@ -265,13 +243,14 @@ const handleCompleted = async (appointmentId: number) => {
                     {{ appointment.status.replace('-', ' ').toUpperCase() }}
                   </Badge>
                 </div>
-                
+
                 <div class="space-y-1">
                   <h3 class="font-semibold text-lg">{{ appointment.patientName }}</h3>
                   <p class="text-sm text-muted-foreground">
                     {{ appointment.type }}
                   </p>
-                  <p v-if="appointment.patientPhone && appointment.patientPhone !== '-'" class="text-sm text-muted-foreground">
+                  <p v-if="appointment.patientPhone && appointment.patientPhone !== '-'"
+                    class="text-sm text-muted-foreground">
                     <Icon icon="lucide:phone" class="h-3 w-3 inline mr-1" />
                     {{ appointment.patientPhone }}
                   </p>
@@ -281,37 +260,23 @@ const handleCompleted = async (appointmentId: number) => {
                   </p>
                 </div>
               </div>
-              
+
               <!-- Quick Actions -->
               <div class="flex flex-col gap-2 ml-6">
-                <Button 
-                  v-if="appointment.status === 'scheduled'"
-                  @click="handleCheckIn(appointment.id)"
-                  size="sm"
-                  class="min-w-[100px]"
-                >
+                <Button v-if="appointment.status === 'scheduled'" @click="handleCheckIn(appointment.id)" size="sm"
+                  class="min-w-[100px]">
                   <Icon icon="lucide:user-check" class="h-3 w-3 mr-1" />
                   Check In
                 </Button>
-                
-                <Button 
-                  v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
-                  @click="handleCompleted(appointment.id)"
-                  size="sm"
-                  variant="outline"
-                  class="min-w-[100px]"
-                >
+
+                <Button v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+                  @click="handleCompleted(appointment.id)" size="sm" variant="outline" class="min-w-[100px]">
                   <Icon icon="lucide:check-circle" class="h-3 w-3 mr-1" />
                   Complete
                 </Button>
-                
-                <Button 
-                  v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
-                  @click="handleNoShow(appointment.id)"
-                  size="sm"
-                  variant="destructive"
-                  class="min-w-[100px]"
-                >
+
+                <Button v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
+                  @click="handleNoShow(appointment.id)" size="sm" variant="destructive" class="min-w-[100px]">
                   <Icon icon="lucide:x-circle" class="h-3 w-3 mr-1" />
                   No Show
                 </Button>
@@ -330,17 +295,13 @@ const handleCompleted = async (appointmentId: number) => {
         <p class="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
       </div>
 
-      <Card 
-        v-for="appointment in filteredAppointmentsList" 
-        :key="appointment.id"
-        :class="[
-          'transition-all duration-200 hover:shadow-md',
-          appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
-          appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
-          appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
-          appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
-        ]"
-      >
+      <Card v-for="appointment in filteredAppointmentsList" :key="appointment.id" :class="[
+        'transition-all duration-200 hover:shadow-md',
+        appointment.status === 'in-progress' ? 'border-blue-200 bg-blue-50' : '',
+        appointment.status === 'completed' ? 'border-green-200 bg-green-50' : '',
+        appointment.status === 'no-show' ? 'border-red-200 bg-red-50' : '',
+        appointment.status === 'checked-in' ? 'border-yellow-200 bg-yellow-50' : ''
+      ]">
         <CardHeader class="flex flex-row items-center justify-between space-y-0">
           <div class="flex-1">
             <CardTitle class="flex items-center gap-3">
@@ -357,7 +318,8 @@ const handleCompleted = async (appointmentId: number) => {
               </Badge>
             </CardTitle>
             <p class="text-sm text-muted-foreground mt-2">
-              {{ formatTime(appointment.time) }} • Dr. {{ appointment.doctorName }} ({{ appointment.doctorSpecialty }}) • {{ appointment.clinicName }} ({{ appointment.clinicType }})
+              {{ formatTime(appointment.time) }} • Dr. {{ appointment.doctorName }} ({{ appointment.doctorSpecialty }})
+              • {{ appointment.clinicName }} ({{ appointment.clinicType }})
             </p>
             <p class="text-sm text-muted-foreground">
               {{ appointment.type }}
@@ -365,27 +327,15 @@ const handleCompleted = async (appointmentId: number) => {
           </div>
 
           <div class="flex gap-2">
-            <Button 
-              v-if="appointment.status === 'scheduled'"
-              @click="handleCheckIn(appointment.id)"
-              size="sm"
-            >
+            <Button v-if="appointment.status === 'scheduled'" @click="handleCheckIn(appointment.id)" size="sm">
               Check In
             </Button>
-            <Button 
-              v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
-              @click="handleCompleted(appointment.id)"
-              size="sm"
-              variant="outline"
-            >
+            <Button v-if="appointment.status === 'checked-in' || appointment.status === 'in-progress'"
+              @click="handleCompleted(appointment.id)" size="sm" variant="outline">
               Complete
             </Button>
-            <Button 
-              v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
-              @click="handleNoShow(appointment.id)"
-              size="sm"
-              variant="destructive"
-            >
+            <Button v-if="appointment.status === 'scheduled' || appointment.status === 'checked-in'"
+              @click="handleNoShow(appointment.id)" size="sm" variant="destructive">
               No Show
             </Button>
           </div>

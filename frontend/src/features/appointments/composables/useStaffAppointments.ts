@@ -116,11 +116,11 @@ export const useStaffAppointments = () => {
       todaysAppointments.value = data.map((appt) => {
         // Parse timestamps for formatting in 24-hour format (HH:mm)
         // The backend returns ISO 8601 strings with timezone info
-        const start = appt.start_time 
+        const start = appt.start_time
           ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
           : null
-        
-        const timeStr = start 
+
+        const timeStr = start
           ? `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`
           : '-'
 
@@ -136,8 +136,8 @@ export const useStaffAppointments = () => {
             mappedStatus = 'scheduled'
           } else if (backendStatus === 'cancelled') {
             mappedStatus = 'cancelled'
-          } else if (backendStatus === 'checked-in' || backendStatus === 'in-progress' || 
-                     backendStatus === 'completed' || backendStatus === 'no-show') {
+          } else if (backendStatus === 'checked-in' || backendStatus === 'in-progress' ||
+            backendStatus === 'completed' || backendStatus === 'no-show') {
             mappedStatus = appt.status as AppointmentStatus
           }
         }
@@ -239,7 +239,12 @@ export const useStaffAppointments = () => {
     }
 
     try {
-      // 1) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
+      console.log('Starting check-in process for appointment:', appointmentId)
+
+      // 1) Update appointment status in backend to 'checked-in'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'checked-in')
+
+      // 2) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
       const clinicId = currentUser.value?.staff?.clinic_id
       if (!clinicId) {
         console.warn('Missing clinic_id on current user; cannot check in.')
@@ -265,12 +270,12 @@ export const useStaffAppointments = () => {
         return false
       }
 
-      // 2) Compute next ticket number by listing current tickets for this queue
+      // 3) Compute next ticket number by listing current tickets for this queue
       const existingTickets = await queueTicketsApi.list(activeQueue.id)
       const maxNumber = existingTickets.reduce((max, t) => Math.max(max, t.ticket_number || 0), 0)
       const nextNumber = (maxNumber || 0) + 1
 
-      // 3) Create the queue ticket via backend only
+      // 4) Create the queue ticket via backend only
       const payload: CreateQueueTicketRequest = {
         queue_id: activeQueue.id,
         appointment_id: appointment.id,
@@ -284,7 +289,7 @@ export const useStaffAppointments = () => {
 
       await queueTicketsApi.create(payload)
 
-      // 4) Update appointment status locally; realtime will update the queue UI elsewhere
+      // 5) Update appointment status locally; realtime will update the queue UI elsewhere
       appointment.status = 'checked-in'
 
       return true

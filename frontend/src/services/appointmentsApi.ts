@@ -108,7 +108,7 @@ export const appointmentsApi = {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     }
-    
+
     if (idempotencyKey) {
       headers['Idempotency-Key'] = idempotencyKey
     }
@@ -189,18 +189,30 @@ export const appointmentsApi = {
    * PUT /api/appointments/{id}?newStartTime={start}&newEndTime={end}
    */
   async updateAppointment(
-    id: number, 
-    newStartTime?: string, 
+    id: number,
+    newStartTime?: string,
     newEndTime?: string
   ): Promise<AppointmentResponse> {
     const params = new URLSearchParams()
     if (newStartTime) params.append('newStartTime', newStartTime)
     if (newEndTime) params.append('newEndTime', newEndTime)
-    
+
     const queryString = params.toString()
     const endpoint = queryString ? `/api/appointments/${id}?${queryString}` : `/api/appointments/${id}`
-    
+
     return apiClient.put(endpoint, {})
+  },
+
+  async updateAppointmentStatus(id: number, status: string): Promise<AppointmentResponse> {
+    console.log(`[API] Calling PUT /api/appointments/${id}/status with status:`, status)
+    try {
+      const response = await apiClient.put(`/api/appointments/${id}/status`, { status })
+      console.log('[API] Response received:', response)
+      return response
+    } catch (error) {
+      console.error('[API] Error in updateAppointmentStatus:', error)
+      throw error
+    }
   },
 
   /**
