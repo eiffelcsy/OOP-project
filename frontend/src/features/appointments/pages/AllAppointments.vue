@@ -273,12 +273,12 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
               </div>
 
               <div
-                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
+                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin">
                 <Button v-for="slot in rescheduleAvailableSlots" :key="slot.id"
                   :variant="rescheduleTime === slot.slot_start ? 'default' : 'outline'" class="h-11 font-medium"
                   :class="slot.status !== 'available' ? 'opacity-40 cursor-not-allowed' : ''"
                   :disabled="slot.status !== 'available'" @click="rescheduleTime = slot.slot_start">
-                  {{ slot.slot_start }}
+                  {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
                 </Button>
               </div>
             </div>

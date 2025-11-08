@@ -259,19 +259,40 @@ export function useAllAppointments() {
     if (!doctorId || !selectedDate) return []
 
     try {
-      const selectedDateObj = typeof selectedDate === 'string'
-        ? new Date(selectedDate)
-        : new Date(selectedDate.toString())
-
-      const dayOfWeek = selectedDateObj.getDay() === 0 ? 7 : selectedDateObj.getDay()
-      const selectedDateStr = selectedDateObj.toISOString().split('T')[0]
+      // Get date string in YYYY-MM-DD format (SGT local date)
+      const selectedDateStr = typeof selectedDate === 'string'
+        ? selectedDate
+        : selectedDate.toString()
+      
+      const jsDate = new Date(selectedDateStr)
+      const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
       const schedules = await apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
 
+      // Helper: convert validity dates to SGT date strings for comparison
+      const toSgtDate = (raw: any): string | null => {
+        if (raw == null) return null
+        try {
+          const d = new Date(String(raw))
+          if (isNaN(d.getTime())) return null
+          return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
+        } catch (_) {
+          return null
+        }
+      }
+
       const validSchedules = schedules.filter((sch: any) => {
-        const validFrom = new Date(sch.valid_from)
-        const validTo = new Date(sch.valid_to)
-        return sch.day_of_week === dayOfWeek && selectedDateObj >= validFrom && selectedDateObj <= validTo
+        if (sch.day_of_week !== dayOfWeek) return false
+        
+        const vFrom = toSgtDate(sch.valid_from)
+        const vTo = toSgtDate(sch.valid_to)
+        
+        // If vFrom exists and selectedDateStr is before it, exclude
+        if (vFrom && selectedDateStr < vFrom) return false
+        // If vTo exists and selectedDateStr is after it, exclude
+        if (vTo && selectedDateStr > vTo) return false
+        
+        return true
       })
 
       const slots: Tables<'time_slots'>[] = []
@@ -279,33 +300,50 @@ export function useAllAppointments() {
 
       validSchedules.forEach((schedule: any) => {
         const slotDuration = schedule.slot_duration_minutes
+        
+        // Backend returns LocalTime as "HH:MM:SS" in Singapore timezone
+        // Simply combine with the selected date to create SGT timestamps
+        const startTime = schedule.start_time.substring(0, 5) // HH:MM
+        const endTime = schedule.end_time.substring(0, 5) // HH:MM
 
-        const toSGTDate = (timeStr: string) => {
-          const [hours, minutes, seconds] = timeStr.split(':').map(Number)
-          const d = new Date(selectedDateStr)
-          d.setHours(hours + 8, minutes, seconds || 0, 0) // add +8 for SGT
-          return d
+        // Parse time strings to minutes for iteration
+        const parseToMinutes = (t: string) => {
+          const [hh, mm] = t.split(':').map(Number)
+          return hh * 60 + mm
         }
 
-        let current = toSGTDate(schedule.start_time)
-        const endTime = toSGTDate(schedule.end_time)
+        const startMin = parseToMinutes(startTime)
+        let endMin = parseToMinutes(endTime)
+        
+        // Handle overnight schedules
+        if (endMin <= startMin) endMin += 24 * 60
 
-        while (current < endTime) {
-          const slotEnd = new Date(current)
-          slotEnd.setMinutes(slotEnd.getMinutes() + slotDuration)
+        const toHHMM = (mins: number) => {
+          const m = mins % (24 * 60)
+          const h = Math.floor(m / 60).toString().padStart(2, '0')
+          const mm = (m % 60).toString().padStart(2, '0')
+          return `${h}:${mm}`
+        }
+
+        // Generate slots
+        for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
+          const slotStartTime = toHHMM(m)
+          const slotEndTime = toHHMM(m + slotDuration)
+          
+          // Create Singapore local datetime strings (no timezone conversion needed)
+          const slotStartIso = `${selectedDateStr}T${slotStartTime}:00+08:00`
+          const slotEndIso = `${selectedDateStr}T${slotEndTime}:00+08:00`
 
           slots.push({
             id: slotIndex++,
             doctor_id: doctorId,
             clinic_id: currentUser.value?.staff?.clinic_id ?? 0,
-            slot_start: `${current.getHours().toString().padStart(2, '0')}:${current.getMinutes().toString().padStart(2, '0')}`,
-            slot_end: `${slotEnd.getHours().toString().padStart(2, '0')}:${slotEnd.getMinutes().toString().padStart(2, '0')}`,
+            slot_start: slotStartIso,
+            slot_end: slotEndIso,
             status: 'available',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-
-          current = slotEnd
         }
       })
 
