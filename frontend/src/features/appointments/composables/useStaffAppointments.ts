@@ -45,24 +45,6 @@ export interface TimeSlot {
 export const useStaffAppointments = () => {
   const { updatePatientStatus } = useQueueManagement()
 
-  // Generate time slots for the day (8 AM to 6 PM, every 30 minutes)
-  const generateTimeSlots = (): TimeSlot[] => {
-    const slots: TimeSlot[] = []
-    for (let hour = 8; hour <= 18; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        if (hour === 18 && minute > 0) break // Stop at 6:00 PM
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-        slots.push({
-          time: timeString,
-          hour,
-          minute
-        })
-      }
-    }
-    return slots
-  }
-
-  const timeSlots = ref<TimeSlot[]>(generateTimeSlots())
   // Reactive states
   const doctors = ref<Doctor[]>([])
 
@@ -71,6 +53,7 @@ export const useStaffAppointments = () => {
     try {
       console.log('Fetching doctors for clinic ID:', clinicId)
       const data = await doctorsApi.getDoctorsByClinicId(clinicId)
+      // .map() loops through the list of doctors returned by your API (data), and for each doctor object
       doctors.value = data.map((doc, index) => ({
         ...doc,
         color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][index % 5],
@@ -126,7 +109,7 @@ export const useStaffAppointments = () => {
 
         const dateStr = start ? start.toISOString().split('T')[0] : '-'
 
-        // Map backend status to frontend status
+        // Map backend status to frontend status | standardizes those statuses.
         // Backend uses: scheduled, confirmed, cancelled
         // Frontend uses: scheduled, checked-in, completed, cancelled, no-show
         let mappedStatus: AppointmentStatus = 'scheduled'
@@ -203,20 +186,7 @@ export const useStaffAppointments = () => {
     return grouped
   })
 
-  const appointmentsByTimeSlot = computed(() => {
-    const slotMap = new Map<string, StaffAppointment[]>()
-
-    todaysAppointments.value.forEach(appointment => {
-      const timeSlot = appointment.time
-      if (!slotMap.has(timeSlot)) {
-        slotMap.set(timeSlot, [])
-      }
-      slotMap.get(timeSlot)!.push(appointment)
-    })
-
-    return slotMap
-  })
-
+  // display the value at the top cards
   const totalAppointments = computed(() => todaysAppointments.value.length)
   const checkedInCount = computed(() =>
     todaysAppointments.value.filter(apt => apt.status === 'checked-in').length
@@ -342,6 +312,7 @@ export const useStaffAppointments = () => {
     }
   }
 
+  // converts time from 24-hour format (e.g. "14:30") to 12-hour format with AM/PM
   const formatTime = (time: string) => {
     const [hours, minutes] = time.split(':')
     const hour = parseInt(hours, 10)
@@ -350,36 +321,18 @@ export const useStaffAppointments = () => {
     return `${hour12}:${minutes} ${ampm}`
   }
 
-  const isTimeSlotBusy = (timeSlot: string) => {
-    return appointmentsByTimeSlot.value.has(timeSlot)
-  }
-
   const getCurrentTime = () => {
     const now = new Date()
     return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
-  }
-
-  const isCurrentTimeSlot = (timeSlot: string) => {
-    const current = getCurrentTime()
-    const [currentHour, currentMinute] = current.split(':').map(Number)
-    const [slotHour, slotMinute] = timeSlot.split(':').map(Number)
-
-    const currentTotalMinutes = currentHour * 60 + currentMinute
-    const slotTotalMinutes = slotHour * 60 + slotMinute
-
-    // Consider it current if within 30 minutes window
-    return Math.abs(currentTotalMinutes - slotTotalMinutes) <= 30
   }
 
   return {
     // Data
     todaysAppointments,
     doctors,
-    timeSlots,
 
     // Computed
     appointmentsByDoctor,
-    appointmentsByTimeSlot,
     totalAppointments,
     checkedInCount,
     completedCount,
@@ -392,9 +345,7 @@ export const useStaffAppointments = () => {
 
     // Utilities
     formatTime,
-    isTimeSlotBusy,
     getCurrentTime,
-    isCurrentTimeSlot
   }
 }
 
