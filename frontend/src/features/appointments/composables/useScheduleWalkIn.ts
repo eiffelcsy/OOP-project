@@ -351,10 +351,9 @@ export const useScheduleWalkIn = () => {
         return
       }
 
-      // Fetch schedules when doctor changes
-      if (doctor && fetchedSchedulesRaw.value.length === 0) {
-        await fetchSchedulesForDoctor(doctor.id)
-      }
+      // ALWAYS fetch schedules when doctor changes, don't rely on cache
+      // This ensures we get the correct schedules for the selected doctor
+      await fetchSchedulesForDoctor(doctor.id)
 
       if (!date) {
         availableSlots.value = []
