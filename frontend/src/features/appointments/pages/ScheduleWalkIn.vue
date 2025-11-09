@@ -50,6 +50,7 @@ const availableDatesArray = computed(() => toIterableArray(availableDates))
 const isBookingConfirmed = ref(false)
 const bookingResult = ref<any>(null)
 
+
 const handleScheduleWalkIn = async () => {
     const result = await scheduleWalkIn()
     bookingResult.value = result
@@ -77,11 +78,8 @@ const handleDateSelect = (date: DateValue | undefined) => {
 
 // Patient form data
 const patientForm = ref({
-    name: '',
     phone: '',
     nric: '',
-    email: '',
-    dateOfBirth: '',
 })
 
 const updatePatient = () => {
@@ -91,6 +89,17 @@ const updatePatient = () => {
 
 <template>
     <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- unava patient -->
+        <div v-if="bookingResult && !bookingResult.success"
+            class="mb-6 p-4 rounded-md border border-red-200 bg-red-50 text-red-800">
+            <div class="flex items-center justify-between">
+                <span>{{ bookingResult.error }}</span>
+                <button @click="bookingResult = null" class="text-red-800 hover:opacity-70">
+                    <Icon icon="lucide:x" class="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+
         <div class="mb-8">
             <h1 class="text-3xl font-bold mb-2">Schedule Walk-in Appointment</h1>
             <p class="text-muted-foreground">Schedule a walk-in appointment for {{ staffClinic.name }}</p>
@@ -132,29 +141,14 @@ const updatePatient = () => {
                     <CardContent class="space-y-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div class="space-y-2">
-                                <Label for="patient-name">Full Name *</Label>
-                                <Input id="patient-name" v-model="patientForm.name" @input="updatePatient"
-                                    placeholder="Enter patient's full name" required />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="patient-phone">Phone Number *</Label>
-                                <Input id="patient-phone" v-model="patientForm.phone" @input="updatePatient"
-                                    placeholder="+65 XXXX XXXX" required />
-                            </div>
-                            <div class="space-y-2">
                                 <Label for="patient-nric">NRIC/FIN *</Label>
                                 <Input id="patient-nric" v-model="patientForm.nric" @input="updatePatient"
                                     placeholder="SXXXXXXXA" required />
                             </div>
                             <div class="space-y-2">
-                                <Label for="patient-email">Email</Label>
-                                <Input id="patient-email" v-model="patientForm.email" @input="updatePatient"
-                                    type="email" placeholder="patient@example.com" />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="patient-dob">Date of Birth</Label>
-                                <Input id="patient-dob" v-model="patientForm.dateOfBirth" @input="updatePatient"
-                                    type="date" />
+                                <Label for="patient-phone">Phone Number *</Label>
+                                <Input id="patient-phone" v-model="patientForm.phone" @input="updatePatient"
+                                    placeholder="+65 XXXX XXXX" required />
                             </div>
                         </div>
                     </CardContent>
@@ -201,12 +195,14 @@ const updatePatient = () => {
                         </CardHeader>
                         <CardContent>
                             <Calendar v-model="calendarValue" :min-value="today(getLocalTimeZone())"
-                                :available-dates="availableDatesArray"
-                                @update:model-value="handleDateSelect" class="rounded-md border p-6" />
-                            
+                                :available-dates="availableDatesArray" @update:model-value="handleDateSelect"
+                                class="rounded-md border p-6" />
+
                             <!-- Legend explaining the green highlight -->
                             <p class="text-sm text-muted-foreground mt-3 flex items-center gap-2">
-                                <span class="inline-block size-4 rounded-full bg-green-100 border border-green-200 shrink-0" aria-hidden="true"></span>
+                                <span
+                                    class="inline-block size-4 rounded-full bg-green-100 border border-green-200 shrink-0"
+                                    aria-hidden="true"></span>
                                 Days highlighted in light green have available time slots — select one to view times.
                             </p>
                         </CardContent>
@@ -226,7 +222,12 @@ const updatePatient = () => {
                                     :variant="bookingData.timeSlot?.id === slot.id ? 'default' : 'outline'" size="sm"
                                     :disabled="slot.status !== 'available'"
                                     @click="slot.status === 'available' && selectTimeSlot(slot)">
-                                    {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new Date(slot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) }}
+                                    {{ new Date(slot.slot_start).toLocaleTimeString('en-SG', {
+                                        hour: '2-digit', minute:
+                                            '2-digit', timeZone: 'Asia/Singapore' }) }} - {{ new
+                                        Date(slot.slot_end).toLocaleTimeString('en-SG', {
+                                            hour: '2-digit', minute:
+                                    '2-digit', timeZone: 'Asia/Singapore' }) }}
                                 </Button>
                             </div>
                             <div v-else class="text-center py-8 text-muted-foreground">
@@ -251,7 +252,7 @@ const updatePatient = () => {
                             <div class="space-y-6">
                                 <div>
                                     <Label class="text-sm font-medium">Patient</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.patient?.name }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.patient?.nric }}</p>
                                     <p class="text-xs text-muted-foreground">{{ bookingData.patient?.phone }}</p>
                                 </div>
                                 <div>
@@ -274,7 +275,13 @@ const updatePatient = () => {
                                 </div>
                                 <div>
                                     <Label class="text-sm font-medium">Time</Label>
-                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start ? new Date(bookingData.timeSlot.slot_start).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }} - {{ bookingData.timeSlot?.slot_end ? new Date(bookingData.timeSlot.slot_end).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }}</p>
+                                    <p class="text-sm text-muted-foreground mt-1">{{ bookingData.timeSlot?.slot_start ?
+                                        new Date(bookingData.timeSlot.slot_start).toLocaleTimeString('en-SG', {
+                                            hour:
+                                        '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }} - {{
+                                            bookingData.timeSlot?.slot_end ? new
+                                                Date(bookingData.timeSlot.slot_end).toLocaleTimeString('en-SG', { hour:
+                                        '2-digit', minute: '2-digit', timeZone: 'Asia/Singapore' }) : '' }}</p>
                                 </div>
                             </div>
                         </div>

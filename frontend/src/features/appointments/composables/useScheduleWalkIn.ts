@@ -15,11 +15,8 @@ type TimeSlot = Tables<'time_slots'>
 
 // Ensures that whenever you create or update a patient, TypeScript will check that all these fields exist and have the correct type
 interface WalkInPatientData {
-  name: string
   phone: string
   nric: string
-  email: string
-  dateOfBirth: string
 }
 
 // Groups together all the information you need to make a booking: patient info, selected doctor, date, and time slot.
@@ -407,7 +404,7 @@ export const useScheduleWalkIn = () => {
   // Determines whether the user can go to the next step in the booking process
   const canProceedToNextStep = computed(() => {
     switch (currentStep.value) {
-      case 1: return !!(bookingData.value.patient?.name && bookingData.value.patient?.phone)
+      case 1: return !!(bookingData.value.patient?.nric && bookingData.value.patient?.phone)
       case 2: return !!(bookingData.value.doctor && bookingData.value.date && bookingData.value.timeSlot)
       case 3: return true
       default: return false
@@ -419,7 +416,7 @@ export const useScheduleWalkIn = () => {
 
   // Updates the patient info in bookingData.
   const updatePatientInfo = (patientData: Partial<WalkInPatientData>) => {
-    if (!bookingData.value.patient) bookingData.value.patient = { name: '', phone: '', nric: '', email: '', dateOfBirth: '' }
+    if (!bookingData.value.patient) bookingData.value.patient = { phone: '', nric: '' }
     Object.assign(bookingData.value.patient, patientData)
   }
 
@@ -434,39 +431,58 @@ export const useScheduleWalkIn = () => {
   // --- ADD (POST) scheduleWalkIn function ---
   const scheduleWalkIn = async () => {
     try {
+      console.log('scheduleWalkIn called')
+
       if (!bookingData.value.patient || !bookingData.value.doctor || !bookingData.value.date || !bookingData.value.timeSlot) {
-        throw new Error('Incomplete booking data')
+        console.log('Incomplete booking data')
+        return {
+          success: false,
+          error: 'Incomplete booking data'
+        }
       }
 
-      // Check if patient exists by NRIC using only available methods
+      // Check if patient exists with BOTH NRIC AND phone number in the SAME row
       const patients = await patientsApi.getAllPatients()
+      console.log('Patients in database:', patients.length)
 
-      // SAFE VERSION: Handle null/undefined NRIC values
+      // Find patient where BOTH NRIC AND phone match in the same record
       const existingPatient = patients.find((p: any) => {
-        // Check if patient NRIC exists and is not null/undefined
-        if (!p.nric) return false
+        const patientNric = bookingData.value.patient?.nric?.trim().toUpperCase()
+        const patientPhone = bookingData.value.patient?.phone?.trim()
 
-        // Check if booking data NRIC exists and is not null/undefined  
-        if (!bookingData.value.patient?.nric) return false
+        const dbNric = p.nric?.trim().toUpperCase()
+        const dbPhone = p.phone?.trim()
 
-        // Compare both NRICs safely
-        return p.nric.trim().toUpperCase() === bookingData.value.patient!.nric.trim().toUpperCase()
+        console.log('Checking patient:', {
+          dbNric: dbNric,
+          dbPhone: dbPhone,
+          inputNric: patientNric,
+          inputPhone: patientPhone,
+          nricMatches: patientNric && dbNric && patientNric === dbNric,
+          phoneMatches: patientPhone && dbPhone && patientPhone === dbPhone,
+          bothMatch: patientNric && dbNric && patientNric === dbNric &&
+            patientPhone && dbPhone && patientPhone === dbPhone
+        })
+
+        // BOTH NRIC AND phone number match in THIS SAME row
+        return patientNric && dbNric && patientNric === dbNric &&
+          patientPhone && dbPhone && patientPhone === dbPhone
       })
 
       if (!existingPatient) {
-        throw new Error(`Patient with NRIC ${bookingData.value.patient.nric} not found. Please use an existing patient.`)
+        console.log('Patient not found with matching NRIC AND phone in the same record')
+        return {
+          success: false,
+          error: 'Patient not found. Please ensure both NRIC and phone number match the same patient record.'
+        }
       }
 
       const patientId = existingPatient.id
-      console.log('Using existing patient:', existingPatient)
-
-      // DEBUG: Check patient details for email
-      console.log('🔍 Patient details for email:', {
+      console.log('Using existing patient:', {
         id: existingPatient.id,
         nric: existingPatient.nric,
-        user_id: existingPatient.user_id,
-        email: existingPatient.email, // Check if email exists
-        full_name: existingPatient.full_name
+        phone: existingPatient.phone,
+        name: existingPatient.full_name
       })
 
       // Use the timestamps directly from the slot
@@ -492,15 +508,32 @@ export const useScheduleWalkIn = () => {
       }
 
       // POST to backend using appointmentsApi
+      console.log('Creating appointment...')
+      // email sending happens inside createAppointment
       const appointment = await appointmentsApi.createAppointment(appointmentPayload, idempotencyKeyRef.value)
+      console.log('Appointment creation response:', appointment)
 
-      console.log('Appointment created successfully. Email should be sent automatically by backend.')
+      if (!appointment) {
+        return {
+          success: false,
+          error: 'No response from appointment creation'
+        }
+      }
+
+      if (!appointment.id) {
+        return {
+          success: false,
+          error: 'Appointment created but no ID returned'
+        }
+      }
+
+      console.log('Appointment created successfully, ID:', appointment.id)
 
       return {
         success: true,
         appointmentId: appointment.id,
         queueNumber: Math.floor(Math.random() * 50) + 1,
-        message: 'Appointment scheduled successfully! A confirmation email has been sent.'
+        message: 'Appointment scheduled successfully!'
       }
     } catch (err: any) {
       console.error('Error scheduling walk-in:', err)
