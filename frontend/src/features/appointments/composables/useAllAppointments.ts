@@ -439,18 +439,30 @@ export function useAllAppointments() {
             appt.date === selectedDateStr
         )
 
+        // Fetch schedules for this doctor to get slot durations
+        const schedules = await apiClient.get(`/api/admin/doctors/${doctor.id}/schedules`)
+
         rescheduleAvailableSlots.value = generatedSlots.map((slot) => {
           // slot.slot_start and slot.slot_end are now full ISO timestamps like "2024-11-08T09:00:00+08:00"
           const slotStart = new Date(slot.slot_start)
           const slotEnd = new Date(slot.slot_end)
 
+
           const isBooked = bookedAppointments.some((appt) => {
             // appt.time is in HH:MM format, combine with date to create SGT timestamp
             // Use the actual appointment start_time and end_time from the database
             const apptStart = new Date(`${appt.date}T${appt.time}:00+08:00`)
+
+            // Get the day of week for this appointment
+            const appointmentDate = new Date(appt.date)
+            const dayOfWeek = appointmentDate.getDay() === 0 ? 7 : appointmentDate.getDay()
+            // Find the schedule for this day of week
+            const scheduleForDay = schedules.find((sch: any) => sch.day_of_week === dayOfWeek)
+            // Use the actual slot duration
+            const slotDuration = scheduleForDay?.slot_duration_minutes
+
             const apptEnd = new Date(apptStart)
-            apptEnd.setMinutes(apptEnd.getMinutes() + 15) // when +15 -> 3pm (selected slot start time is 3pm (apptStart) + 15 mins => 3pm to 3.15pm will be disabled => good, to prevent people from booking slots taken)
-            // but how do i replace this +15 to the actual slot_duration_minutes of the schedule of that day of week?
+            apptEnd.setMinutes(apptEnd.getMinutes() + slotDuration)
 
             // Check for time overlap
             return slotStart < apptEnd && slotEnd > apptStart
