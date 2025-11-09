@@ -263,7 +263,7 @@ export function useAllAppointments() {
       const selectedDateStr = typeof selectedDate === 'string'
         ? selectedDate
         : selectedDate.toString()
-      
+
       const jsDate = new Date(selectedDateStr)
       const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
@@ -283,15 +283,15 @@ export function useAllAppointments() {
 
       const validSchedules = schedules.filter((sch: any) => {
         if (sch.day_of_week !== dayOfWeek) return false
-        
+
         const vFrom = toSgtDate(sch.valid_from)
         const vTo = toSgtDate(sch.valid_to)
-        
+
         // If vFrom exists and selectedDateStr is before it, exclude
         if (vFrom && selectedDateStr < vFrom) return false
         // If vTo exists and selectedDateStr is after it, exclude
         if (vTo && selectedDateStr > vTo) return false
-        
+
         return true
       })
 
@@ -300,7 +300,7 @@ export function useAllAppointments() {
 
       validSchedules.forEach((schedule: any) => {
         const slotDuration = schedule.slot_duration_minutes
-        
+
         // Backend returns LocalTime as "HH:MM:SS" in Singapore timezone
         // Simply combine with the selected date to create SGT timestamps
         const startTime = schedule.start_time.substring(0, 5) // HH:MM
@@ -314,7 +314,7 @@ export function useAllAppointments() {
 
         const startMin = parseToMinutes(startTime)
         let endMin = parseToMinutes(endTime)
-        
+
         // Handle overnight schedules
         if (endMin <= startMin) endMin += 24 * 60
 
@@ -329,7 +329,7 @@ export function useAllAppointments() {
         for (let m = startMin; m + slotDuration <= endMin; m += slotDuration) {
           const slotStartTime = toHHMM(m)
           const slotEndTime = toHHMM(m + slotDuration)
-          
+
           // Create Singapore local datetime strings (no timezone conversion needed)
           const slotStartIso = `${selectedDateStr}T${slotStartTime}:00+08:00`
           const slotEndIso = `${selectedDateStr}T${slotEndTime}:00+08:00`
@@ -358,7 +358,7 @@ export function useAllAppointments() {
   const rescheduleAppointment = async (
     appointmentId: number,
     newDate: DateValue | string,
-    newTime: string
+    newTime: string // This should be the full ISO timestamp like "2024-11-08T09:00:00+08:00"
   ) => {
     try {
       error.value = null
@@ -375,23 +375,34 @@ export function useAllAppointments() {
       // newTime is now a full ISO timestamp like "2024-11-08T09:00:00+08:00"
       // We need to use it directly as the start time
       const newStartTime = newTime
-      
+
       // Parse the ISO timestamp to calculate end time
       const startDate = new Date(newStartTime)
-      
+
       if (isNaN(startDate.getTime())) {
         throw new Error(`Invalid start time: ${newTime}`)
       }
 
-      // Use 30 minutes as default duration
-      const slotDuration = 30
+      // Get the correct slot duration based on the day of week
+      const selectedDateStr = typeof newDate === 'string' ? newDate : newDate.toString()
+      const jsDate = new Date(selectedDateStr)
+      const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
+
+      const schedules = await apiClient.get(`/api/admin/doctors/${appointment.doctorId}/schedules`)
+
+      // Find the schedule for the specific day of week
+      const scheduleForDay = schedules.find((sch: any) => sch.day_of_week === dayOfWeek)
+
+      const slotDuration = scheduleForDay?.slot_duration_minutes
+
       const endDate = new Date(startDate.getTime() + slotDuration * 60 * 1000)
       const newEndTime = endDate.toISOString()
 
       console.log("[RESCHEDULE] Final times:")
       console.log("  - Start:", newStartTime)
       console.log("  - End:", newEndTime)
-      console.log("[RESCHEDULE] Calling appointmentsApi.updateAppointment with params:", { appointmentId, newStartTime, newEndTime })
+      console.log("  - Slot Duration:", slotDuration, "minutes")
+      console.log("  - Day of Week:", dayOfWeek)
 
       await appointmentsApi.updateAppointment(appointmentId, newStartTime, newEndTime)
 
@@ -435,9 +446,13 @@ export function useAllAppointments() {
 
           const isBooked = bookedAppointments.some((appt) => {
             // appt.time is in HH:MM format, combine with date to create SGT timestamp
+            // Use the actual appointment start_time and end_time from the database
             const apptStart = new Date(`${appt.date}T${appt.time}:00+08:00`)
             const apptEnd = new Date(apptStart)
-            apptEnd.setMinutes(apptEnd.getMinutes() + 30)
+            apptEnd.setMinutes(apptEnd.getMinutes() + 15) // when +15 -> 3pm (selected slot start time is 3pm (apptStart) + 15 mins => 3pm to 3.15pm will be disabled => good, to prevent people from booking slots taken)
+            // but how do i replace this +15 to the actual slot_duration_minutes of the schedule of that day of week?
+
+            // Check for time overlap
             return slotStart < apptEnd && slotEnd > apptStart
           })
 
