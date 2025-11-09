@@ -225,7 +225,7 @@ export const useStaffAppointments = () => {
     todaysAppointments.value.filter(apt => apt.status === 'completed').length
   )
   const noShowCount = computed(() =>
-    todaysAppointments.value.filter(apt => apt.status === 'no-show').length
+    todaysAppointments.value.filter(apt => apt.status === 'no-show' || apt.status === 'cancelled' ).length
   )
 
   // Actions
