@@ -1,45 +1,49 @@
 package com.clinic.management.controller;
 
-import com.clinic.management.config.TimezoneConfig;
-import com.clinic.management.dto.request.CreateQueueRequest;
-import com.clinic.management.dto.request.ListQueuesOptions;
-import com.clinic.management.dto.request.CreateQueueTicketRequest;
-import com.clinic.management.dto.request.UpdateQueueTicketRequest;
-import com.clinic.management.dto.request.UpdateQueueRequest;
-import com.clinic.management.dto.response.ListResult;
-import com.clinic.management.dto.response.QueueResponse;
-import com.clinic.management.dto.response.QueueTicketResponse;
-import com.clinic.management.dto.response.StaffAppointmentResponse;
-import com.clinic.management.model.Appointment;
-import com.clinic.management.model.Queue;
-import com.clinic.management.model.Patient;
-import com.clinic.management.model.Schedule;
-import com.clinic.management.model.Clinic;
-import com.clinic.management.service.AppointmentService;
-import com.clinic.management.service.QueueService;
-import com.clinic.management.service.QueueTicketService;
-import com.clinic.management.service.PatientService;
-import com.clinic.management.service.DoctorService;
-import com.clinic.management.service.ScheduleService;
-import com.clinic.management.dto.response.DoctorResponse;
-import com.clinic.management.dto.response.ScheduleResponse;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import jakarta.validation.Valid;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.time.OffsetDateTime;
-import java.time.ZonedDateTime;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
-import com.clinic.management.repository.AppointmentRepository;
+import com.clinic.management.dto.request.CreateQueueRequest;
+import com.clinic.management.dto.request.CreateQueueTicketRequest;
+import com.clinic.management.dto.request.ListQueuesOptions;
+import com.clinic.management.dto.request.UpdateQueueRequest;
+import com.clinic.management.dto.request.UpdateQueueTicketRequest;
+
 import com.clinic.management.dto.response.ClinicResponse;
+import com.clinic.management.dto.response.DoctorResponse;
+import com.clinic.management.dto.response.ListResult;
+import com.clinic.management.dto.response.QueueResponse;
+import com.clinic.management.dto.response.QueueTicketResponse;
+import com.clinic.management.dto.response.ScheduleResponse;
+import com.clinic.management.dto.response.StaffAppointmentResponse;
 import com.clinic.management.dto.response.UserResponse;
+
+import com.clinic.management.model.Appointment;
+import com.clinic.management.model.Clinic;
+import com.clinic.management.model.Patient;
+import com.clinic.management.model.Queue;
+import com.clinic.management.model.Schedule;
+
+import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.ClinicService;
+import com.clinic.management.service.DoctorService;
+import com.clinic.management.service.PatientService;
+import com.clinic.management.service.QueueService;
+import com.clinic.management.service.QueueTicketService;
+import com.clinic.management.service.ScheduleService;
 import com.clinic.management.service.UserService;
 
 /**
@@ -96,7 +100,6 @@ public class StaffController {
     private final QueueTicketService queueTicketService;
     private final PatientService patientService;
     private final DoctorService doctorService;
-    private final AppointmentRepository appointmentRepository;
     private final ClinicService clinicService;
     private final ScheduleService scheduleService;
     private final UserService userService;
@@ -104,7 +107,7 @@ public class StaffController {
     @Autowired
     public StaffController(AppointmentService appointmentService, QueueService queueService,
             QueueTicketService queueTicketService, PatientService patientService,
-            DoctorService doctorService, ClinicService clinicService, ScheduleService scheduleService, AppointmentRepository appointmentRepository, UserService userService) {
+            DoctorService doctorService, ClinicService clinicService, ScheduleService scheduleService, UserService userService) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
@@ -112,7 +115,6 @@ public class StaffController {
         this.doctorService = doctorService;
         this.clinicService = clinicService;
         this.scheduleService = scheduleService;
-        this.appointmentRepository = appointmentRepository;
         this.userService = userService;
     }
 
@@ -121,6 +123,8 @@ public class StaffController {
     // =========================
 
     // # ViewAppointments
+    @Tag(name = "Staff - Appointments", description = "Appointment management for staff")
+    @Operation(summary = "Get appointments", description = "View all appointments with optional filters")
     @GetMapping("/appointments")
     public List<Appointment> getAppointments(
             @RequestParam(required = false) Long doctorId,
@@ -141,6 +145,8 @@ public class StaffController {
      * @param clinicId Clinic ID
      * @return List of enriched appointments for today
      */
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Get today's appointments", description = "Get today's appointments for a clinic with enriched data")
     @GetMapping("/appointments/today/{clinicId}")
     public ResponseEntity<List<StaffAppointmentResponse>> getTodaysAppointments(@PathVariable Long clinicId) {
         List<StaffAppointmentResponse> responses = appointmentService.getTodaysAppointmentsForClinic(clinicId);
@@ -148,12 +154,16 @@ public class StaffController {
     }
 
     // Get appointments for a specific clinic
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Get appointments by clinic", description = "Get all appointments for a specific clinic")
     @GetMapping("/appointments/clinic/{clinicId}")
     public List<Appointment> getAppointmentsByClinic(@PathVariable Long clinicId) {
         return appointmentService.getAppointments(null, clinicId, null);
     }
 
     // # ScheduleWalkIn
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Schedule walk-in appointment", description = "Create a new appointment (walk-in)")
     @PostMapping("/appointments")
     public ResponseEntity<Appointment> addAppointment(@RequestBody Appointment appointment) {
         // Expect appointment.startTime and appointment.endTime to be provided (ISO
@@ -164,6 +174,8 @@ public class StaffController {
     }
 
     // # ManagementAppointments - Reschedule
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Reschedule appointment", description = "Reschedule an existing appointment")
     @PutMapping("/appointments/{id}")
     public ResponseEntity<?> rescheduleAppointment(
             @PathVariable Long id,
@@ -171,43 +183,48 @@ public class StaffController {
             @RequestParam(required = false) String newEndTime) {
 
         try {
-            System.out.println("=== CONTROLLER RESCHEDULE ===");
-            System.out.println("Appointment ID: " + id);
-            System.out.println("newStartTime: " + newStartTime);
-            System.out.println("newEndTime: " + newEndTime);
-
-            if (newStartTime != null && newEndTime != null) {
-                // Parse the timestamps - they should be in UTC
-                OffsetDateTime start = OffsetDateTime.parse(newStartTime);
-                OffsetDateTime end = OffsetDateTime.parse(newEndTime);
-
-                System.out.println("Calling service with timestamps: " + start + " to " + end);
-
-                Appointment updated = appointmentService.rescheduleAppointment(id, start, end);
-                return ResponseEntity.ok(updated);
+            if (newStartTime == null || newEndTime == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", "Missing required parameters",
+                        "message", "newStartTime and newEndTime are required"));
             }
 
-            throw new IllegalArgumentException("newStartTime and newEndTime are required");
-        } catch (Exception e) {
-            System.out.println("Controller error: " + e.getMessage());
-            e.printStackTrace();
+            // Parse the timestamps - they should be in UTC
+            OffsetDateTime start = OffsetDateTime.parse(newStartTime);
+            OffsetDateTime end = OffsetDateTime.parse(newEndTime);
+
+            Appointment updated = appointmentService.rescheduleAppointment(id, start, end);
+            return ResponseEntity.ok(updated);
+
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of(
-                    "error", "Failed to reschedule appointment",
+                    "error", "Invalid request",
                     "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                        "error", "Appointment not found",
+                        "message", e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Internal server error",
+                    "message", "Failed to reschedule appointment: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Internal server error",
+                    "message", "Failed to reschedule appointment: " + e.getMessage()));
         }
     }
 
     // # Update Appointment Status
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Update appointment status", description = "Update the status of an appointment")
     @PutMapping("/appointments/{id}/status")
     public ResponseEntity<?> updateAppointmentStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> statusUpdate) {
 
         try {
-            System.out.println("=== UPDATE APPOINTMENT STATUS ===");
-            System.out.println("Appointment ID: " + id);
-            System.out.println("Status update request: " + statusUpdate);
-
             // Validate request
             if (statusUpdate == null || !statusUpdate.containsKey("status")) {
                 return ResponseEntity.badRequest().body(Map.of(
@@ -216,41 +233,23 @@ public class StaffController {
             }
 
             String newStatus = statusUpdate.get("status");
-            if (newStatus == null || newStatus.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "error", "Invalid status",
-                        "message", "Status cannot be null or empty"));
-            }
+            Appointment updated = appointmentService.updateAppointmentStatus(id, newStatus);
+            return ResponseEntity.ok(updated);
 
-            // Find appointment
-            Appointment appointment = appointmentRepository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
-
-            System.out.println("Found appointment:");
-            System.out.println("  - Current status: " + appointment.getStatus());
-            System.out.println("  - Patient ID: " + appointment.getPatientId());
-            System.out.println("  - Doctor ID: " + appointment.getDoctorId());
-
-            // Update appointment
-            appointment.setStatus(newStatus);
-            appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
-
-            Appointment saved = appointmentRepository.save(appointment);
-
-            System.out.println("Successfully updated appointment status:");
-            System.out.println("  - New status: " + saved.getStatus());
-            System.out.println("  - Updated at: " + saved.getUpdatedAt());
-
-            return ResponseEntity.ok(saved);
-
-        } catch (RuntimeException e) {
-            System.out.println("Appointment not found error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "error", "Appointment not found",
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Invalid request",
                     "message", e.getMessage()));
+        } catch (RuntimeException e) {
+            if (e.getMessage() != null && e.getMessage().contains("not found")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                        "error", "Appointment not found",
+                        "message", e.getMessage()));
+            }
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", "Internal server error",
+                    "message", "Failed to update appointment status: " + e.getMessage()));
         } catch (Exception e) {
-            System.out.println("Unexpected error: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                     "error", "Internal server error",
                     "message", "Failed to update appointment status: " + e.getMessage()));
@@ -258,6 +257,8 @@ public class StaffController {
     }
 
     // # ManagementAppointments - Cancel
+    @Tag(name = "Staff - Appointments")
+    @Operation(summary = "Cancel appointment", description = "Cancel an appointment")
     @DeleteMapping("/appointments/{id}")
     public void cancelAppointment(@PathVariable Long id) {
         appointmentService.cancelAppointment(id);
@@ -276,6 +277,8 @@ public class StaffController {
      * 
      * @return List of all clinics as ClinicResponse DTOs
      */
+    @Tag(name = "Staff - Clinics", description = "Clinic information endpoints")
+    @Operation(summary = "Get all clinics", description = "Retrieve a list of all clinics")
     @GetMapping("/clinics")
     public ResponseEntity<List<ClinicResponse>> getAllClinics() {
         List<Clinic> clinics = clinicService.getAllClinics();
@@ -292,6 +295,8 @@ public class StaffController {
      * @param id Clinic ID
      * @return Clinic response if found
      */
+    @Tag(name = "Staff - Clinics")
+    @Operation(summary = "Get clinic by ID", description = "Retrieve a clinic by its ID")
     @GetMapping("/clinics/{id}")
     public ResponseEntity<ClinicResponse> getClinicById(@PathVariable Long id) {
         return clinicService.getClinicById(id)
@@ -310,6 +315,8 @@ public class StaffController {
      * @param doctorId Doctor ID
      * @return List of schedules as ScheduleResponse DTOs
      */
+    @Tag(name = "Staff - Schedules", description = "Doctor schedule information endpoints")
+    @Operation(summary = "Get doctor schedules", description = "Fetch active schedules for a doctor")
     @GetMapping("/doctors/{doctorId}/schedules")
     public ResponseEntity<List<ScheduleResponse>> getSchedulesForDoctor(@PathVariable Long doctorId) {
         List<Schedule> schedules = scheduleService.getSchedulesByDoctorId(doctorId);
@@ -331,6 +338,8 @@ public class StaffController {
      * @param request Create queue request (validated)
      * @return Created queue response
      */
+    @Tag(name = "Staff - Queues", description = "Queue management endpoints")
+    @Operation(summary = "Create queue", description = "Create a new queue")
     @PostMapping("/queues")
     public ResponseEntity<QueueResponse> createQueue(@Valid @RequestBody CreateQueueRequest request) {
         Queue queue = queueService.createQueue(request);
@@ -346,6 +355,8 @@ public class StaffController {
      * @param id Queue ID
      * @return Queue response if found
      */
+    @Tag(name = "Staff - Queues")
+    @Operation(summary = "Get queue by ID", description = "Retrieve a queue by its ID")
     @GetMapping("/queues/{id}")
     public ResponseEntity<QueueResponse> getQueueById(@PathVariable Long id) {
         return queueService.getQueueById(id)
@@ -370,6 +381,8 @@ public class StaffController {
      * @param options List options
      * @return List result with queues and optional count
      */
+    @Tag(name = "Staff - Queues")
+    @Operation(summary = "List queues", description = "List queues with filtering, pagination, and sorting")
     @GetMapping("/queues")
     public ResponseEntity<ListResult<QueueResponse>> listQueues(@Valid @ModelAttribute ListQueuesOptions options) {
         ListResult<Queue> result = queueService.listQueues(options);
@@ -395,6 +408,8 @@ public class StaffController {
      * @param request Update request (validated, all fields optional)
      * @return Updated queue response
      */
+    @Tag(name = "Staff - Queues")
+    @Operation(summary = "Update queue", description = "Update an existing queue")
     @PutMapping("/queues/{id}")
     public ResponseEntity<QueueResponse> updateQueue(
             @PathVariable Long id,
@@ -412,6 +427,8 @@ public class StaffController {
      * @param id Queue ID
      * @return No content on success
      */
+    @Tag(name = "Staff - Queues")
+    @Operation(summary = "Delete queue", description = "Delete a queue by ID")
     @DeleteMapping("/queues/{id}")
     public ResponseEntity<Void> deleteQueue(@PathVariable Long id) {
         queueService.deleteQueue(id);
@@ -431,6 +448,8 @@ public class StaffController {
      * 
      * @return List of all users as UserResponse DTOs
      */
+    @Tag(name = "Staff - Users", description = "User information endpoints")
+    @Operation(summary = "Get all users", description = "Retrieve a list of all users")
     @GetMapping("/users")
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         List<UserResponse> users = userService.getAllUsers();
@@ -446,6 +465,8 @@ public class StaffController {
      * @param id User ID (profile ID)
      * @return User details if found
      */
+    @Tag(name = "Staff - Users")
+    @Operation(summary = "Get user by ID", description = "Retrieve a user by their ID")
     @GetMapping("/users/{id}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
         return userService.getUserById(id)
@@ -464,6 +485,8 @@ public class StaffController {
      * Staff-facing endpoint to list all patients in the system
      * Used for appointment scheduling and patient lookup
      */
+    @Tag(name = "Staff - Patients", description = "Patient information endpoints")
+    @Operation(summary = "Get all patients", description = "Retrieve a list of all patients")
     @GetMapping("/patients")
     public List<Patient> getAllPatients() {
         return patientService.getAllPatients();
@@ -478,6 +501,8 @@ public class StaffController {
      * @param id Patient ID
      * @return Patient details if found
      */
+    @Tag(name = "Staff - Patients")
+    @Operation(summary = "Get patient by ID", description = "Retrieve a patient by their ID")
     @GetMapping("/patients/{id}")
     public ResponseEntity<Patient> getPatientById(@PathVariable Long id) {
         return patientService.getPatientById(id)
@@ -499,6 +524,8 @@ public class StaffController {
      * @param clinicId Clinic ID
      * @return List of doctors for the specified clinic
      */
+    @Tag(name = "Staff - Doctors", description = "Doctor information endpoints")
+    @Operation(summary = "Get doctors by clinic", description = "Retrieve all doctors for a specific clinic")
     @GetMapping("/doctors/clinic/{clinicId}")
     public ResponseEntity<List<DoctorResponse>> getDoctorsByClinicId(@PathVariable Long clinicId) {
         List<DoctorResponse> responses = doctorService.getDoctorResponsesByClinicId(clinicId);
@@ -513,6 +540,8 @@ public class StaffController {
      * Create a new queue ticket
      * POST /api/staff/queue-tickets
      */
+    @Tag(name = "Staff - Queue Tickets", description = "Queue ticket management endpoints")
+    @Operation(summary = "Create queue ticket", description = "Create a new queue ticket")
     @PostMapping("/queue-tickets")
     public ResponseEntity<QueueTicketResponse> createQueueTicket(@Valid @RequestBody CreateQueueTicketRequest request) {
         var ticket = queueTicketService.create(request);
@@ -523,6 +552,8 @@ public class StaffController {
      * List queue tickets with patient names
      * GET /api/staff/queues/{queueId}/tickets
      */
+    @Tag(name = "Staff - Queue Tickets")
+    @Operation(summary = "List queue tickets", description = "List queue tickets with patient names for a queue")
     @GetMapping("/queues/{queueId}/tickets")
     public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
         List<QueueTicketResponse> responses = queueTicketService.listWithPatientNames(queueId);
@@ -533,6 +564,8 @@ public class StaffController {
      * Update queue ticket
      * PUT /api/staff/queue-tickets/{id}
      */
+    @Tag(name = "Staff - Queue Tickets")
+    @Operation(summary = "Update queue ticket", description = "Update an existing queue ticket")
     @PutMapping("/queue-tickets/{id}")
     public ResponseEntity<QueueTicketResponse> updateQueueTicket(@PathVariable Long id,
             @Valid @RequestBody UpdateQueueTicketRequest request) {
@@ -544,6 +577,8 @@ public class StaffController {
      * Delete queue ticket
      * DELETE /api/staff/queue-tickets/{id}
      */
+    @Tag(name = "Staff - Queue Tickets")
+    @Operation(summary = "Delete queue ticket", description = "Delete a queue ticket by ID")
     @DeleteMapping("/queue-tickets/{id}")
     public ResponseEntity<Void> deleteQueueTicket(@PathVariable Long id) {
         queueTicketService.delete(id);

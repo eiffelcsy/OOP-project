@@ -444,6 +444,39 @@ public class AppointmentService {
         }
     }
 
+    /**
+     * Update appointment status
+     * 
+     * @param id Appointment ID
+     * @param newStatus New status value
+     * @return Updated appointment
+     * @throws IllegalArgumentException if status is null or empty
+     * @throws RuntimeException if appointment not found
+     */
+    @Transactional
+    public Appointment updateAppointmentStatus(Long id, String newStatus) {
+        // Validate status
+        if (newStatus == null || newStatus.trim().isEmpty()) {
+            throw new IllegalArgumentException("Status cannot be null or empty");
+        }
+
+        // Find appointment
+        Appointment appointment = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Appointment not found with id: " + id));
+
+        log.debug("Updating appointment status: id={}, currentStatus={}, newStatus={}", 
+                id, appointment.getStatus(), newStatus);
+
+        // Update appointment
+        appointment.setStatus(newStatus.trim());
+        appointment.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
+
+        Appointment saved = repository.save(appointment);
+        log.info("Successfully updated appointment status: id={}, newStatus={}", saved.getId(), saved.getStatus());
+
+        return saved;
+    }
+
     // Fetch appointments belonging to a patient
     @Transactional(readOnly = true)
     public List<Appointment> getAppointmentsByPatientId(Long patientId) {
