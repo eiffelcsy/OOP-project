@@ -120,14 +120,6 @@ const handleLogout = async () => {
                 </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
-            <SidebarMenuItem key="MedicalRecords">
-              <SidebarMenuButton asChild>
-                <a href="/patient/medical-records">
-                  <Icon icon="lucide:file-text" class="size-4" />
-                  <span>Medical Records</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>

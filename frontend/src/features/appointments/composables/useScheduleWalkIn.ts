@@ -2,11 +2,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import type { DateValue } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
-import { clinicsApi } from '@/services/clinicsApi'
-import { doctorsApi } from '@/services/doctorsApi'
+import { staffClinicsApi } from '@/services/staffClinicsApi'
+import { staffDoctorsApi } from '@/services/staffDoctorsApi'
 import { appointmentsApi, type AppointmentResponse } from '@/services/appointmentsApi'
 import { patientsApi } from '@/services/patientsApi'
-import { schedulesApi } from '@/services/schedulesApi'
+import { staffSchedulesApi } from '@/services/staffSchedulesApi'
 
 const { currentUser, initializeAuth } = useAuth()
 
@@ -60,21 +60,35 @@ export const useScheduleWalkIn = () => {
 
   const fetchClinic = async (clinicId: number) => {
     try {
-      const data = await clinicsApi.getClinicById(clinicId)
+      const data = await staffClinicsApi.getClinicById(clinicId)
+
+      const pick = (obj: Record<string, any>, ...keys: string[]) => {
+        for (const key of keys) {
+          if (obj[key] !== undefined && obj[key] !== null) return obj[key]
+        }
+        return null
+      }
 
       // Update staffClinic fields while keeping the object structure
       staffClinic.value.id = data.id
       staffClinic.value.name = data.name
-      staffClinic.value.clinic_type = data.clinic_type || 'General'
-      staffClinic.value.region = data.region || ''
-      staffClinic.value.area = data.area || ''
-      staffClinic.value.address_line = data.address_line || ''
-      staffClinic.value.source_ref = null // source_ref not in API response
-      staffClinic.value.remarks = data.remarks || null
-      staffClinic.value.created_at = data.created_at || new Date().toISOString()
-      staffClinic.value.updated_at = data.updated_at || new Date().toISOString()
-      staffClinic.value.open_time = data.open_time || null
-      staffClinic.value.close_time = data.close_time || null
+      staffClinic.value.clinic_type = (pick(data as any, 'clinic_type', 'clinicType') as string | null) || 'General'
+      staffClinic.value.region = (pick(data as any, 'region') as string | null) || ''
+      staffClinic.value.area = (pick(data as any, 'area') as string | null) || ''
+      staffClinic.value.address_line = (pick(data as any, 'address_line', 'addressLine') as string | null) || ''
+      staffClinic.value.source_ref = null // source_ref not in staff API response
+      staffClinic.value.remarks = pick(data as any, 'remarks') as string | null
+
+      const safeDate = (val: any) => {
+        if (!val) return new Date().toISOString()
+        const parsed = Date.parse(String(val))
+        return Number.isNaN(parsed) ? new Date().toISOString() : new Date(parsed).toISOString()
+      }
+
+      staffClinic.value.created_at = safeDate(pick(data as any, 'created_at', 'createdAt'))
+      staffClinic.value.updated_at = safeDate(pick(data as any, 'updated_at', 'updatedAt'))
+      staffClinic.value.open_time = pick(data as any, 'open_time', 'openTime') as string | null
+      staffClinic.value.close_time = pick(data as any, 'close_time', 'closeTime') as string | null
     } catch (err) {
       console.error(err)
     }
@@ -82,7 +96,7 @@ export const useScheduleWalkIn = () => {
 
   const fetchDoctors = async (clinicId: number) => {
     try {
-      const data = await doctorsApi.getDoctorsByClinicId(clinicId)
+      const data = await staffDoctorsApi.getDoctorsByClinicId(clinicId)
       availableDoctors.value = data.map((doc, idx) => ({
         ...doc,
         color: ['#F87171', '#60A5FA', '#34D399', '#FBBF24', '#A78BFA'][idx % 5]
@@ -132,7 +146,7 @@ export const useScheduleWalkIn = () => {
   // Fetch and store schedules for a doctor (used for calendar availability)
   const fetchSchedulesForDoctor = async (doctorId: number) => {
     try {
-      const schedules = await schedulesApi.getSchedulesByDoctorId(doctorId)
+      const schedules = await staffSchedulesApi.getSchedulesByDoctorId(doctorId)
 
       // Store raw schedules
       fetchedSchedulesRaw.value = schedules
@@ -351,8 +365,6 @@ export const useScheduleWalkIn = () => {
         return
       }
 
-      // ALWAYS fetch schedules when doctor changes, don't rely on cache
-      // This ensures we get the correct schedules for the selected doctor
       await fetchSchedulesForDoctor(doctor.id)
 
       if (!date) {

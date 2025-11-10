@@ -31,8 +31,12 @@ import com.clinic.management.model.Appointment;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.DoctorService;
 import com.clinic.management.service.PatientQueueService;
+import com.clinic.management.service.ScheduleService;
 import com.clinic.management.dto.response.AppointmentResponse;
+import com.clinic.management.dto.response.DoctorResponse;
 import com.clinic.management.model.Doctor;
+import com.clinic.management.model.Schedule;
+import com.clinic.management.dto.response.ScheduleResponse;
 
 
 
@@ -72,13 +76,46 @@ public class PatientController {
     private final AppointmentService appointmentService;
     private final DoctorService doctorService;
     private final PatientQueueService patientQueueService;
+    private final ScheduleService scheduleService;
 
-    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService, DoctorService doctorService, PatientQueueService patientQueueService) {
+    public PatientController(ClinicService clinicService, PatientService patientService, AppointmentService appointmentService, DoctorService doctorService, PatientQueueService patientQueueService, ScheduleService scheduleService) {
         this.clinicService = clinicService;
         this.patientService = patientService;
         this.appointmentService = appointmentService;
         this.doctorService = doctorService;
         this.patientQueueService = patientQueueService;
+        this.scheduleService = scheduleService;
+    }
+
+    /**
+     * GET /api/patient/doctors/{doctorId}/appointments
+     * Fetch upcoming appointments for a doctor that should block patient booking.
+     *
+     * @param doctorId Doctor ID
+     * @return List of appointments (sanitized fields only)
+     */
+    @GetMapping("/doctors/{doctorId}/appointments")
+    public ResponseEntity<List<AppointmentResponse>> getDoctorAppointmentsForPatient(@PathVariable Long doctorId) {
+        List<Appointment> appointments = appointmentService.getAppointments(doctorId, null, null);
+        List<String> blockingStatuses = List.of("scheduled", "confirmed", "checked_in", "completed");
+
+        List<AppointmentResponse> responses = appointments.stream()
+            .filter(a -> a.getStatus() != null && blockingStatuses.contains(a.getStatus().toLowerCase()))
+            .map(a -> {
+                AppointmentResponse resp = new AppointmentResponse();
+                resp.id = a.getId();
+                resp.doctor_id = a.getDoctorId();
+                resp.clinic_id = a.getClinicId();
+                resp.start_time = a.getStartTime();
+                resp.end_time = a.getEndTime();
+                resp.status = a.getStatus();
+                resp.created_at = a.getCreatedAt();
+                resp.updated_at = a.getUpdatedAt();
+                return resp;
+            })
+            .collect(Collectors.toList());
+
+        return ResponseEntity.ok(responses);
     }
 
     /**
@@ -142,6 +179,34 @@ public class PatientController {
         List<Doctor> doctors = doctorService.getDoctorsByClinicId(clinicId);
         List<com.clinic.management.dto.response.DoctorResponse> responses = doctors.stream()
             .map(com.clinic.management.dto.response.DoctorResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * GET /api/patient/doctors/{doctorId}
+     * Fetch doctor by ID for appointment booking
+     * @param doctorId Doctor ID
+     * @return Doctor for the specified ID
+     */
+    @GetMapping("/doctors/{doctorId}")
+    public ResponseEntity<DoctorResponse> getDoctorById(@PathVariable Long doctorId) {
+        Doctor doctor = doctorService.getDoctorById(doctorId);
+        return ResponseEntity.ok(DoctorResponse.from(doctor));
+    }
+
+    /**
+     * GET /api/patient/doctors/{doctorId}/schedules
+     * Fetch schedules for a doctor, filtered to active records.
+     *
+     * @param doctorId Doctor ID
+     * @return List of schedules as ScheduleResponse DTOs
+     */
+    @GetMapping("/doctors/{doctorId}/schedules")
+    public ResponseEntity<List<ScheduleResponse>> getSchedulesForDoctor(@PathVariable Long doctorId) {
+        List<Schedule> schedules = scheduleService.getSchedulesByDoctorId(doctorId);
+        List<ScheduleResponse> responses = schedules.stream()
+            .map(ScheduleResponse::from)
             .collect(Collectors.toList());
         return ResponseEntity.ok(responses);
     }

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { patientsApi } from '@/services/patientsApi'
 import { appointmentsApi } from '@/services/appointmentsApi'
-import { doctorsApi } from '@/services/doctorsApi'
+import { patientDoctorsApi } from '@/services/patientDoctorsApi'
 import type { QueueTicketResponse } from '@/services/patientsApi'
 
 interface DoctorAndClinicDetails {
@@ -118,7 +118,8 @@ const createPatientQueue = () => {
                     const appointment = appointments.find(a => a.id === ticket.appointment_id)
                     
                     if (appointment?.doctor_id) {
-                        const doctor = await doctorsApi.getDoctorById(appointment.doctor_id)
+                        // Fetch doctor details
+                        const doctor = await patientDoctorsApi.getDoctorById(appointment.doctor_id)
                         doctorDetails.value.set(ticket.id, {
                             id: doctor.id,
                             name: doctor.name,

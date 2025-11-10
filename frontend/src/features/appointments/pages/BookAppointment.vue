@@ -386,7 +386,7 @@ const totalDoctorPages = computed(() => Math.ceil(availableDoctors.value.length 
                     </CardHeader>
                 </Card>
 
-                <div class="flex gap-6">
+                <div class="flex flex-col md:flex-row gap-6">
                     <!-- Calendar -->
                     <Card>
                         <CardHeader>

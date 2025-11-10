@@ -50,15 +50,6 @@ const patientRoutes: RouteRecordRaw[] = [
           breadcrumb: 'Queue'
         }
       },
-      {
-        path: 'medical-records',
-        name: 'PatientMedicalRecords',
-        component: () => import('@/features/medical-records/pages/PatientMedicalRecords.vue'),
-        meta: {
-          title: 'Medical Records',
-          breadcrumb: 'Medical Records'
-        }
-      }
     ]
   }
 ]

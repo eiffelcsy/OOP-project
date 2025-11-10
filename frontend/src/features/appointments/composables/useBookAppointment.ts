@@ -4,9 +4,9 @@ import { parseDate } from '@internationalized/date'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 import { apiClient } from '@/lib/api'
-import { schedulesApi } from '@/services/schedulesApi'
-import { doctorsApi } from '@/services/doctorsApi'
-import { clinicsApi } from '@/services/clinicsApi'
+import { patientSchedulesApi } from '@/services/patientSchedulesApi'
+import { patientDoctorsApi } from '@/services/patientDoctorsApi'
+import { patientClinicsApi } from '@/services/patientClinicsApi'
 import { appointmentsApi } from '@/services/appointmentsApi'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { toast } from 'vue-sonner'
@@ -18,10 +18,6 @@ type Clinic = Tables<'clinics'>
 type Doctor = Tables<'doctors'>
 type TimeSlot = Tables<'time_slots'>
 
-// Custom types for booking flow
-type Region = 'Central' | 'North' | 'South' | 'East' | 'North-East' | 'West'
-type ClinicType = 'General' | 'Specialist' | 'Polyclinic'
-
 // Booking data interface
 interface BookingData {
   clinic: Clinic | null
@@ -29,32 +25,6 @@ interface BookingData {
   date: DateValue | null
   timeSlot: TimeSlot | null
 }
-
-// TODO: Implement API service for backend communication
-// import { apiService } from '@/services/api'
-
-/**
- * API Integration Plan for BookAppointment Feature
- * 
- * This composable contains placeholder methods for backend API integration.
- * All API methods are currently commented out and use dummy data.
- * 
- * Required Backend Endpoints (to be defined in the Patient Controller):
- * 1. GET /api/patient/clinics - Fetch all clinics
- * 2. GET /api/patient/clinics/:id/doctors - Fetch doctors for a specific clinic
- * 3. GET /api/patient/doctors/:id/available-slots?date=YYYY-MM-DD - Fetch available time slots
- * 4. POST /api/patient/appointments - Create a new appointment booking
- * 
- * To integrate with backend:
- * 1. Uncomment the API service import
- * 2. Uncomment the placeholder API methods (fetchClinics, fetchDoctorsByClinic, etc.)
- * 3. Uncomment the data loading methods (loadClinics, loadDoctorsForClinic, etc.)
- * 4. Uncomment the API calls in action methods (selectClinic, selectDoctor, etc.)
- * 5. Update the confirmBooking method to use the actual API
- * 6. Add proper error handling and loading states
- * 
- * Current State: Using dummy data for development and testing
- */
 
 export const useBookAppointment = () => {
   // Current step (1-4)
@@ -885,8 +855,8 @@ export const useBookAppointment = () => {
 
             try {
               console.log('Backend-first: querying appointments for doctor', doctorId)
-              appts = await appointmentsApi.getDoctorAppointments(doctorId)
-              console.log(`Backend returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
+              appts = await appointmentsApi.getDoctorAppointmentsForPatient(doctorId)
+              console.log(`Patient API returned ${appts.length} appointments for doctor ${doctorId}:`, appts)
             } catch (backendErr) {
               console.warn('Backend appointments query failed, will fall back to Supabase:', backendErr)
               
@@ -977,7 +947,7 @@ export const useBookAppointment = () => {
       let appts: any[] = []
 
       try {
-        appts = await appointmentsApi.getDoctorAppointments(doctorId)
+        appts = await appointmentsApi.getDoctorAppointmentsForPatient(doctorId)
       } catch (backendErr) {
         console.warn('fetchAppointmentsForDoctor: backend query failed, falling back to Supabase', backendErr)
         
@@ -1093,15 +1063,24 @@ export const useBookAppointment = () => {
   const fetchDoctorsFromBackend = async (clinicId: number) => {
     try {
       console.log('fetchDoctorsFromBackend: requesting doctors for clinic', clinicId)
-      const doctorsFromApi = await apiClient.get(`/api/patient/doctors/clinic/${clinicId}`)
-      console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from backend`, doctorsFromApi)
+      const doctorsFromApi = await patientDoctorsApi.getDoctorsByClinicId(clinicId)
+      console.log(`fetchDoctorsFromBackend: got ${doctorsFromApi.length} doctors for clinic ${clinicId} from patient API`, doctorsFromApi)
 
-      if (doctorsFromApi.length > 0) {
-        allDoctors.value = allDoctors.value.filter(d => d.clinic_id !== clinicId).concat(doctorsFromApi as Doctor[])
-        return doctorsFromApi as Doctor[]
-      }
+      if (doctorsFromApi.length === 0) return [] as Doctor[]
 
-      return [] as Doctor[]
+      const mappedDoctors = doctorsFromApi.map(raw => ({
+        id: raw.id,
+        clinic_id: raw.clinicId ?? clinicId,
+        name: raw.name,
+        specialty: raw.specialty ?? null,
+        active: raw.active ?? true,
+        created_at: raw.createdAt ?? null,
+        updated_at: raw.updatedAt ?? null,
+        source_ref: null
+      })) as Doctor[]
+
+      allDoctors.value = allDoctors.value.filter(d => d.clinic_id !== clinicId).concat(mappedDoctors)
+      return mappedDoctors
     } catch (err) {
       console.error('fetchDoctorsFromBackend error for clinic', clinicId, err)
       return [] as Doctor[]
@@ -1119,7 +1098,7 @@ export const useBookAppointment = () => {
 
     const p = (async () => {
       try {
-        console.log('fetchSchedulesFromSupabase: attempting to load schedules via backend API for doctorId=', doctorId)
+        console.log('fetchSchedulesFromSupabase: attempting to load schedules via patient API for doctorId=', doctorId)
 
         function weekday(n: number) {
           const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -1127,8 +1106,8 @@ export const useBookAppointment = () => {
         }
 
         try {
-          const apiData = await schedulesApi.getSchedulesByDoctorId(doctorId)
-          console.log(`schedulesApi returned ${apiData?.length ?? 0} rows for doctor ${doctorId}:`, apiData)
+          const apiData = await patientSchedulesApi.getSchedulesByDoctorId(doctorId)
+          console.log(`patientSchedulesApi returned ${apiData?.length ?? 0} rows for doctor ${doctorId}:`, apiData)
 
           if (apiData && apiData.length > 0) {
            
@@ -1215,85 +1194,8 @@ export const useBookAppointment = () => {
             return activeRows
           }
         } catch (apiErr) {
-          console.warn('schedulesApi.getSchedulesByDoctorId failed, will fall back to Supabase DB query:', apiErr)
+          console.warn('patientSchedulesApi.getSchedulesByDoctorId failed, returning empty schedules:', apiErr)
         }
-
-        console.log('fetchSchedulesFromSupabase: querying Supabase directly for doctorId=', doctorId)
-
-        // Fallback: query Supabase directly (try numeric and string equality)
-        const q1 = await supabase
-          .from('schedules')
-          .select('*', { count: 'exact' })
-          .eq('doctor_id', doctorId)
-
-        if (q1.error) console.error('Supabase schedules numeric query error', q1.error)
-        const rows1 = (q1.data ?? []) as any[]
-        console.log(`Fetched ${rows1.length} schedule rows for doctor ${doctorId} (numeric eq):`, rows1)
-
-        const q2 = await supabase
-          .from('schedules')
-          .select('*', { count: 'exact' })
-          .eq('doctor_id', String(doctorId) as any)
-
-        if (q2.error) console.error('Supabase schedules string query error', q2.error)
-        const rows2 = (q2.data ?? []) as any[]
-        console.log(`Fetched ${rows2.length} schedule rows for doctor ${doctorId} (string eq):`, rows2)
-
-        const rows = rows1.length > 0 ? rows1 : rows2
-        if (rows.length > 0) {
-          const scheduleWithSlots = rows.map(row => {
-            const dayNum = Number(row.day_of_week) || 0
-            const slotObjs = computeSlotsFromScheduleRow(row)
-            const slots = slotObjs.map(s => `${s.start} - ${s.end}`)
-
-            return {
-              ...row,
-              day_name: dayNum ? weekday(dayNum) : null,
-              computed_slots: slots
-            }
-          })
-
-          // Determine target date in SGT for validity checks
-          const targetDateStr = bookingData.value.date
-            ? String(bookingData.value.date)
-            : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
-
-          const toSgtDate = (raw: any): string | null => {
-            if (raw == null) return null
-            try {
-              const d = new Date(String(raw))
-              if (isNaN(d.getTime())) return null
-              return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Singapore' })
-            } catch (_) {
-              return null
-            }
-          }
-
-          // preserve raw rows for later structured logging in nextStep
-          fetchedSchedulesRaw.value = scheduleWithSlots
-
-          // Build activeRows by filtering schedules whose validity range includes targetDateStr
-          const activeRows: any[] = []
-          for (const row of scheduleWithSlots) {
-            const vFrom = toSgtDate((row as any).valid_from ?? (row as any).validFrom ?? null)
-            const vTo = toSgtDate((row as any).valid_to ?? (row as any).validTo ?? null)
-            let isActive = true
-            if (vFrom && targetDateStr < vFrom) isActive = false
-            if (vTo && targetDateStr > vTo) isActive = false
-            if (isActive) activeRows.push(row)
-          }
-
-          // persist active schedules for calendar availability checks
-          fetchedSchedules.value = activeRows
-          lastFetchedDoctorId.value = doctorId
-          return activeRows
-        }
-
-        // Final fallback: show a sample of schedules to help debugging
-        const sampleQ = await supabase.from('schedules').select('*').limit(50)
-        if (sampleQ.error) console.error('Supabase schedules sample query error', sampleQ.error)
-        const sampleRows = (sampleQ.data ?? []) as any[]
-        console.warn('Schedules table sample (first 50 rows):', sampleRows)
         return [] as any[]
       } catch (err: any) {
         console.error('Error fetching schedules from Supabase for doctor', doctorId, err)
@@ -1308,41 +1210,52 @@ export const useBookAppointment = () => {
     return p
   }
 
-  // New: load clinics from backend API
   const loadClinics = async () => {
     try {
-      console.log('loadClinics: requesting clinics from backend')
-      const data = await clinicsApi.getAllClinics()
-      console.log('Loaded clinics from backend:', data)
-      
-      // Map backend fields to the expected client shape if necessary
+      console.log('loadClinics: requesting clinics from patient API')
+      const data = await patientClinicsApi.getAllClinics()
+      console.log('Loaded clinics for patient booking:', data)
+
+      const safeDate = (val: any) => {
+        if (!val) return null
+        const parsed = Date.parse(String(val))
+        return Number.isNaN(parsed) ? null : new Date(parsed).toISOString()
+      }
+
       allClinics.value = data.map(c => {
         const raw = c as any
-        const safeDate = (val: any) => {
-          if (!val) return null
-          const ts = Date.parse(val)
-          return isNaN(ts) ? null : new Date(ts).toISOString()
+
+        const pick = (...keys: string[]) => {
+          for (const key of keys) {
+            if (raw[key] !== undefined && raw[key] !== null) {
+              return raw[key]
+            }
+          }
+          return null
         }
+
+        const clinicType = pick('clinicType', 'clinic_type') ?? 'General'
+        const openTime = pick('openTime', 'open_time')
+        const closeTime = pick('closeTime', 'close_time')
 
         return ({
           id: raw.id,
           name: raw.name,
-          // backend returns snake_case column names per DB types
-          clinic_type: raw.clinic_type ?? 'General',
-          region: raw.region ?? null,
-          area: raw.area ?? null,
-          address_line: raw.address_line ?? '',
-          source_ref: raw.source_ref ?? null,
-          remarks: raw.remarks ?? null,
-          created_at: safeDate(raw.created_at),
-          updated_at: safeDate(raw.updated_at),
-          open_time: raw.open_time ?? null,
-          close_time: raw.close_time ?? null,
-          note: raw.note ?? null
+          clinic_type: clinicType,
+          region: pick('region'),
+          area: pick('area'),
+          address_line: pick('addressLine', 'address_line') ?? '',
+          source_ref: pick('sourceRef', 'source_ref'),
+          remarks: pick('remarks'),
+          created_at: safeDate(pick('createdAt', 'created_at')),
+          updated_at: safeDate(pick('updatedAt', 'updated_at')),
+          open_time: openTime,
+          close_time: closeTime,
+          note: pick('note')
         } as Clinic)
       })
     } catch (error) {
-      console.error('Failed to load clinics from backend. Error:', error)
+      console.error('Failed to load clinics from patient API. Error:', error)
     }
   }
 

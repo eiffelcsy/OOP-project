@@ -89,16 +89,16 @@ export const appointmentsApi = {
   },
 
   /**
-   * Get all appointments for a doctor
-   * GET /api/staff/appointments?doctorId={doctorId}
+   * Get appointments for a doctor (patient-facing)
+   * GET /api/patient/doctors/{doctorId}/appointments
    */
-  async getDoctorAppointments(doctorId: number): Promise<AppointmentResponse[]> {
-    return apiClient.get(`/api/staff/appointments?doctorId=${doctorId}`)
+  async getDoctorAppointmentsForPatient(doctorId: number): Promise<AppointmentResponse[]> {
+    return apiClient.get(`/api/patient/doctors/${doctorId}/appointments`)
   },
 
   /**
-   * Create a new appointment
-   * POST /api/appointments
+   * Create a new appointment (staff-facing)
+   * POST /api/staff/appointments
    */
   async createAppointment(appointmentData: CreateAppointmentRequest, idempotencyKey?: string): Promise<AppointmentResponse> {
     // Custom implementation to add idempotency key
@@ -114,7 +114,7 @@ export const appointmentsApi = {
     }
 
     const API_BASE = (import.meta.env as any).VITE_API_BASE_URL || 'http://localhost:8080'
-    const response = await fetch(`${API_BASE}/api/appointments`, {
+    const response = await fetch(`${API_BASE}/api/staff/appointments`, {
       method: 'POST',
       headers,
       body: JSON.stringify(appointmentData)
@@ -185,8 +185,8 @@ export const appointmentsApi = {
   },
 
   /**
-   * Update an appointment (reschedule)
-   * PUT /api/appointments/{id}?newStartTime={start}&newEndTime={end}
+   * Update an appointment (reschedule) - staff-facing
+   * PUT /api/staff/appointments/{id}?newStartTime={start}&newEndTime={end}
    */
   async updateAppointment(
     id: number,
@@ -198,19 +198,19 @@ export const appointmentsApi = {
     if (newEndTime) params.append('newEndTime', newEndTime)
 
     const queryString = params.toString()
-    const endpoint = queryString ? `/api/appointments/${id}?${queryString}` : `/api/appointments/${id}`
+    const endpoint = queryString ? `/api/staff/appointments/${id}?${queryString}` : `/api/staff/appointments/${id}`
 
     return apiClient.put(endpoint, {})
   },
 
   /*
-    * Update appointment status
-    * PUT /api/appointments/{id}/status
+    * Update appointment status - staff-facing
+    * PUT /api/staff/appointments/{id}/status
   */
   async updateAppointmentStatus(id: number, status: string): Promise<AppointmentResponse> {
-    console.log(`[API] Calling PUT /api/appointments/${id}/status with status:`, status)
+    console.log(`[API] Calling PUT /api/staff/appointments/${id}/status with status:`, status)
     try {
-      const response = await apiClient.put(`/api/appointments/${id}/status`, { status })
+      const response = await apiClient.put(`/api/staff/appointments/${id}/status`, { status })
       console.log('[API] Response received:', response)
       return response
     } catch (error) {
@@ -238,11 +238,11 @@ export const appointmentsApi = {
   },
 
   /**
-   * Cancel an appointment
-   * DELETE /api/appointments/{id}
+   * Cancel an appointment - staff-facing
+   * DELETE /api/staff/appointments/{id}
    */
   async cancelAppointment(id: number): Promise<void> {
-    return apiClient.delete(`/api/appointments/${id}`)
+    return apiClient.delete(`/api/staff/appointments/${id}`)
   },
 
   /**

@@ -2,7 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
 import type { Tables } from '@/types/supabase'
 import { useAuth } from '@/features/auth/composables/useAuth'
-import { doctorsApi } from '@/services/doctorsApi'
+import { staffDoctorsApi } from '@/services/staffDoctorsApi'
 import { appointmentsApi } from '@/services/appointmentsApi'
 import { queueApi } from '@/services/queueApi'
 import { queueTicketsApi, type CreateQueueTicketRequest } from '@/services/queueTicketsApi'
@@ -52,7 +52,7 @@ export const useStaffAppointments = () => {
   const fetchDoctors = async (clinicId: number) => {
     try {
       console.log('Fetching doctors for clinic ID:', clinicId)
-      const data = await doctorsApi.getDoctorsByClinicId(clinicId)
+      const data = await staffDoctorsApi.getDoctorsByClinicId(clinicId)
       // .map() loops through the list of doctors returned by your API (data), and for each doctor object
       doctors.value = data.map((doc, index) => ({
         ...doc,

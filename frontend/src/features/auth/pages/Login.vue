@@ -142,13 +142,14 @@ const handleLogin = async () => {
     </div>
 
     <!-- Login Form -->
-    <div class="grid gap-4">
+    <form @submit.prevent="handleLogin" class="grid gap-4">
       <div class="grid gap-2">
         <Label for="email">Email</Label>
         <Input
           id="email"
           v-model="email"
           type="email"
+          autocomplete="email"
           placeholder="m@example.com"
           required
           :disabled="isLoading"
@@ -169,6 +170,7 @@ const handleLogin = async () => {
             id="password" 
             v-model="password"
             :type="showPassword ? 'text' : 'password'" 
+            autocomplete="current-password"
             required
             :disabled="isLoading"
             class="pr-10"
@@ -187,11 +189,11 @@ const handleLogin = async () => {
           </button>
         </div>
       </div>
-      <Button type="submit" class="w-full" @click="handleLogin" :disabled="isLoading">
+      <Button type="submit" class="w-full" :disabled="isLoading">
         <Icon v-if="isLoading" icon="svg-spinners:180-ring" class="mr-2" />
         {{ isLoading ? 'Logging in...' : 'Login' }}
       </Button>
-    </div>
+    </form>
 
     <!-- Sign Up Links -->
     <div class="mt-4 text-center text-sm" v-if="selectedRole === 'patient'">

@@ -52,7 +52,7 @@ export interface UpdateClinicRequest {
 /**
  * Clinic API client
  */
-export const clinicsApi = {
+export const adminClinicsApi = {
   /**
    * Get all clinics
    * GET /api/admin/clinics

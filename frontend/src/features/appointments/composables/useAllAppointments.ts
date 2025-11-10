@@ -3,8 +3,12 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import type { Tables } from '@/types/supabase'
 import type { DateValue } from '@internationalized/date'
 import { apiClient } from '@/lib/api'
-import { doctorsApi } from '@/services/doctorsApi'
-import { appointmentsApi } from '@/services/appointmentsApi'
+import { staffDoctorsApi } from '@/services/staffDoctorsApi'
+import { staffAppointmentsApi } from '@/services/staffAppointmentsApi'
+import { staffUsersApi } from '@/services/staffUsersApi'
+import { staffClinicsApi } from '@/services/staffClinicsApi'
+import { patientsApi } from '@/services/patientsApi'
+import { staffSchedulesApi } from '@/services/staffSchedulesApi'
 
 // Define proper TypeScript interfaces
 interface Appointment {
@@ -34,7 +38,7 @@ interface Doctor {
 interface Clinic {
   id: number
   name: string
-  clinic_type: string
+  clinicType: string | null
   // add other fields as needed
 }
 
@@ -112,7 +116,7 @@ export function useAllAppointments() {
   // --- Fetch doctors ---
   const fetchDoctors = async (clinicId: number) => {
     try {
-      doctors.value = await doctorsApi.getDoctorsByClinicId(clinicId)
+      doctors.value = await staffDoctorsApi.getDoctorsByClinicId(clinicId)
 
       // Set default doctor if none is selected
       if (!bookingData.value.doctor && doctors.value.length > 0) {
@@ -141,7 +145,7 @@ export function useAllAppointments() {
 
       await fetchDoctors(clinicId)
 
-      const data = await appointmentsApi.getClinicAppointments(clinicId)
+      const data = await staffAppointmentsApi.getClinicAppointments(clinicId)
 
       // Filter out past appointments (SGT timezone)
       const nowSGT = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
@@ -151,11 +155,11 @@ export function useAllAppointments() {
         return apptSGT >= nowSGT
       })
 
-      // Fetch related data in parallel
+      // Fetch related data in parallel using staff endpoints
       const [patients, profiles, clinicsData] = await Promise.all([
-        apiClient.get('/api/patient/all'),
-        apiClient.get('/api/admin/users'),
-        apiClient.get('/api/admin/clinics')
+        patientsApi.getAllPatients(),
+        staffUsersApi.getAllUsers(),
+        staffClinicsApi.getAllClinics()
       ])
 
       clinics.value = clinicsData
@@ -188,7 +192,7 @@ export function useAllAppointments() {
 
         const clinic = clinics.value.find((c: Clinic) => c.id === appt.clinic_id)
         const clinicName = clinic?.name ?? '-'
-        const clinicType = clinic?.clinic_type ?? '-'
+        const clinicType = clinic?.clinicType ?? '-'
 
         const dateStr = start ? start.toISOString().split('T')[0] : '-'
 
@@ -236,7 +240,7 @@ export function useAllAppointments() {
       }
 
       // This might return null (empty response), but that's OK for DELETE
-      await appointmentsApi.cancelAppointment(appointmentId)
+      await staffAppointmentsApi.cancelAppointment(appointmentId)
 
       // Update local state for real-time UI
       allAppointments.value[appointmentIndex] = {
@@ -267,7 +271,7 @@ export function useAllAppointments() {
       const jsDate = new Date(selectedDateStr)
       const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
-      const schedules = await apiClient.get(`/api/admin/doctors/${doctorId}/schedules`)
+      const schedules = await staffSchedulesApi.getSchedulesByDoctorId(doctorId)
 
       // Helper: convert validity dates to SGT date strings for comparison
       const toSgtDate = (raw: any): string | null => {
@@ -388,7 +392,7 @@ export function useAllAppointments() {
       const jsDate = new Date(selectedDateStr)
       const dayOfWeek = jsDate.getDay() === 0 ? 7 : jsDate.getDay()
 
-      const schedules = await apiClient.get(`/api/admin/doctors/${appointment.doctorId}/schedules`)
+      const schedules = await staffSchedulesApi.getSchedulesByDoctorId(appointment.doctorId)
 
       // Find the schedule for the specific day of week
       const scheduleForDay = schedules.find((sch: any) => sch.day_of_week === dayOfWeek)
@@ -404,7 +408,7 @@ export function useAllAppointments() {
       console.log("  - Slot Duration:", slotDuration, "minutes")
       console.log("  - Day of Week:", dayOfWeek)
 
-      await appointmentsApi.updateAppointment(appointmentId, newStartTime, newEndTime)
+      await staffAppointmentsApi.updateAppointment(appointmentId, newStartTime, newEndTime)
 
       // Refresh appointments to get updated data
       await fetchAllAppointments()
@@ -440,7 +444,7 @@ export function useAllAppointments() {
         )
 
         // Fetch schedules for this doctor to get slot durations
-        const schedules = await apiClient.get(`/api/admin/doctors/${doctor.id}/schedules`)
+        const schedules = await staffSchedulesApi.getSchedulesByDoctorId(doctor.id)
 
         rescheduleAvailableSlots.value = generatedSlots.map((slot) => {
           // slot.slot_start and slot.slot_end are now full ISO timestamps like "2024-11-08T09:00:00+08:00"

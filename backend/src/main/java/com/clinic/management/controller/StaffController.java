@@ -13,10 +13,16 @@ import com.clinic.management.dto.response.StaffAppointmentResponse;
 import com.clinic.management.model.Appointment;
 import com.clinic.management.model.Queue;
 import com.clinic.management.model.Patient;
+import com.clinic.management.model.Schedule;
+import com.clinic.management.model.Clinic;
 import com.clinic.management.service.AppointmentService;
 import com.clinic.management.service.QueueService;
 import com.clinic.management.service.QueueTicketService;
 import com.clinic.management.service.PatientService;
+import com.clinic.management.service.DoctorService;
+import com.clinic.management.service.ScheduleService;
+import com.clinic.management.dto.response.DoctorResponse;
+import com.clinic.management.dto.response.ScheduleResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -31,39 +37,56 @@ import java.time.OffsetDateTime;
 import java.time.ZonedDateTime;
 
 import com.clinic.management.repository.AppointmentRepository;
+import com.clinic.management.dto.response.ClinicResponse;
+import com.clinic.management.dto.response.UserResponse;
+import com.clinic.management.service.ClinicService;
+import com.clinic.management.service.UserService;
 
 /**
- * REST Controller for Staff, Appointment, Queue, and Patient management
+ * REST Controller for Staff operations
  * Provides endpoints for staff-facing operations
  * 
- * Base path: /api
+ * Base path: /api/staff
  * 
  * Appointment Endpoints:
  * - GET /api/staff/appointments - View appointments
- * - POST /api/appointments - Schedule walk-in
- * - PUT /api/appointments/{id} - Reschedule appointment
- * - DELETE /api/appointments/{id} - Cancel appointment
- * - PUT /api/appointments/{id}/status - Update appointment status
+ * - GET /api/staff/appointments/today/{clinicId} - Get today's appointments for clinic
+ * - GET /api/staff/appointments/clinic/{clinicId} - Get appointments by clinic
+ * - POST /api/staff/appointments - Schedule walk-in
+ * - PUT /api/staff/appointments/{id} - Reschedule appointment
+ * - DELETE /api/staff/appointments/{id} - Cancel appointment
+ * - PUT /api/staff/appointments/{id}/status - Update appointment status
+ * 
+ * Clinic Endpoints:
+ * - GET /api/staff/clinics - Get all clinics
+ * - GET /api/staff/clinics/{id} - Get clinic by ID
+ * 
+ * User Endpoints (Staff Access):
+ * - GET /api/staff/users - Get all users
+ * - GET /api/staff/users/{id} - Get user by ID
  * 
  * Queue Endpoints:
- * - POST /api/queues - Create queue
- * - GET /api/queues/{id} - Get queue by ID
- * - GET /api/queues - List queues (with filters)
- * - PUT /api/queues/{id} - Update queue
- * - DELETE /api/queues/{id} - Delete queue
+ * - POST /api/staff/queues - Create queue
+ * - GET /api/staff/queues/{id} - Get queue by ID
+ * - GET /api/staff/queues - List queues (with filters)
+ * - PUT /api/staff/queues/{id} - Update queue
+ * - DELETE /api/staff/queues/{id} - Delete queue
  * 
  * Patient Endpoints (Staff Access):
  * - GET /api/staff/patients - Get all patients
  * - GET /api/staff/patients/{id} - Get patient by ID
  * 
+ * Doctor Endpoints (Staff Access):
+ * - GET /api/staff/doctors/clinic/{clinicId} - Get doctors by clinic ID
+ * 
  * Queue Ticket Endpoints:
- * - POST /api/queue-tickets - Create queue ticket
+ * - POST /api/staff/queue-tickets - Create queue ticket
  * - GET /api/staff/queues/{queueId}/tickets - List queue tickets
- * - PUT /api/queue-tickets/{id} - Update queue ticket
- * - DELETE /api/queue-tickets/{id} - Delete queue ticket
+ * - PUT /api/staff/queue-tickets/{id} - Update queue ticket
+ * - DELETE /api/staff/queue-tickets/{id} - Delete queue ticket
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/staff")
 @CrossOrigin(origins = "*") // Configure appropriately for production
 @Validated
 public class StaffController {
@@ -72,17 +95,25 @@ public class StaffController {
     private final QueueService queueService;
     private final QueueTicketService queueTicketService;
     private final PatientService patientService;
+    private final DoctorService doctorService;
     private final AppointmentRepository appointmentRepository;
-
+    private final ClinicService clinicService;
+    private final ScheduleService scheduleService;
+    private final UserService userService;
+    
     @Autowired
     public StaffController(AppointmentService appointmentService, QueueService queueService,
             QueueTicketService queueTicketService, PatientService patientService,
-            AppointmentRepository appointmentRepository) {
+            DoctorService doctorService, ClinicService clinicService, ScheduleService scheduleService, AppointmentRepository appointmentRepository, UserService userService) {
         this.appointmentService = appointmentService;
         this.queueService = queueService;
         this.queueTicketService = queueTicketService;
         this.patientService = patientService;
+        this.doctorService = doctorService;
+        this.clinicService = clinicService;
+        this.scheduleService = scheduleService;
         this.appointmentRepository = appointmentRepository;
+        this.userService = userService;
     }
 
     // =========================
@@ -90,7 +121,7 @@ public class StaffController {
     // =========================
 
     // # ViewAppointments
-    @GetMapping("/staff/appointments")
+    @GetMapping("/appointments")
     public List<Appointment> getAppointments(
             @RequestParam(required = false) Long doctorId,
             @RequestParam(required = false) Long clinicId,
@@ -110,14 +141,14 @@ public class StaffController {
      * @param clinicId Clinic ID
      * @return List of enriched appointments for today
      */
-    @GetMapping("/staff/appointments/today/{clinicId}")
+    @GetMapping("/appointments/today/{clinicId}")
     public ResponseEntity<List<StaffAppointmentResponse>> getTodaysAppointments(@PathVariable Long clinicId) {
         List<StaffAppointmentResponse> responses = appointmentService.getTodaysAppointmentsForClinic(clinicId);
         return ResponseEntity.ok(responses);
     }
 
     // Get appointments for a specific clinic
-    @GetMapping("/staff/appointments/clinic/{clinicId}")
+    @GetMapping("/appointments/clinic/{clinicId}")
     public List<Appointment> getAppointmentsByClinic(@PathVariable Long clinicId) {
         return appointmentService.getAppointments(null, clinicId, null);
     }
@@ -233,13 +264,69 @@ public class StaffController {
     }
 
     // =========================
+    // CLINIC ENDPOINTS
+    // =========================
+
+    /**
+     * Get all clinics
+     * GET /api/staff/clinics
+     * 
+     * Staff-facing endpoint to list all clinics in the system
+     * Used for appointment management and clinic selection
+     * 
+     * @return List of all clinics as ClinicResponse DTOs
+     */
+    @GetMapping("/clinics")
+    public ResponseEntity<List<ClinicResponse>> getAllClinics() {
+        List<Clinic> clinics = clinicService.getAllClinics();
+        List<ClinicResponse> responses = clinics.stream()
+            .map(ClinicResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
+
+    /**
+     * Get clinic by ID
+     * GET /api/staff/clinics/{id}
+     * 
+     * @param id Clinic ID
+     * @return Clinic response if found
+     */
+    @GetMapping("/clinics/{id}")
+    public ResponseEntity<ClinicResponse> getClinicById(@PathVariable Long id) {
+        return clinicService.getClinicById(id)
+                .map(clinic -> ResponseEntity.ok(ClinicResponse.from(clinic)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================
+    // DOCTOR SCHEDULES ENDPOINTS
+    // =========================
+
+    /**
+     * GET /api/staff/doctors/{doctorId}/schedules
+     * Fetch schedules for a doctor, filtered to active records.
+     *
+     * @param doctorId Doctor ID
+     * @return List of schedules as ScheduleResponse DTOs
+     */
+    @GetMapping("/doctors/{doctorId}/schedules")
+    public ResponseEntity<List<ScheduleResponse>> getSchedulesForDoctor(@PathVariable Long doctorId) {
+        List<Schedule> schedules = scheduleService.getSchedulesByDoctorId(doctorId);
+        List<ScheduleResponse> responses = schedules.stream()
+            .map(ScheduleResponse::from)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(responses);
+    }
+
+    // =========================
     // QUEUE ENDPOINTS
     // =========================
 
     /**
      * Create a new queue
      * 
-     * POST /api/queues
+     * POST /api/staff/queues
      * 
      * @param request Create queue request (validated)
      * @return Created queue response
@@ -254,7 +341,7 @@ public class StaffController {
     /**
      * Get queue by ID
      * 
-     * GET /api/queues/{id}
+     * GET /api/staff/queues/{id}
      * 
      * @param id Queue ID
      * @return Queue response if found
@@ -269,7 +356,7 @@ public class StaffController {
     /**
      * List queues with filtering, pagination, and sorting
      * 
-     * GET /api/queues
+     * GET /api/staff/queues
      * 
      * Query parameters:
      * - page: page number (default 0)
@@ -302,7 +389,7 @@ public class StaffController {
     /**
      * Update an existing queue
      * 
-     * PUT /api/queues/{id}
+     * PUT /api/staff/queues/{id}
      * 
      * @param id      Queue ID
      * @param request Update request (validated, all fields optional)
@@ -320,7 +407,7 @@ public class StaffController {
     /**
      * Delete a queue
      * 
-     * DELETE /api/queues/{id}
+     * DELETE /api/staff/queues/{id}
      * 
      * @param id Queue ID
      * @return No content on success
@@ -329,6 +416,41 @@ public class StaffController {
     public ResponseEntity<Void> deleteQueue(@PathVariable Long id) {
         queueService.deleteQueue(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // =========================
+    // USER ENDPOINTS (Staff Access)
+    // =========================
+
+    /**
+     * Get all users (profiles)
+     * GET /api/staff/users
+     * 
+     * Staff-facing endpoint to list all users in the system
+     * Used for appointment management and user lookup
+     * 
+     * @return List of all users as UserResponse DTOs
+     */
+    @GetMapping("/users")
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = userService.getAllUsers();
+        return ResponseEntity.ok(users);
+    }
+
+    /**
+     * Get user by ID
+     * GET /api/staff/users/{id}
+     * 
+     * Staff-facing endpoint to get detailed user information
+     * 
+     * @param id User ID (profile ID)
+     * @return User details if found
+     */
+    @GetMapping("/users/{id}")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     // =========================
@@ -342,7 +464,7 @@ public class StaffController {
      * Staff-facing endpoint to list all patients in the system
      * Used for appointment scheduling and patient lookup
      */
-    @GetMapping("/staff/patients")
+    @GetMapping("/patients")
     public List<Patient> getAllPatients() {
         return patientService.getAllPatients();
     }
@@ -356,11 +478,31 @@ public class StaffController {
      * @param id Patient ID
      * @return Patient details if found
      */
-    @GetMapping("/staff/patients/{id}")
+    @GetMapping("/patients/{id}")
     public ResponseEntity<Patient> getPatientById(@PathVariable Long id) {
         return patientService.getPatientById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // =========================
+    // DOCTOR ENDPOINTS (Staff Access)
+    // =========================
+
+    /**
+     * Get doctors by clinic ID
+     * GET /api/staff/doctors/clinic/{clinicId}
+     * 
+     * Staff-facing endpoint to get all doctors for a specific clinic
+     * Used for appointment management and doctor selection
+     * 
+     * @param clinicId Clinic ID
+     * @return List of doctors for the specified clinic
+     */
+    @GetMapping("/doctors/clinic/{clinicId}")
+    public ResponseEntity<List<DoctorResponse>> getDoctorsByClinicId(@PathVariable Long clinicId) {
+        List<DoctorResponse> responses = doctorService.getDoctorResponsesByClinicId(clinicId);
+        return ResponseEntity.ok(responses);
     }
 
     // =========================
@@ -369,7 +511,7 @@ public class StaffController {
 
     /**
      * Create a new queue ticket
-     * POST /api/queue-tickets
+     * POST /api/staff/queue-tickets
      */
     @PostMapping("/queue-tickets")
     public ResponseEntity<QueueTicketResponse> createQueueTicket(@Valid @RequestBody CreateQueueTicketRequest request) {
@@ -381,7 +523,7 @@ public class StaffController {
      * List queue tickets with patient names
      * GET /api/staff/queues/{queueId}/tickets
      */
-    @GetMapping("/staff/queues/{queueId}/tickets")
+    @GetMapping("/queues/{queueId}/tickets")
     public ResponseEntity<List<QueueTicketResponse>> listQueueTickets(@PathVariable Long queueId) {
         List<QueueTicketResponse> responses = queueTicketService.listWithPatientNames(queueId);
         return ResponseEntity.ok(responses);
@@ -389,7 +531,7 @@ public class StaffController {
 
     /**
      * Update queue ticket
-     * PUT /api/queue-tickets/{id}
+     * PUT /api/staff/queue-tickets/{id}
      */
     @PutMapping("/queue-tickets/{id}")
     public ResponseEntity<QueueTicketResponse> updateQueueTicket(@PathVariable Long id,
@@ -400,7 +542,7 @@ public class StaffController {
 
     /**
      * Delete queue ticket
-     * DELETE /api/queue-tickets/{id}
+     * DELETE /api/staff/queue-tickets/{id}
      */
     @DeleteMapping("/queue-tickets/{id}")
     public ResponseEntity<Void> deleteQueueTicket(@PathVariable Long id) {

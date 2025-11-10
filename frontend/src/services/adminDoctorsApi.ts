@@ -37,7 +37,7 @@ export interface UpdateDoctorRequest {
 /**
  * Doctor API client
  */
-export const doctorsApi = {
+export const adminDoctorsApi = {
   /**
    * Get all doctors
    * GET /api/admin/doctors
@@ -47,7 +47,7 @@ export const doctorsApi = {
   },
 
   /**
-   * Get doctors by clinic ID
+   * Get doctors by clinic ID (Admin-facing)
    * GET /api/admin/doctors/clinic/{clinicId}
    */
   async getDoctorsByClinicId(clinicId: number): Promise<DoctorResponse[]> {

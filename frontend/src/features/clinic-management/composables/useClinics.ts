@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
-  clinicsApi, 
+  adminClinicsApi, 
   type ClinicResponse, 
   type CreateClinicRequest, 
   type UpdateClinicRequest 
-} from '@/services/clinicsApi'
+} from '@/services/adminClinicsApi'
 import type { Tables } from '@/types/supabase'
 
 /**
@@ -29,7 +29,7 @@ export function useClinics() {
     loading.value = true
     error.value = null
     try {
-      const data = await clinicsApi.getAllClinics()
+      const data = await adminClinicsApi.getAllClinics()
       clinics.value = data || []
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clinics'
@@ -46,7 +46,7 @@ export function useClinics() {
     loading.value = true
     error.value = null
     try {
-      const data = await clinicsApi.getClinicById(id)
+      const data = await adminClinicsApi.getClinicById(id)
       return data
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch clinic'
@@ -64,7 +64,7 @@ export function useClinics() {
     loading.value = true
     error.value = null
     try {
-      const data = await clinicsApi.createClinic(clinicData)
+      const data = await adminClinicsApi.createClinic(clinicData)
       
       // Refresh clinics list
       await fetchClinics()
@@ -86,7 +86,7 @@ export function useClinics() {
     loading.value = true
     error.value = null
     try {
-      const data = await clinicsApi.updateClinic(id, clinicData)
+      const data = await adminClinicsApi.updateClinic(id, clinicData)
       
       // Refresh clinics list
       await fetchClinics()
@@ -108,7 +108,7 @@ export function useClinics() {
     loading.value = true
     error.value = null
     try {
-      await clinicsApi.deleteClinic(id)
+      await adminClinicsApi.deleteClinic(id)
       
       // Refresh clinics list
       await fetchClinics()
@@ -161,5 +161,5 @@ export type {
   ClinicResponse, 
   CreateClinicRequest, 
   UpdateClinicRequest 
-} from '@/services/clinicsApi'
+} from '@/services/adminClinicsApi'
 

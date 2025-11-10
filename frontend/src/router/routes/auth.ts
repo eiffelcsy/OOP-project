@@ -52,6 +52,19 @@ const authRoutes: RouteRecordRaw[] = [
         component: () => import('@/features/auth/pages/ResetPassword.vue'),
       }
     ]
+  },
+  {
+    path: '/contact',
+    component: () => import('@/layouts/AuthLayout.vue'),
+    meta: {
+      title: 'Contact'
+    },
+    children: [
+      {
+        path: '',
+        component: () => import('@/features/auth/pages/Contact.vue'),
+      }
+    ]
   }
 ]
 

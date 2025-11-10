@@ -49,23 +49,23 @@ export interface ListResult<T> {
 export const queueApi = {
   /**
    * Create a new queue
-   * POST /api/queues
+   * POST /api/staff/queues
    */
   async createQueue(request: CreateQueueRequest): Promise<QueueResponse> {
-    return apiClient.post('/api/queues', request)
+    return apiClient.post('/api/staff/queues', request)
   },
 
   /**
    * Get queue by ID
-   * GET /api/queues/{id}
+   * GET /api/staff/queues/{id}
    */
   async getQueueById(id: number): Promise<QueueResponse> {
-    return apiClient.get(`/api/queues/${id}`)
+    return apiClient.get(`/api/staff/queues/${id}`)
   },
 
   /**
    * List queues with filters
-   * GET /api/queues
+   * GET /api/staff/queues
    */
   async listQueues(options?: ListQueuesOptions): Promise<ListResult<QueueResponse>> {
     const params = new URLSearchParams()
@@ -83,26 +83,26 @@ export const queueApi = {
     }
     
     const queryString = params.toString()
-    const endpoint = queryString ? `/api/queues?${queryString}` : '/api/queues'
+    const endpoint = queryString ? `/api/staff/queues?${queryString}` : '/api/staff/queues'
     
     return apiClient.get(endpoint)
   },
 
   /**
    * Update an existing queue
-   * PUT /api/queues/{id}
+   * PUT /api/staff/queues/{id}
    */
   async updateQueue(id: number, request: UpdateQueueRequest): Promise<QueueResponse> {
     // Request is already in snake_case, no conversion needed
-    return apiClient.put(`/api/queues/${id}`, request)
+    return apiClient.put(`/api/staff/queues/${id}`, request)
   },
 
   /**
    * Delete a queue
-   * DELETE /api/queues/{id}
+   * DELETE /api/staff/queues/{id}
    */
   async deleteQueue(id: number): Promise<void> {
-    return apiClient.delete(`/api/queues/${id}`)
+    return apiClient.delete(`/api/staff/queues/${id}`)
   },
 
   /**

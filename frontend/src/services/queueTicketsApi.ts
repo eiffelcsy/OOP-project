@@ -32,7 +32,7 @@ export const queueTicketsApi = {
   },
 
   async create(payload: CreateQueueTicketRequest): Promise<QueueTicketResponse> {
-    return apiClient.post(`/api/queue-tickets`, payload)
+    return apiClient.post(`/api/staff/queue-tickets`, payload)
   },
 
   async update(id: number, payload: Partial<{
@@ -46,6 +46,6 @@ export const queueTicketsApi = {
     no_show_at: string | null
     expected_updated_at: string | null
   }>): Promise<QueueTicketResponse> {
-    return apiClient.put(`/api/queue-tickets/${id}`, payload)
+    return apiClient.put(`/api/staff/queue-tickets/${id}`, payload)
   },
 }

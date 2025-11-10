@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { 
-  doctorsApi, 
+  adminDoctorsApi, 
   type DoctorResponse, 
   type CreateDoctorRequest, 
   type UpdateDoctorRequest 
-} from '@/services/doctorsApi'
+} from '@/services/adminDoctorsApi'
 import type { Tables } from '@/types/supabase'
 import { supabase } from '@/lib/supabase'
 
@@ -30,7 +30,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      const data = await doctorsApi.getAllDoctors()
+      const data = await adminDoctorsApi.getAllDoctors()
       doctors.value = data || []
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch doctors'
@@ -47,7 +47,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      const data = await doctorsApi.getDoctorsByClinicId(clinicId)
+      const data = await adminDoctorsApi.getDoctorsByClinicId(clinicId)
       doctors.value = data || []
       return data
     } catch (err) {
@@ -66,7 +66,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      const data = await doctorsApi.getDoctorById(id)
+      const data = await adminDoctorsApi.getDoctorById(id)
       return data
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch doctor'
@@ -84,7 +84,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      const data = await doctorsApi.createDoctor(doctorData)
+      const data = await adminDoctorsApi.createDoctor(doctorData)
       
       // Refresh doctors list
       await fetchDoctors()
@@ -106,7 +106,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      const data = await doctorsApi.updateDoctor(id, doctorData)
+      const data = await adminDoctorsApi.updateDoctor(id, doctorData)
       
       // Refresh doctors list
       await fetchDoctors()
@@ -128,7 +128,7 @@ export function useDoctors() {
     loading.value = true
     error.value = null
     try {
-      await doctorsApi.deleteDoctor(id)
+      await adminDoctorsApi.deleteDoctor(id)
       
       // Refresh doctors list
       await fetchDoctors()
@@ -200,5 +200,5 @@ export type {
   DoctorResponse, 
   CreateDoctorRequest, 
   UpdateDoctorRequest 
-} from '@/services/doctorsApi'
+} from '@/services/adminDoctorsApi'
 
