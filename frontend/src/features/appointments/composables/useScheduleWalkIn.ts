@@ -366,7 +366,7 @@ export const useScheduleWalkIn = () => {
       const bookedAppointments = clinicAppointments.value.filter(
         (appt) =>
           appt.doctor_id === doctor.id &&
-          (appt.status === 'scheduled' || appt.status === 'confirmed') &&
+          (appt.status === 'scheduled' || appt.status === 'confirmed' || appt.status === 'checked-in') &&
           appt.start_time.startsWith(selectedDateStr)
       )
 

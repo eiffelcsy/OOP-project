@@ -435,7 +435,7 @@ export function useAllAppointments() {
         const bookedAppointments = allAppointments.value.filter(
           (appt) =>
             appt.doctorId === doctor.id &&
-            (appt.status === 'scheduled' || appt.status === 'confirmed') &&
+            (appt.status === 'scheduled' || appt.status === 'confirmed' || appt.status === 'checked-in') &&
             appt.date === selectedDateStr
         )
 
