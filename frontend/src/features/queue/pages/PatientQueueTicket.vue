@@ -44,16 +44,42 @@ watch(() => patientId.value, async (newId) => {
         await fetchPatientQueueInfo(newId)
     }
 })
+
+// Add refresh method
+const refreshData = async () => {
+    if (patientId.value) {
+        await fetchPatientQueueInfo(patientId.value)
+    }
+}
+
 </script>
 
 <template>
     <div class="space-y-8 p-4 md:p-8">
         <!-- Page Title -->
-        <div class="flex flex-col gap-1">
-            <h1 class="text-2xl md:text-3xl font-bold tracking-tight">My Queue Tickets</h1>
-            <p class="text-sm text-muted-foreground">
-                Track your position in the queue and get notified when it's your turn
-            </p>
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-col gap-1">
+                <h1 class="text-2xl md:text-3xl font-bold tracking-tight">My Queue Tickets</h1>
+                <p class="text-sm text-muted-foreground">
+                    Track your position in the queue and get notified when it's your turn
+                </p>
+            </div>
+            
+            <!-- Manual Refresh Button -->
+            <Button 
+                @click="refreshData" 
+                variant="outline" 
+                size="sm"
+                :disabled="queueLoading"
+                class="w-fit"
+            >
+                <Icon 
+                    icon="lucide:refresh-cw" 
+                    class="mr-2"
+                    :class="{ 'animate-spin': queueLoading }"
+                />
+                Refresh
+            </Button>
         </div>
 
         <!-- Loading State -->
