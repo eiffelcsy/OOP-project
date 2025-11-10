@@ -145,7 +145,7 @@ const handleCompleted = async (appointmentId: number) => {
 
     <!-- Statistics Cards -->
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-      <Card class="w-58">
+      <Card class="w-full">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Total</CardTitle>
           <Icon icon="lucide:calendar" class="h-4 w-4 text-muted-foreground" />
@@ -156,7 +156,7 @@ const handleCompleted = async (appointmentId: number) => {
         </CardContent>
       </Card>
 
-      <Card class="w-58">
+      <Card class="w-full">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Checked In</CardTitle>
           <Icon icon="lucide:user-check" class="h-4 w-4 text-muted-foreground" />
@@ -167,7 +167,7 @@ const handleCompleted = async (appointmentId: number) => {
         </CardContent>
       </Card>
 
-      <Card class="w-58">
+      <Card class="w-full">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">Completed</CardTitle>
           <Icon icon="lucide:check-circle" class="h-4 w-4 text-muted-foreground" />
@@ -178,7 +178,7 @@ const handleCompleted = async (appointmentId: number) => {
         </CardContent>
       </Card>
 
-      <Card class="w-58">
+      <Card class="w-full">
         <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle class="text-sm font-medium">No Shows</CardTitle>
           <Icon icon="lucide:x-circle" class="h-4 w-4 text-muted-foreground" />

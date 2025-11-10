@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Icon } from "@iconify/vue"
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { toast } from 'vue-sonner'
 
@@ -16,6 +16,7 @@ const password = ref('')
 const showPassword = ref(false)
 
 const router = useRouter()
+const route = useRoute()
 const { login, isLoading, error, currentUser } = useAuth()
 
 const roles = [
@@ -86,19 +87,27 @@ const handleLogin = async () => {
 
   // Small delay before redirecting to let user see the success message
   setTimeout(() => {
-    // Redirect to appropriate dashboard based on user type
-    switch (currentUser.value?.userType) {
-      case 'patient':
-        router.push('/patient/dashboard')
-        break
-      case 'staff':
-        router.push('/staff/dashboard')
-        break
-      case 'admin':
-        router.push('/admin/dashboard')
-        break
-      default:
-        router.push('/')
+    // Check if there's a redirect query parameter (from protected route)
+    const redirectPath = route.query.redirect as string | undefined
+    
+    if (redirectPath) {
+      // Redirect to the originally requested path
+      router.push(redirectPath)
+    } else {
+      // Redirect to appropriate dashboard based on user type
+      switch (currentUser.value?.userType) {
+        case 'patient':
+          router.push('/patient/dashboard')
+          break
+        case 'staff':
+          router.push('/staff/dashboard')
+          break
+        case 'admin':
+          router.push('/admin/dashboard')
+          break
+        default:
+          router.push('/')
+      }
     }
   }, 800)
 }
