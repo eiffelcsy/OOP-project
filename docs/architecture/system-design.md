@@ -8,6 +8,8 @@ The Clinic Management System is a comprehensive web-based application designed t
 
 The system adopts a **layered architecture** with a Spring Boot backend and Vue.js frontend, providing scalable and maintainable clinic management capabilities. The updated system architecture diagram (`system-architecture-diagram.png`) reflects the following structure.
 
+![System Architecture](system-architecture-diagram.png)
+
 ### System Layers
 
 #### 1. Frontend User Interface Layer
@@ -136,8 +138,9 @@ This architecture provides a robust foundation for clinic management operations 
 
 The backend class relationships and service boundaries are captured in PlantUML for easy regeneration of the diagram.
 
-<!--![UML Class Diagram](./backend-class-diagram.puml)-->
+![Models Class Diagram](https://tinyurl.com/34twph4j)
 
+![Backend Class Diagram](https://tinyurl.com/43nh8y6d)
 
 ## API Documentation
 
