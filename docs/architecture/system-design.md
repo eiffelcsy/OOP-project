@@ -6,85 +6,81 @@ The Clinic Management System is a comprehensive web-based application designed t
 
 ## Architecture Overview
 
-The system is built using a **4-layer architecture** with Spring Boot backend and Vue.js frontend, providing scalable and maintainable clinic management capabilities.
+The system adopts a **layered architecture** with a Spring Boot backend and Vue.js frontend, providing scalable and maintainable clinic management capabilities. The updated system architecture diagram (`system-architecture-diagram.png`) reflects the following structure.
 
 ### System Layers
 
-#### 1. Presentation Layer
-The frontend provides three distinct user interfaces:
+#### 1. Frontend User Interface Layer
+Three role-specific experiences deliver the clinic workflows:
 
-- **Patient UI**: 
-  - Appointment booking functionality
-  - Queue management and status tracking
+- **Patient UI**  
+  - Appointment booking  
+  - Queue and ticket status tracking  
   
-- **Clinic Staff UI**:
-  - Appointment management for staff
-  - Queue control and patient flow management
+- **Clinic Staff UI**  
+  - Appointment management and approvals  
+  - Queue orchestration for on-site operations  
   
-- **Admin UI**:
-  - User account management
-  - Clinic configuration and settings
-
-#### 2. Application Entry Point (Spring Boot)
-- **JWT Authentication Filter**: Secures API endpoints with token-based authentication
-- **Security Configuration**: Implements role-based access control
-- **Role Checks**: Ensures users can only access authorized resources
-
-#### 3. Controller Layer (REST API)
-The system exposes RESTful APIs through specialized controllers:
-
-- **UserController**: Handles user details fetching and authorization validation
-- **PatientController**: Manages patient-related operations
-- **StaffController**: Handles staff-specific functionalities  
-- **AdminController**: Provides administrative operations
-
-#### 4. Application Layer (Orchestration)
-Business logic orchestration through dedicated managers:
-
-- **AuthManager**: 
-  - User registration and login
-  - Session management and logout
+- **Admin UI**  
+  - User account provisioning and oversight  
+  - Clinic-wide configuration and policy management  
   
-- **PatientManager**:
-  - Patient appointment CRUD operations
-  - Queue operations for patients
-  - Patient notifications
+#### 2. Spring Boot Application Entry Point
+Central application configuration that enforces security and prepares the REST layer:
+
+- **JWTAuthenticationFilter**: Applies token validation to every protected endpoint  
+- **Security Configuration**: Defines role-based access policies and password rules  
+- **Role Checks**: Guards controller methods with fine-grained authorisation  
+- **JacksonConfig**: Standardises JSON serialisation across services  
   
-- **StaffManager**:
-  - Staff appointment management
-  - Queue control operations
-  - Real-time queue management
+#### 3. Presentation Layer (Controllers)
+REST controllers handle incoming HTTP requests and delegate to the application services:
+
+- **PatientController**: Patient-facing appointment, queue, and ticket flows  
+- **StaffController**: Staff tooling for managing clinic queues and schedules  
+- **AdminController**: Administrative management of users, clinics, and reporting  
+- **Auth endpoints** (within the entry point) expose login and token refresh capabilities  
   
-- **AdminManager**:
-  - User account administration
-  - Clinic configuration management
-  - Doctor and staff management
+#### 4. Application Layer (Services)
+Domain services orchestrate business rules, validation, and transactional workflows:
 
-#### 5. Service Layer (Business Logic)
-Core business services implementing domain logic:
+- **AppointmentService**: Booking windows, validation, and lifecycle updates  
+- **ClinicService**: CRUD operations for clinic locations and settings  
+- **DoctorService**: Doctor roster management and availability  
+- **PatientService**: Patient onboarding, profile, and appointment interactions  
+- **PatientQueueService**: Queue aggregation for patient-specific views  
+- **ScheduleService**: Doctor schedules, slot assignment, and adjustments  
+- **QueueService**: Queue creation, routing, and state transitions  
+- **QueueTicketService**: Ticket lifecycle, issuance, and hand-offs  
+- **UserService**: Authentication, profile management, password resets  
+- **AdminStatisticsService**: Dashboard metrics and historical reporting  
+- **UserRoleService**: Role assignment and access management  
+- **EmailService**: Asynchronous outbound notifications via external SMTP  
+  
+#### 5. Data Access Layer
+Spring Data JPA repositories abstract persistence for the services:
 
-- **UserService**: User authentication, lifecycle, profile, and permission management
-- **QueueService**: Queue initialization, entry management, processing logic, and real-time state management
-- **AppointmentService**: Appointment creation, validation, availability management, and business rules
-- **DoctorService**: Doctor creation and management
-- **ClinicService**: Clinic configuration and management
-- **ScheduleService**: Doctor schedule and time slot management
-- **NotificationService**: Multi-channel notification delivery (Email, SMS, in-app)
+- **AppointmentRepository**, **ClinicRepository**, **DoctorRepository**, **PatientRepository**  
+- **ScheduleRepository**, **QueueRepository**, **QueueTicketRepository**  
+- **AdminRepository**, **StaffRepository**, **ProfileRepository**  
+- **User-related repositories** supporting authentication and authorisation flows  
+  
+#### 6. External Integrations
 
-#### 6. Data Layer
-- **Spring Data JPA Repositories**: Connected to Supabase PostgreSQL database
-- **Database**: Managed PostgreSQL instance with comprehensive clinic data storage
+- **Supabase Realtime**: WebSocket-based messaging for instant queue updates between backend and clients  
+- **Resend Email API**: Delegated SMTP delivery for patient and staff notification emails  
+- **Supabase PostgreSQL**: Managed database hosting for transactional data  
 
 ## Key Features
 
 ### Real-time Capabilities
-- **WebSocket Handler**: Provides real-time queue updates, live status tracking, and instant patient notifications
-- **Live Updates**: Seamless communication between frontend and backend for queue status changes
+- **Supabase Realtime**: Streams queue status and ticket updates to subscribed clients
+- **Live Updates**: Bidirectional communication keeps patient and staff views synchronised
 
 ### External Integrations
-- **Email API**: Automated email notifications for appointments and updates
-- **SMS API**: Text message notifications for critical updates
-- **Supabase Integration**: Cloud-hosted PostgreSQL database with built-in security
+- **Resend Email API**: Automated transactional emails for bookings, reminders, and alerts
+- **Supabase Integration**: Cloud-hosted PostgreSQL database with built-in security and realtime messaging
+- **SMS API**: Optional text message notifications for critical updates
 
 ### Security Features
 - JWT-based authentication with role-based authorization
@@ -119,12 +115,12 @@ The system supports three distinct user roles:
 
 ## Data Flow
 
-1. **User Authentication**: Users authenticate through the AuthController, receiving JWT tokens
-2. **Request Processing**: Authenticated requests flow through appropriate controllers to managers
-3. **Business Logic**: Managers orchestrate service calls to implement business requirements
-4. **Data Persistence**: Services interact with repositories for data operations
-5. **Real-time Updates**: WebSocket handler broadcasts live updates to connected clients
-6. **External Notifications**: NotificationService triggers email/SMS for important events
+1. **User Authentication**: Users authenticate through dedicated auth endpoints and receive JWT tokens
+2. **Request Processing**: Authenticated requests reach the relevant REST controller for each role
+3. **Business Logic**: Controllers delegate to application services that enforce business rules
+4. **Data Persistence**: Services persist and query information via Spring Data JPA repositories
+5. **Real-time Updates**: Supabase Realtime broadcasts queue changes to subscribed clients
+6. **External Notifications**: EmailService dispatches confirmation and reminder emails through Resend
 
 ## Scalability Considerations
 
@@ -135,3 +131,16 @@ The system supports three distinct user roles:
 - **Cloud Database**: Managed PostgreSQL ensures reliability and performance
 
 This architecture provides a robust foundation for clinic management operations while maintaining flexibility for future enhancements and scaling requirements.
+
+## Backend Class Diagram
+
+The backend class relationships and service boundaries are captured in PlantUML for easy regeneration of the diagram.
+
+```plantuml
+' Render the canonical backend class diagram defined for this project.
+!include backend-class-diagram.puml
+```
+
+## API Documentation
+
+- **Swagger UI**: http://localhost:8080/swagger-ui/index.html (interactive documentation for local API exploration)

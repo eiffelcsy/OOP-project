@@ -19,7 +19,7 @@ Create environment files:
 
 Development mode enables **hot-reload** - file changes are automatically reflected without rebuilding containers.
 
-**Using start script (Linux/Mac):**
+**Using start script (Linux/Mac/Windows via Git Bash):**
 ```bash
 # Build development containers
 ./start.sh dev build
@@ -32,21 +32,6 @@ Development mode enables **hot-reload** - file changes are automatically reflect
 
 # Stop services
 ./start.sh dev down
-```
-
-**Using start script (Windows):**
-```cmd
-# Build development containers
-start.bat dev build
-
-# Start services with hot-reload
-start.bat dev up -d
-
-# View logs
-start.bat dev logs -f
-
-# Stop services
-start.bat dev down
 ```
 
 **Or directly with docker-compose:**
@@ -65,13 +50,9 @@ docker-compose -f docker-compose.dev.yml up -d
 Production mode builds optimized containers (no hot-reload, smaller images).
 
 ```bash
-# Linux/Mac
+# Linux/Mac/Windows via Git Bash
 ./start.sh prod build
 ./start.sh prod up -d
-
-# Windows
-start.bat prod build
-start.bat prod up -d
 
 # Or directly
 docker-compose build
@@ -81,9 +62,7 @@ docker-compose up -d
 ## Access
 
 - **Backend API**: http://localhost:8080
-- **Frontend**: http://localhost:3000 (or 5173 in dev mode)
-- **Health Check**: http://localhost:8080/api/health
-- **Backend Debug Port**: 5005 (dev mode only)
+- **Frontend**: http://localhost:3000
 
 ## Quick Reference
 
