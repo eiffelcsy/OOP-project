@@ -1,0 +1,67 @@
+@startuml AppointmentCreation
+' Appointment Creation - Patient flow ONLY
+' Scope: From patient interacting with appointment page to appointment persisted.
+' Excludes: queue tickets, emails, payments, realtime updates.
+
+skinparam style strict
+skinparam shadowing false
+autonumber
+
+actor "Patient User" as Patient
+participant "Frontend (Patient Appointments Page)" as FE
+participant "Backend API (PatientController)" as API
+participant "AppointmentService" as APS
+participant "AppointmentRepository" as AR <<interface>>
+database "DB (appointments)" as DB
+
+' Notes mapping to code (no hard API paths to avoid inaccuracies)
+note right of FE
+Source (frontend): patient-facing appointments UI/composable
+File(s): frontend/... (patient module)
+Action: submit new appointment request (doctorId, clinicId, start/end)
+end note
+
+note right of API
+Source (backend): PatientController
+Calls AppointmentService.addAppointment / validation
+end note
+
+== Create Appointment (Patient) ==
+Patient -> FE: Open appointments page and fill form
+activate FE
+FE -> API: Submit appointment data (doctorId, clinicId, start/end)
+activate API
+API -> APS: addAppointment(request)
+activate APS
+
+' Validation: ensure slot available (overlap check)
+APS -> AR: countOverlapping(doctorId, start, end): long
+activate AR
+AR --> APS: overlaps: long
+deactivate AR
+
+alt Slot not available
+  APS --> API: throw ValidationError("slot unavailable")
+  deactivate APS
+  API --> FE: 409 Conflict / error message
+  deactivate API
+  FE -> Patient: Show error (choose another time)
+  deactivate FE
+else Slot available
+  APS -> AR: save(appointment): Appointment
+  activate AR
+  AR -> DB: INSERT appointments
+  activate DB
+  DB --> AR: persisted (id)
+  deactivate DB
+  AR --> APS: Appointment (id,...)
+  deactivate AR
+  APS --> API: Appointment
+  deactivate APS
+  API --> FE: 201 Created + Appointment
+  deactivate API
+  FE -> Patient: Show confirmation (reference, time)
+  deactivate FE
+end
+
+@enduml
