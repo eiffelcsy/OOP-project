@@ -385,7 +385,7 @@ onMounted(async () => {
               </template>
             </div>
 
-            <a href="http://localhost:3000/staff/queue" class="w-full">
+            <a href="/staff/queue" class="w-full">
               <Button variant="outline" class="w-full">
                 <Icon icon="lucide:list" class="mr-2 h-4 w-4" />
                 View Full Queue Management

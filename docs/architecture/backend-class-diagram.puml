@@ -1,0 +1,347 @@
+@startuml BackendClassDiagram
+skinparam style strict
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+title Backend Class Diagram (Controllers, Models, Repositories, Services)
+legend left
+Notation:
+  + public  - private  # protected  ~ package
+  <<interface>> JPA Repository, <<enum>> Enumeration
+  Composition: *--, Aggregation: o--, Association: --, Dependency: ..>
+  Realization: ..|> , Generalization: --|>
+endlegend
+
+package "controller" {
+  class StaffController {
+    +getAppointments(doctorId: Long, clinicId: Long, status: String): List<Appointment>
+    +getTodaysAppointments(clinicId: Long): List<StaffAppointmentResponse>
+    +getAppointmentsByClinic(clinicId: Long): List<Appointment>
+    +addAppointment(appointment: Appointment): Appointment
+    +rescheduleAppointment(id: Long, newStartTime: String, newEndTime: String): ResponseEntity
+    +updateAppointmentStatus(id: Long, statusUpdate: Map<String,String>): ResponseEntity
+    +cancelAppointment(id: Long): void
+    +createQueue(request: CreateQueueRequest): QueueResponse
+    +getQueueById(id: Long): QueueResponse
+    +listQueues(options: ListQueuesOptions): ListResult<QueueResponse>
+    +updateQueue(id: Long, request: UpdateQueueRequest): QueueResponse
+    +deleteQueue(id: Long): ResponseEntity<Void>
+    +createQueueTicket(request: CreateQueueTicketRequest): QueueTicketResponse
+    +listQueueTickets(queueId: Long): List<QueueTicketResponse>
+    +updateQueueTicket(id: Long, request: UpdateQueueTicketRequest): QueueTicketResponse
+    +deleteQueueTicket(id: Long): ResponseEntity<Void>
+  }
+  class AdminController {
+    +getSystemStatistics(): Map<String,Object>
+    +getNewRegistrations(hours: int): Map<String,Object>
+    +getAllClinics(): List<ClinicResponse>
+    +getClinicById(id: Long): ClinicResponse
+    +createClinic(request: CreateClinicRequest): ClinicResponse
+    +updateClinic(id: Long, request: UpdateClinicRequest): ClinicResponse
+    +deleteClinic(id: Long): ResponseEntity<Void>
+    +getAllUsers(): List<UserResponse>
+    +getUserById(id: Long): ResponseEntity<UserResponse>
+    +createUser(request: CreateUserRequest): UserResponse
+    +updateUser(id: Long, request: UpdateUserRequest): UserResponse
+    +deleteUser(id: Long): ResponseEntity<Void>
+    +getAllDoctors(): List<DoctorResponse>
+    +getDoctorsByClinicId(clinicId: Long): List<DoctorResponse>
+    +getDoctorById(id: Long): DoctorResponse
+    +createDoctor(request: CreateDoctorRequest): DoctorResponse
+    +updateDoctor(id: Long, request: UpdateDoctorRequest): DoctorResponse
+    +deleteDoctor(id: Long): ResponseEntity<Void>
+    +getSchedulesByDoctorId(doctorId: Long): List<ScheduleResponse>
+    +createSchedule(request: CreateScheduleRequest): ScheduleResponse
+    +updateSchedule(id: Long, request: UpdateScheduleRequest): ScheduleResponse
+    +deleteSchedule(id: Long): ResponseEntity<Void>
+  }
+  class HealthController
+  class PatientController
+}
+
+package "model" {
+  class Appointment {
+    -id: Long
+    -patientId: Long
+    -doctorId: Long
+    -clinicId: Long
+    -timeSlotId: Long
+    -startTime: OffsetDateTime
+    -endTime: OffsetDateTime
+    -treatmentSummary: String
+    -status: String
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getId(): Long
+    +getPatientId(): Long
+    +getDoctorId(): Long
+    +getClinicId(): Long
+    +getStartTime(): OffsetDateTime
+    +getEndTime(): OffsetDateTime
+    +getStatus(): String
+    +setStatus(status: String): void
+  }
+  class QueueTicket {
+    -id: Long
+    -queue: Queue
+    -appointment: Appointment
+    -ticketNumber: Integer
+    -priority: Short
+    -ticketStatus: String
+    -calledAt: OffsetDateTime
+    -completedAt: OffsetDateTime
+    -noShowAt: OffsetDateTime
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getId(): Long
+    +getQueue(): Queue
+    +getAppointment(): Appointment
+    +getTicketNumber(): Integer
+    +getTicketStatus(): String
+    +setTicketStatus(s: String): void
+  }
+  class Queue {
+    -id: Long
+    -clinic: Clinic
+    -queueStatus: QueueStatus
+    -createdAt: Instant
+    -updatedAt: Instant
+    +getId(): Long
+    +getClinic(): Clinic
+    +getQueueStatus(): QueueStatus
+    +setQueueStatus(qs: QueueStatus): void
+  }
+  class Patient {
+    -id: Long
+    -userId: String
+    -nric: String
+    -dob: LocalDate
+    -phone: String
+    -address: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getUserId(): String
+    +getDob(): LocalDate
+  }
+  class Doctor {
+    -doctorId: Long
+    -clinicId: Long
+    -name: String
+    -specialty: String
+    -active: Boolean
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getDoctorId(): Long
+    +getClinicId(): Long
+    +getName(): String
+  }
+  class Staff {
+    -id: Long
+    -userId: String
+    -clinic: Clinic
+    -role: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getRole(): String
+  }
+  class Profile {
+    -id: Long
+    -userId: String
+    -fullName: String
+    -email: String
+    -avatarUrl: String
+    -metadata: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getFullName(): String
+    +getEmail(): String
+  }
+  class Clinic {
+    -id: Long
+    -name: String
+    -addressLine: String
+    -area: String
+    -region: String
+    -clinicType: String
+    -openTime: LocalTime
+    -closeTime: LocalTime
+    -note: String
+    -remarks: String
+    -sourceRef: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getName(): String
+    +getRegion(): String
+  }
+  class Schedule {
+    -id: Long
+    -doctorId: Long
+    -dayOfWeek: Integer
+    -startTime: LocalTime
+    -endTime: LocalTime
+    -slotDurationMinutes: Integer
+    -validFrom: LocalDate
+    -validTo: LocalDate
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +calculateNumberOfSlots(): int
+    +isValidForDate(date: LocalDate): boolean
+  }
+  class Admin {
+    -id: Long
+    -userId: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+  }
+  class QueueStatus <<enum>> {
+    ACTIVE
+    PAUSED
+    CLOSED
+  }
+}
+
+package "repository" {
+  interface AppointmentRepository <<interface>> {
+    +findByDoctorId(doctorId: Long): List<Appointment>
+    +findByClinicId(clinicId: Long): List<Appointment>
+    +findByStatus(status: String): List<Appointment>
+  }
+  interface QueueTicketRepository <<interface>> {
+    +findByQueueId(queueId: Long): List<QueueTicket>
+    +findByQueueAndStatus(queue: Queue, status: String): List<QueueTicket>
+  }
+  interface QueueRepository <<interface>>
+  interface PatientRepository <<interface>>
+  interface DoctorRepository <<interface>>
+  interface StaffRepository <<interface>>
+  interface ProfileRepository <<interface>>
+  interface ClinicRepository <<interface>>
+  interface ScheduleRepository <<interface>>
+  interface AdminRepository <<interface>>
+}
+
+package "service" {
+  class AppointmentService {
+    +getAppointments(doctorId: Long, clinicId: Long, status: String): List<Appointment>
+    +addAppointment(appointment: Appointment): Appointment
+    +rescheduleAppointment(id: Long, start: OffsetDateTime, end: OffsetDateTime): Appointment
+    +updateAppointmentStatus(id: Long, newStatus: String): Appointment
+    +cancelAppointment(id: Long): void
+    +getTodaysAppointmentsForClinic(clinicId: Long): List<StaffAppointmentResponse>
+  }
+  class QueueTicketService {
+    +create(request: CreateQueueTicketRequest): QueueTicket
+    +listWithPatientNames(queueId: Long): List<QueueTicketResponse>
+    +update(id: Long, request: UpdateQueueTicketRequest): QueueTicket
+    +delete(id: Long): void
+  }
+  class QueueService {
+    +createQueue(request: CreateQueueRequest): Queue
+    +getQueueById(id: Long): Optional<Queue>
+    +listQueues(options: ListQueuesOptions): ListResult<Queue>
+    +updateQueue(id: Long, request: UpdateQueueRequest): Queue
+    +deleteQueue(id: Long): void
+  }
+  class PatientService {
+    +getAllPatients(): List<Patient>
+    +getPatientById(id: Long): Optional<Patient>
+  }
+  class DoctorService {
+    +getAllDoctors(): List<Doctor>
+    +getDoctorsByClinicId(clinicId: Long): List<Doctor>
+    +getDoctorById(id: Long): Doctor
+  }
+  class ClinicService {
+    +getAllClinics(): List<Clinic>
+    +getClinicById(id: Long): Optional<Clinic>
+    +createClinic(request: CreateClinicRequest): Clinic
+    +updateClinic(id: Long, request: UpdateClinicRequest): Clinic
+    +deleteClinic(id: Long): void
+  }
+  class ScheduleService {
+    +getSchedulesByDoctorId(doctorId: Long): List<Schedule>
+    +createSchedule(schedule: Schedule): Schedule
+    +updateSchedule(id: Long, schedule: Schedule): Schedule
+    +deleteSchedule(id: Long): void
+  }
+  class UserService {
+    +getAllUsers(): List<UserResponse>
+    +getUserById(id: Long): Optional<UserResponse>
+    +createUser(request: CreateUserRequest): UserResponse
+    +updateUser(id: Long, request: UpdateUserRequest): UserResponse
+    +deleteUser(id: Long): void
+  }
+  class AdminStatisticsService {
+    +getSystemStatistics(): Map<String,Object>
+    +getNewRegistrations(hours: int): long
+  }
+  class EmailService {
+    +sendQueueNotification(ticket: QueueTicket): void
+  }
+  class PatientQueueService {
+    +findPatientQueueTickets(patientId: Long): List<QueueTicket>
+  }
+  class UserRoleService {
+    +assignRole(staffId: Long, role: String): void
+  }
+}
+
+' JPA Relationships & Multiplicities with semantic types
+Queue *-- "1..*" QueueTicket : tickets
+QueueTicket --> "1" Queue : queue
+QueueTicket --> "0..1" Appointment : appointment
+Appointment -- "*" Patient : patientId <<implicit>>
+Appointment -- "*" Doctor : doctorId <<implicit>>
+Appointment -- "*" Clinic : clinicId <<implicit>>
+Doctor -- "*" Schedule : schedules
+Clinic o-- "*" Staff : staff
+Clinic o-- "*" Doctor : doctors
+Clinic o-- "*" Queue : queues
+Staff --> "1" Clinic : clinic
+Schedule --> "1" Doctor : doctorId <<implicit>>
+
+' Controller dependencies (uses)
+StaffController ..> AppointmentService : uses
+StaffController ..> QueueService : uses
+StaffController ..> QueueTicketService : uses
+StaffController ..> PatientService : uses
+StaffController ..> DoctorService : uses
+StaffController ..> ClinicService : uses
+StaffController ..> ScheduleService : uses
+StaffController ..> UserService : uses
+
+AdminController ..> ClinicService : uses
+AdminController ..> UserService : uses
+AdminController ..> DoctorService : uses
+AdminController ..> ScheduleService : uses
+AdminController ..> AdminStatisticsService : uses
+
+' Service -> Repository dependencies
+AppointmentService ..> AppointmentRepository
+QueueTicketService ..> QueueTicketRepository
+QueueService ..> QueueRepository
+PatientService ..> PatientRepository
+DoctorService ..> DoctorRepository
+ClinicService ..> ClinicRepository
+ScheduleService ..> ScheduleRepository
+UserService ..> ProfileRepository
+AdminStatisticsService ..> AppointmentRepository
+AdminStatisticsService ..> ClinicRepository
+AdminStatisticsService ..> DoctorRepository
+AdminStatisticsService ..> PatientRepository
+PatientQueueService ..> QueueTicketRepository
+UserRoleService ..> StaffRepository
+
+note bottom
+Assumptions: Method sets based on controller/service usage; omitted internal/private helpers.
+Implicit FK associations shown without JPA annotations.
+Composition chosen for Queue -> QueueTicket (lifecycle bound); Aggregation for Clinic collections.
+end note
+
+@enduml
