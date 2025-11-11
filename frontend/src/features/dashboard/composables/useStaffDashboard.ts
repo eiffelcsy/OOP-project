@@ -1,5 +1,9 @@
 import { ref, computed } from 'vue'
 import type { Tables } from '@/types/supabase'
+import { useAuth } from '@/features/auth/composables/useAuth'
+import { appointmentsApi, type StaffAppointmentResponse } from '@/services/appointmentsApi'
+import { queueTicketsApi, type CreateQueueTicketRequest } from '@/services/queueTicketsApi'
+import { queueApi } from '@/services/queueApi'
 
 // Use Supabase types for data model
 type Appointment = Tables<'appointments'>
@@ -9,7 +13,6 @@ type QueueTicket = Tables<'queue_tickets'>
 
 // Type for appointment status (matches database enum)
 type AppointmentStatus = 'scheduled' | 'checked-in' | 'in-progress' | 'completed' | 'cancelled' | 'no-show'
-type QueueStatus = 'active' | 'paused' | 'stopped'
 
 // Dashboard-specific types for UI presentation
 interface DashboardAppointment {
@@ -18,7 +21,7 @@ interface DashboardAppointment {
   time: string
   type: string
   status: AppointmentStatus
-  queueNumber: number
+  queueNumber: number | null
   doctor: string
 }
 
@@ -29,121 +32,186 @@ interface TodaysOverview {
   nextAppointmentTime: string
 }
 
-interface QueueControl {
-  nowServing: number
-  patientsWaiting: number
-  queueStatus: QueueStatus
-  lastCalledTime: string
-}
-
 export function useStaffDashboard() {
+  const { currentUser } = useAuth()
+
   // Reactive data
   const todaysOverview = ref<TodaysOverview>({
-    totalAppointmentsToday: 42,
-    patientsCheckedIn: 28,
-    currentQueueLength: 8,
-    nextAppointmentTime: '2:30 PM'
+    totalAppointmentsToday: 0,
+    patientsCheckedIn: 0,
+    currentQueueLength: 0,
+    nextAppointmentTime: '-'
   })
 
-  const queueControl = ref<QueueControl>({
-    nowServing: 5,
-    patientsWaiting: 8,
-    queueStatus: 'active',
-    lastCalledTime: '2:15 PM'
-  })
+  const todaysAppointments = ref<DashboardAppointment[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  const todaysAppointments = ref<DashboardAppointment[]>([
-    {
-      id: 1,
-      patientName: 'Sarah Johnson',
-      time: '9:00 AM',
-      type: 'General Checkup',
-      status: 'completed',
-      queueNumber: 1,
-      doctor: 'Dr. Smith'
-    },
-    {
-      id: 2,
-      patientName: 'Michael Chen',
-      time: '9:30 AM',
-      type: 'Follow-up',
-      status: 'completed',
-      queueNumber: 2,
-      doctor: 'Dr. Johnson'
-    },
-    {
-      id: 3,
-      patientName: 'Emily Davis',
-      time: '10:00 AM',
-      type: 'Consultation',
-      status: 'checked-in',
-      queueNumber: 3,
-      doctor: 'Dr. Smith'
-    },
-    {
-      id: 4,
-      patientName: 'Robert Wilson',
-      time: '10:30 AM',
-      type: 'General Checkup',
-      status: 'checked-in',
-      queueNumber: 4,
-      doctor: 'Dr. Johnson'
-    },
-    {
-      id: 5,
-      patientName: 'Jessica Brown',
-      time: '11:00 AM',
-      type: 'Blood Test',
-      status: 'checked-in',
-      queueNumber: 5,
-      doctor: 'Dr. Smith'
-    },
-    {
-      id: 6,
-      patientName: 'David Miller',
-      time: '11:30 AM',
-      type: 'X-Ray Review',
-      status: 'scheduled',
-      queueNumber: 6,
-      doctor: 'Dr. Johnson'
-    },
-    {
-      id: 7,
-      patientName: 'Lisa Anderson',
-      time: '2:00 PM',
-      type: 'Vaccination',
-      status: 'scheduled',
-      queueNumber: 7,
-      doctor: 'Dr. Smith'
-    },
-    {
-      id: 8,
-      patientName: 'Thomas Garcia',
-      time: '2:30 PM',
-      type: 'General Checkup',
-      status: 'scheduled',
-      queueNumber: 8,
-      doctor: 'Dr. Johnson'
-    },
-    {
-      id: 9,
-      patientName: 'Maria Rodriguez',
-      time: '3:00 PM',
-      type: 'Follow-up',
-      status: 'scheduled',
-      queueNumber: 9,
-      doctor: 'Dr. Smith'
-    },
-    {
-      id: 10,
-      patientName: 'James Taylor',
-      time: '3:30 PM',
-      type: 'Consultation',
-      status: 'no-show',
-      queueNumber: 10,
-      doctor: 'Dr. Johnson'
+  // Helper to get clinic ID from current user
+  const getClinicId = (): number => {
+    const clinicId = currentUser.value?.staff?.clinic_id
+    if (!clinicId) {
+      throw new Error('User is not associated with any clinic. Please contact your administrator.')
     }
-  ])
+    return clinicId
+  }
+
+  // Fetch queue tickets to map queue numbers to appointments
+  const fetchQueueTicketsForAppointments = async (appointmentIds: number[], queueId: number | null): Promise<Map<number, number>> => {
+    const queueNumberMap = new Map<number, number>()
+    
+    if (!queueId || appointmentIds.length === 0) {
+      return queueNumberMap
+    }
+
+    try {
+      const tickets = await queueTicketsApi.list(queueId)
+      tickets.forEach(ticket => {
+        if (ticket.appointment_id && appointmentIds.includes(ticket.appointment_id)) {
+          queueNumberMap.set(ticket.appointment_id, ticket.ticket_number || 0)
+        }
+      })
+    } catch (err) {
+      console.error('Error fetching queue tickets:', err)
+    }
+
+    return queueNumberMap
+  }
+
+  // Fetch today's appointments from API
+  const fetchTodaysAppointments = async () => {
+    try {
+      loading.value = true
+      error.value = null
+
+      const clinicId = getClinicId()
+
+      // Fetch today's appointments
+      const data = await appointmentsApi.getTodaysClinicAppointments(clinicId)
+
+      // Get current queue to fetch queue tickets
+      let queueId: number | null = null
+      try {
+        const activeQueue = await queueApi.getActiveQueueByClinicId(clinicId)
+        if (!activeQueue) {
+          const pausedResult = await queueApi.listQueues({
+            clinicId,
+            statuses: ['PAUSED'],
+            size: 1,
+            sortBy: 'created_at',
+            sortDir: 'DESC'
+          })
+          queueId = pausedResult.data?.[0]?.id || null
+        } else {
+          queueId = activeQueue.id
+        }
+      } catch (err) {
+        console.warn('Could not fetch queue for queue numbers:', err)
+      }
+
+      // Fetch queue tickets to get queue numbers
+      const appointmentIds = data.map(a => a.id)
+      const queueNumberMap = await fetchQueueTicketsForAppointments(appointmentIds, queueId)
+
+      // Map API response to DashboardAppointment format
+      todaysAppointments.value = data.map((appt: StaffAppointmentResponse) => {
+        // Parse timestamps for formatting
+        const start = appt.start_time
+          ? new Date(new Date(appt.start_time).toLocaleString('en-US', { timeZone: 'Asia/Singapore' }))
+          : null
+
+        const timeStr = start
+          ? start.toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true 
+            })
+          : '-'
+
+        // Map backend status to frontend status
+        let mappedStatus: AppointmentStatus = 'scheduled'
+        if (appt.status) {
+          const backendStatus = appt.status.toLowerCase()
+          if (backendStatus === 'confirmed' || backendStatus === 'scheduled') {
+            mappedStatus = 'scheduled'
+          } else if (backendStatus === 'cancelled') {
+            mappedStatus = 'cancelled'
+          } else if (['checked-in', 'completed', 'no-show', 'in-progress'].includes(backendStatus)) {
+            mappedStatus = backendStatus as AppointmentStatus
+          }
+        }
+
+        return {
+          id: appt.id,
+          patientName: appt.patient_name || '-',
+          time: timeStr,
+          type: appt.treatment_summary || 'Consultation',
+          status: mappedStatus,
+          queueNumber: queueNumberMap.get(appt.id) || null,
+          doctor: appt.doctor_name || '-'
+        }
+      })
+
+      // Update overview statistics
+      updateOverviewStatistics()
+    } catch (err: any) {
+      console.error('Error fetching today\'s appointments:', err)
+      error.value = err.message || 'Failed to fetch appointments'
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // Update overview statistics from current appointments data
+  const updateOverviewStatistics = () => {
+    const appointments = todaysAppointments.value
+    
+    todaysOverview.value.totalAppointmentsToday = appointments.length
+    todaysOverview.value.patientsCheckedIn = appointments.filter(apt => apt.status === 'checked-in').length
+    
+    // Find next upcoming appointment (scheduled status, time in future)
+    const now = new Date()
+    const upcoming = appointments
+      .filter(apt => apt.status === 'scheduled' && apt.time !== '-')
+      .sort((a, b) => {
+        // Sort by time
+        const timeA = parseTimeString(a.time)
+        const timeB = parseTimeString(b.time)
+        if (!timeA || !timeB) return 0
+        return timeA.getTime() - timeB.getTime()
+      })
+      .find(apt => {
+        const aptTime = parseTimeString(apt.time)
+        return aptTime && aptTime > now
+      })
+
+    if (upcoming) {
+      todaysOverview.value.nextAppointmentTime = upcoming.time
+    } else {
+      todaysOverview.value.nextAppointmentTime = '-'
+    }
+  }
+
+  // Helper to parse time string (e.g., "2:30 PM") to Date
+  const parseTimeString = (timeStr: string): Date | null => {
+    if (timeStr === '-') return null
+    
+    try {
+      const [time, period] = timeStr.split(' ')
+      const [hours, minutes] = time.split(':')
+      let hour = parseInt(hours, 10)
+      const min = parseInt(minutes, 10)
+      
+      if (period === 'PM' && hour !== 12) hour += 12
+      if (period === 'AM' && hour === 12) hour = 0
+      
+      const today = new Date()
+      today.setHours(hour, min, 0, 0)
+      return today
+    } catch {
+      return null
+    }
+  }
 
   // Computed properties
   const queueWaitingList = computed(() => {
@@ -154,74 +222,129 @@ export function useStaffDashboard() {
     return todaysAppointments.value.filter(apt => apt.status === 'scheduled')
   })
 
-  // Queue Control Functions
-  const callNext = () => {
-    if (queueWaitingList.value.length > 0) {
-      const nextPatient = queueWaitingList.value[0]
-      queueControl.value.nowServing = nextPatient.queueNumber
-      queueControl.value.lastCalledTime = new Date().toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit',
-        hour12: true 
-      })
-      
-      // Update appointment status to completed for demonstration
-      const appointmentIndex = todaysAppointments.value.findIndex(apt => apt.id === nextPatient.id)
-      if (appointmentIndex !== -1) {
-        todaysAppointments.value[appointmentIndex].status = 'completed'
-      }
-      
-      // Update queue metrics
-      todaysOverview.value.patientsCheckedIn++
-      todaysOverview.value.currentQueueLength--
-      queueControl.value.patientsWaiting--
-    }
-  }
-
-  const startQueue = () => {
-    queueControl.value.queueStatus = 'active'
-  }
-
-  const pauseQueue = () => {
-    queueControl.value.queueStatus = 'paused'
-  }
-
-  const stopQueue = () => {
-    queueControl.value.queueStatus = 'stopped'
-  }
-
   // Appointment Actions
-  const checkInPatient = (appointmentId: number) => {
+  const checkInPatient = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-    if (appointment && appointment.status === 'scheduled') {
+    if (!appointment || appointment.status !== 'scheduled') {
+      return false
+    }
+
+    try {
+      console.log('Starting check-in process for appointment:', appointmentId)
+
+      // 1) Update appointment status in backend to 'checked-in'
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'checked-in')
+
+      // 2) Determine the clinic's current queue (ACTIVE preferred, else PAUSED)
+      const clinicId = getClinicId()
+
+      // Try ACTIVE first
+      let activeQueue = await queueApi.getActiveQueueByClinicId(clinicId)
+      if (!activeQueue) {
+        // Fallback to PAUSED (allow check-in even if queue is paused)
+        const pausedResult = await queueApi.listQueues({
+          clinicId,
+          statuses: ['PAUSED'],
+          size: 1,
+          sortBy: 'created_at',
+          sortDir: 'DESC'
+        })
+        activeQueue = pausedResult.data?.[0] || null
+      }
+
+      if (!activeQueue) {
+        console.warn('No ACTIVE or PAUSED queue found for clinic; cannot check in.')
+        error.value = 'No active queue found. Please start a queue first.'
+        return false
+      }
+
+      // 3) Compute next ticket number by listing current tickets for this queue
+      const existingTickets = await queueTicketsApi.list(activeQueue.id)
+      const maxNumber = existingTickets.reduce((max, t) => Math.max(max, t.ticket_number || 0), 0)
+      const nextNumber = (maxNumber || 0) + 1
+
+      // 4) Create the queue ticket via backend
+      const payload: CreateQueueTicketRequest = {
+        queue_id: activeQueue.id,
+        appointment_id: appointment.id,
+        ticket_number: nextNumber,
+        priority: 0,
+        ticket_status: 'Checked In',
+        called_at: null, // Not called yet, just checked in
+        completed_at: null,
+        no_show_at: null
+      }
+
+      await queueTicketsApi.create(payload)
+
+      // Update local state
       appointment.status = 'checked-in'
-      todaysOverview.value.patientsCheckedIn++
-      todaysOverview.value.currentQueueLength++
-      queueControl.value.patientsWaiting++
+      updateOverviewStatistics()
+      
+      // Refresh appointments to get updated queue numbers
+      await fetchTodaysAppointments()
+      
+      return true
+    } catch (err: any) {
+      console.error('Check-in failed:', err)
+      error.value = err.message || 'Failed to check in patient'
+      return false
     }
   }
 
-  const markNoShow = (appointmentId: number) => {
+  const markNoShow = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-    if (appointment) {
+    if (!appointment) {
+      return false
+    }
+
+    try {
+      // Update appointment status in backend
+      await appointmentsApi.updateAppointmentStatus(appointmentId, 'no-show')
+      
+      // Update local state
       appointment.status = 'no-show'
+      updateOverviewStatistics()
+      
+      return true
+    } catch (err: any) {
+      console.error('Mark no-show failed:', err)
+      error.value = err.message || 'Failed to mark as no-show'
+      return false
     }
   }
 
-  const cancelAppointment = (appointmentId: number) => {
+  const cancelAppointment = async (appointmentId: number) => {
     const appointmentIndex = todaysAppointments.value.findIndex(apt => apt.id === appointmentId)
-    if (appointmentIndex !== -1) {
+    if (appointmentIndex === -1) {
+      return false
+    }
+
+    try {
+      // Cancel appointment in backend
+      await appointmentsApi.cancelAppointment(appointmentId)
+      
+      // Remove from local state
       todaysAppointments.value.splice(appointmentIndex, 1)
-      todaysOverview.value.totalAppointmentsToday--
+      updateOverviewStatistics()
+      
+      return true
+    } catch (err: any) {
+      console.error('Cancel appointment failed:', err)
+      error.value = err.message || 'Failed to cancel appointment'
+      return false
     }
   }
 
-  const rescheduleAppointment = (appointmentId: number) => {
-    // For demo purposes, just show an alert
+  const rescheduleAppointment = async (appointmentId: number) => {
     const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-    if (appointment) {
-      alert(`Reschedule appointment for ${appointment.patientName} - Feature coming soon!`)
+    if (!appointment) {
+      return false
     }
+
+    // For now, just show an alert - rescheduling UI can be implemented later
+    alert(`Reschedule appointment for ${appointment.patientName} - Feature coming soon!`)
+    return false
   }
 
   // Utility functions
@@ -242,57 +365,39 @@ export function useStaffDashboard() {
       'no-show': { 
         label: 'No Show', 
         class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
+      },
+      'cancelled': { 
+        label: 'Cancelled', 
+        class: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' 
+      },
+      'in-progress': { 
+        label: 'In Progress', 
+        class: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' 
       }
     }
     return configs[status] || configs.scheduled
   }
 
-  const getQueueStatusConfig = (status: string) => {
-    const configs: Record<string, { label: string; class: string; icon: string }> = {
-      'active': { 
-        label: 'Active', 
-        class: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-        icon: 'lucide:play-circle'
-      },
-      'paused': { 
-        label: 'Paused', 
-        class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-        icon: 'lucide:pause-circle'
-      },
-      'stopped': { 
-        label: 'Stopped', 
-        class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-        icon: 'lucide:stop-circle'
-      }
-    }
-    return configs[status] || configs.active
-  }
-
   return {
     // Data
     todaysOverview,
-    queueControl,
     todaysAppointments,
+    loading,
+    error,
     
     // Computed
     queueWaitingList,
     upcomingAppointments,
     
-    // Queue Actions
-    callNext,
-    startQueue,
-    pauseQueue,
-    stopQueue,
-    
-    // Appointment Actions
+    // Actions
+    fetchTodaysAppointments,
     checkInPatient,
     markNoShow,
     cancelAppointment,
     rescheduleAppointment,
     
     // Utilities
-    getStatusConfig,
-    getQueueStatusConfig
+    getStatusConfig
   }
 }
 
