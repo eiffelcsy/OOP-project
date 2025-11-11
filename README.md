@@ -41,12 +41,6 @@ Development mode enables **hot-reload** - file changes are automatically reflect
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-**Features:**
-- ✅ **Automatic code reload** - Changes to source files are instantly reflected
-- ✅ **Volume mounts** - Local files synced with containers
-- ✅ **Live debugging** - Backend debug port available on 5005
-- ✅ **Fast iteration** - No rebuild required for code changes
-
 ### 3. Production Mode
 
 Production mode builds optimized containers (no hot-reload, smaller images).
