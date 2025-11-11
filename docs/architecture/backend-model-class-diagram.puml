@@ -1,0 +1,177 @@
+@startuml BackendModelDiagram
+skinparam style strict
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+title Backend Model Diagram (Entities, Aggregations, Relationships)
+legend left
+Notation:
+  + public  - private  # protected  ~ package
+  <<interface>> JPA Repository, <<enum>> Enumeration
+  Composition: *--, Aggregation: o--, Association: --, Dependency: ..>
+  Realization: ..|> , Generalization: --|>
+endlegend
+
+package "model" {
+  class Appointment {
+    -id: Long
+    -patientId: Long
+    -doctorId: Long
+    -clinicId: Long
+    -timeSlotId: Long
+    -startTime: OffsetDateTime
+    -endTime: OffsetDateTime
+    -treatmentSummary: String
+    -status: String
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getId(): Long
+    +getPatientId(): Long
+    +getDoctorId(): Long
+    +getClinicId(): Long
+    +getStartTime(): OffsetDateTime
+    +getEndTime(): OffsetDateTime
+    +getStatus(): String
+    +setStatus(status: String): void
+  }
+  class QueueTicket {
+    -id: Long
+    -queue: Queue
+    -appointment: Appointment
+    -ticketNumber: Integer
+    -priority: Short
+    -ticketStatus: String
+    -calledAt: OffsetDateTime
+    -completedAt: OffsetDateTime
+    -noShowAt: OffsetDateTime
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getId(): Long
+    +getQueue(): Queue
+    +getAppointment(): Appointment
+    +getTicketNumber(): Integer
+    +getTicketStatus(): String
+    +setTicketStatus(s: String): void
+  }
+  class Queue {
+    -id: Long
+    -clinic: Clinic
+    -queueStatus: QueueStatus
+    -createdAt: Instant
+    -updatedAt: Instant
+    +getId(): Long
+    +getClinic(): Clinic
+    +getQueueStatus(): QueueStatus
+    +setQueueStatus(qs: QueueStatus): void
+  }
+  class Patient {
+    -id: Long
+    -userId: String
+    -nric: String
+    -dob: LocalDate
+    -phone: String
+    -address: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getUserId(): String
+    +getDob(): LocalDate
+  }
+  class Doctor {
+    -doctorId: Long
+    -clinicId: Long
+    -name: String
+    -specialty: String
+    -active: Boolean
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +getDoctorId(): Long
+    +getClinicId(): Long
+    +getName(): String
+  }
+  class Staff {
+    -id: Long
+    -userId: String
+    -clinic: Clinic
+    -role: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getRole(): String
+  }
+  class Profile {
+    -id: Long
+    -userId: String
+    -fullName: String
+    -email: String
+    -avatarUrl: String
+    -metadata: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getFullName(): String
+    +getEmail(): String
+  }
+  class Clinic {
+    -id: Long
+    -name: String
+    -addressLine: String
+    -area: String
+    -region: String
+    -clinicType: String
+    -openTime: LocalTime
+    -closeTime: LocalTime
+    -note: String
+    -remarks: String
+    -sourceRef: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+    +getName(): String
+    +getRegion(): String
+  }
+  class Schedule {
+    -id: Long
+    -doctorId: Long
+    -dayOfWeek: Integer
+    -startTime: LocalTime
+    -endTime: LocalTime
+    -slotDurationMinutes: Integer
+    -validFrom: LocalDate
+    -validTo: LocalDate
+    -createdAt: OffsetDateTime
+    -updatedAt: OffsetDateTime
+    +calculateNumberOfSlots(): int
+    +isValidForDate(date: LocalDate): boolean
+  }
+  class Admin {
+    -id: Long
+    -userId: String
+    -createdAt: LocalDateTime
+    -updatedAt: LocalDateTime
+    +getId(): Long
+  }
+  class QueueStatus <<enum>> {
+    ACTIVE
+    PAUSED
+    CLOSED
+  }
+}
+
+' JPA Relationships & Multiplicities with semantic types
+Queue *-- "1..*" QueueTicket : tickets
+QueueTicket --> "1" Queue : queue
+QueueTicket --> "0..1" Appointment : appointment
+Appointment -- "*" Patient : patientId <<implicit>>
+Appointment -- "*" Doctor : doctorId <<implicit>>
+Appointment -- "*" Clinic : clinicId <<implicit>>
+Doctor -- "*" Schedule : schedules
+Clinic o-- "*" Staff : staff
+Clinic o-- "*" Doctor : doctors
+Clinic o-- "*" Queue : queues
+Staff --> "1" Clinic : clinic
+Schedule --> "1" Doctor : doctorId <<implicit>>
+
+@enduml
+
