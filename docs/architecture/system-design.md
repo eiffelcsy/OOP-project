@@ -136,10 +136,8 @@ This architecture provides a robust foundation for clinic management operations 
 
 The backend class relationships and service boundaries are captured in PlantUML for easy regeneration of the diagram.
 
-```plantuml
-' Render the canonical backend class diagram defined for this project.
-!include backend-class-diagram.puml
-```
+<!--![UML Class Diagram](./backend-class-diagram.puml)-->
+
 
 ## API Documentation
 
