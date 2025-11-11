@@ -2,6 +2,8 @@
 
 A Spring Boot application for managing clinic appointments and queues. Check out [docs](https://github.com/eiffelcsy/OOP-project/tree/main/docs) for comprehensive documentation.
 
+**System Design Snapshot:** [Explore the architecture breakdown](docs/architecture/system-design.md)
+
 ## Prerequisites
 
 - Java 21
