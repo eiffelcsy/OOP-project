@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useViewAppointments } from '../composables/useViewAppointments'
 import { useBookAppointment } from '../composables/useBookAppointment'
-import { staffDoctorsApi } from '@/services/staffDoctorsApi'
+import { patientDoctorsApi } from '@/services/patientDoctorsApi'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -138,8 +138,17 @@ const openReschedule = async (appointment: any) => {
   // Fetch doctors for the appointment's clinic so patient can choose another doctor in same clinic
   try {
     if (appointment?.clinic_id) {
-      const docs = await staffDoctorsApi.getDoctorsByClinicId(Number(appointment.clinic_id))
-      rescheduleDoctors.value = docs || []
+      const docs = await patientDoctorsApi.getDoctorsByClinicId(Number(appointment.clinic_id))
+      // Map PatientDoctorResponse to match expected format (camelCase to snake_case for compatibility)
+      rescheduleDoctors.value = (docs || []).map(doc => ({
+        id: doc.id,
+        clinic_id: doc.clinicId,
+        name: doc.name,
+        specialty: doc.specialty,
+        active: doc.active,
+        created_at: doc.createdAt,
+        updated_at: doc.updatedAt
+      }))
     } else {
       rescheduleDoctors.value = []
     }
