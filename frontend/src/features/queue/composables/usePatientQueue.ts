@@ -16,17 +16,17 @@ interface DoctorAndClinicDetails {
 /**
  * Patient Queue Management Composable
  * Singleton pattern - maintains state across component remounts for consistent real-time updates
+ * 
+ * Simple logic: Any update to patient's tickets → Refresh data
  */
 const createPatientQueue = () => {
     // ==================== STATE ====================
     
-    // Queue data
     const currentTicket = ref<QueueTicketResponse[]>([])
     const queueTickets = ref<QueueTicketResponse[]>([])
     const isLoadingQueue = ref(false)
     const queueError = ref<string | null>(null)
     
-    // Doctor and clinic information
     const doctorDetails = ref(new Map<number, DoctorAndClinicDetails>())
     const isLoadingDoctors = ref(false)
     const doctorsError = ref<string | null>(null)
@@ -34,21 +34,15 @@ const createPatientQueue = () => {
     const isLoading = computed(() => isLoadingQueue.value || isLoadingDoctors.value)
     const error = computed(() => queueError.value || doctorsError.value)
     
-    // Real-time subscription management
+    // Subscription management
     let ticketChannel: RealtimeChannel | null = null
-    let reconnectAttempts = 0
-    const MAX_RECONNECT_ATTEMPTS = 5
-    let isReconnecting = false
-    let reconnectTimeout: number | null = null
-    let isIntentionalUnsubscribe = false // Prevents reconnection during manual unsubscribe
     let currentPatientId: number | null = null
-    const activeQueueIds = ref<Set<number>>(new Set()) // Track which queues to monitor
     
-    // Debounce to prevent duplicate API calls from rapid real-time updates
+    // Debounce to prevent rapid duplicate calls
     let refreshTimeout: number | null = null
     let isFetchingQueue = false
-
-    // Visibility change handler - refresh when tab becomes visible
+    
+    // Visibility change handler
     let visibilityHandler: (() => void) | null = null
 
     // ==================== COMPUTED ====================
@@ -57,10 +51,6 @@ const createPatientQueue = () => {
         queueTickets.value.filter(t => t.ticket_status === 'Called')
     )
 
-    /**
-     * Calculate position in queue considering priority tickets
-     * Priority tickets are served first, then normal tickets by ticket number
-     */
     const calculatePosition = (ticket: QueueTicketResponse) => {
         const allTickets = [...currentTicket.value, ...queueTickets.value]
         const waitingTickets = allTickets.filter(t => t.ticket_status === 'Checked In')
@@ -87,20 +77,13 @@ const createPatientQueue = () => {
         
         const position = calculatePosition(ticket)
         const progress = ((totalWaiting - position) / totalWaiting) * 100
-        return Math.min(Math.max(progress, 5), 100) // Clamp between 5-100%
+        return Math.min(Math.max(progress, 5), 100)
     }
 
     // ==================== DATA FETCHING ====================
 
-    /**
-     * Fetch doctor and clinic details for all current tickets
-     * Resolves appointment -> doctor -> clinic information
-     */
     async function fetchDoctorDetails() {
-        console.log('[PatientQueue] Fetching doctor details for tickets:', currentTicket.value)
-        
         if (!currentTicket.value || currentTicket.value.length === 0) {
-            console.log('[PatientQueue] No tickets, clearing doctor details')
             doctorDetails.value.clear()
             return
         }
@@ -112,13 +95,10 @@ const createPatientQueue = () => {
         try {
             for (const ticket of currentTicket.value) {
                 try {
-                    console.log('[PatientQueue] Processing ticket for doctor details:', ticket.id)
-                    
                     const appointments = await appointmentsApi.getPatientAppointments()
                     const appointment = appointments.find(a => a.id === ticket.appointment_id)
                     
                     if (appointment?.doctor_id) {
-                        // Fetch doctor details
                         const doctor = await patientDoctorsApi.getDoctorById(appointment.doctor_id)
                         doctorDetails.value.set(ticket.id, {
                             id: doctor.id,
@@ -126,20 +106,11 @@ const createPatientQueue = () => {
                             clinicId: appointment.clinic_id || null,
                             clinicName: appointment.clinic_name ?? 'Main Clinic'
                         })
-                        console.log('[PatientQueue] Added doctor details:', {
-                            ticketId: ticket.id,
-                            doctorName: doctor.name,
-                            clinicName: appointment.clinic_name
-                        })
-                    } else {
-                        console.warn('[PatientQueue] No doctor_id for appointment:', ticket.appointment_id)
                     }
                 } catch (e) {
-                    console.error('[PatientQueue] Error fetching details for ticket:', ticket.id, e)
-                    doctorsError.value = 'Failed to fetch some doctor details'
+                    console.error('[PatientQueue] Error fetching doctor details:', e)
                 }
             }
-            console.log('[PatientQueue] Doctor details fetch complete')
         } catch (e) {
             console.error('[PatientQueue] Fatal error fetching doctor details:', e)
             doctorsError.value = 'Failed to fetch doctor information'
@@ -149,8 +120,7 @@ const createPatientQueue = () => {
     }
 
     /**
-     * Debounced refresh - batches rapid real-time updates into single API call
-     * Retries if a fetch is already in progress
+     * Debounced refresh - prevents duplicate calls from rapid updates
      */
     const debouncedRefresh = (patientId: number) => {
         if (refreshTimeout) {
@@ -159,7 +129,7 @@ const createPatientQueue = () => {
         
         refreshTimeout = window.setTimeout(async () => {
             if (isFetchingQueue) {
-                console.log('[PatientQueue] Fetch in progress, will retry after delay')
+                console.log('[PatientQueue] Fetch in progress, will retry')
                 debouncedRefresh(patientId)
                 return
             }
@@ -173,15 +143,14 @@ const createPatientQueue = () => {
     }
 
     /**
-     * Main data fetching function
-     * Gets patient's queue tickets and sets up real-time subscription
+     * Main fetch function - gets patient queue data
      */
     async function fetchPatientQueueInfo(patientId: number) {
         console.log('[PatientQueue] Fetching queue info for patient:', patientId)
         if (!patientId) return
         
         if (isFetchingQueue) {
-            console.log('[PatientQueue] Already fetching, skipping duplicate call')
+            console.log('[PatientQueue] Already fetching, skipping')
             return
         }
 
@@ -198,23 +167,21 @@ const createPatientQueue = () => {
                 currentTicket.value = []
                 queueTickets.value = []
                 doctorDetails.value.clear()
-                await unsubscribeFromQueueTickets()
-                return
+            } else {
+                console.log('[PatientQueue] Queue data received:', response)
+                currentTicket.value = response.current_ticket || []
+                queueTickets.value = response.queue_tickets || []
+                
+                if (currentTicket.value.length > 0) {
+                    await fetchDoctorDetails()
+                } else {
+                    doctorDetails.value.clear()
+                }
             }
 
-            console.log('[PatientQueue] Queue data received:', response)
-            
-            currentTicket.value = response.current_ticket || []
-            queueTickets.value = response.queue_tickets || []
-            
-            if (currentTicket.value.length > 0) {
-                await fetchDoctorDetails()
-                await subscribeToQueueTickets(patientId)
-            } else {
-                console.log('[PatientQueue] No active tickets, unsubscribing')
-                doctorDetails.value.clear()
-                await unsubscribeFromQueueTickets()
-            }
+            // Always ensure subscription is active
+            await subscribeToQueueTickets(patientId)
+
         } catch (e) {
             console.error('[PatientQueue] Error:', e)
             queueError.value = 'Failed to fetch queue information'
@@ -230,165 +197,56 @@ const createPatientQueue = () => {
     // ==================== REAL-TIME SUBSCRIPTION ====================
 
     /**
-     * Exponential backoff reconnection strategy
-     * Delays: 1s, 2s, 4s, 8s, 16s, max 30s
-     */
-    const handleReconnection = (patientId: number) => {
-        if (isReconnecting) {
-            console.log('[PatientQueue] Already reconnecting, skipping')
-            return
-        }
-        
-        reconnectAttempts++
-        
-        if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
-            console.error('[PatientQueue] Max reconnection attempts reached')
-            queueError.value = 'Connection lost. Please refresh the page.'
-            isReconnecting = false
-            return
-        }
-        
-        isReconnecting = true
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000)
-        
-        console.log(`[PatientQueue] Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`)
-        
-        reconnectTimeout = window.setTimeout(async () => {
-            try {
-                await unsubscribeFromQueueTickets()
-                await fetchPatientQueueInfo(patientId)
-                isReconnecting = false
-                reconnectAttempts = 0
-            } catch (e) {
-                console.error('[PatientQueue] Reconnection failed:', e)
-                isReconnecting = false
-                handleReconnection(patientId)
-            }
-        }, delay)
-    }
-
-    /**
-     * Subscribe to all queue_tickets changes, filter client-side
-     * Monitors: 1) Patient's own tickets, 2) All tickets in patient's queue(s)
+     * Subscribe to queue_tickets table
+     * Simple rule: If ticket belongs to this patient → Refresh
      */
     const subscribeToQueueTickets = async (patientId: number) => {
+        // Already subscribed for this patient? Skip
         if (ticketChannel && currentPatientId === patientId) {
-            console.log('[PatientQueue] Already subscribed for this patient')
+            console.log('[PatientQueue] Already subscribed')
             return
         }
         
-        if (reconnectTimeout) {
-            clearTimeout(reconnectTimeout)
-            reconnectTimeout = null
-        }
-        
+        // Clean up old subscription
         await unsubscribeFromQueueTickets()
         
-        console.log('[PatientQueue] Subscribing to queue tickets for patient:', patientId)
-    
-        const queueIds = currentTicket.value
-            .map(t => t.queue_id)
-            .filter(id => id != null) as number[]
-
-        activeQueueIds.value = new Set(queueIds)
+        console.log('[PatientQueue] Setting up subscription for patient:', patientId)
         
         ticketChannel = supabase
-            .channel(`queue_tickets_patient_${patientId}`, {
-                config: {
-                    broadcast: { self: false },
-                    presence: { key: '' }
-                }
-            })
+            .channel(`queue_tickets_patient_${patientId}`)
             .on(
                 'postgres_changes',
                 {
                     event: '*',
                     schema: 'public',
                     table: 'queue_tickets'
-                    // No server filter - listen to ALL tickets, filter client-side for reliability
                 },
                 (payload: any) => {
-                    try {
-                        // Check if update affects this patient's tickets
-                        const newTicket = payload.new
-                        const oldTicket = payload.old
-                        
-                        // Check if update affects queues this patient is in
-                        const isPatientTicket = 
-                            newTicket?.patient_id === patientId || 
-                            oldTicket?.patient_id === patientId
-                        
-                        // For queue updates - check if it's in our monitored queues
-                        const affectedQueueId = newTicket?.queue_id || oldTicket?.queue_id
-                        const isInOurQueue = affectedQueueId && activeQueueIds.value.has(affectedQueueId)
-                        
-                        if (isPatientTicket || isInOurQueue) {
-                            console.log('[PatientQueue] Ticket update:', payload.eventType, 
-                                'ticket:', newTicket?.ticket_number || oldTicket?.ticket_number,
-                                'queue_id:', affectedQueueId,
-                                'patient_id:', newTicket?.patient_id || oldTicket?.patient_id
-                            )
-                            debouncedRefresh(patientId)
-                        }
-                    } catch (err) {
-                        console.error('[PatientQueue] Error processing realtime update:', err)
-                        debouncedRefresh(patientId) // Refresh on error to be safe
-                    }
+                    console.log('[PatientQueue] ===== REALTIME EVENT =====')
+                    console.log('[PatientQueue] Event type:', payload.eventType)
+                    console.log('[PatientQueue] Any queue_tickets change detected - Refreshing')
+                    console.log('[PatientQueue] ============================')
+                    
+                    // Refresh on ANY change to queue_tickets table
+                    debouncedRefresh(patientId)
                 }
             )
-            .subscribe((status, err) => {
-                handleSubscriptionStatus(status, err, patientId, 'ticket')
+            .subscribe((status) => {
+                console.log('[PatientQueue] Subscription status:', status)
             })
     }
 
-    const handleSubscriptionStatus = (status: string, err: any, patientId: number, type: 'ticket') => {
-        console.log(`[PatientQueue] ${type} subscription status:`, status)
-        
-        if (status === 'SUBSCRIBED') {
-            reconnectAttempts = 0
-            isReconnecting = false
-        }
-        
-        if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !isReconnecting) {
-            console.error(`[PatientQueue] ${type} channel error:`, err || status)
-            handleReconnection(patientId)
-        }
-        
-        if (status === 'CLOSED' && !isReconnecting && !isIntentionalUnsubscribe) {
-            console.warn(`[PatientQueue] ${type} channel closed unexpectedly`)
-            if (currentTicket.value.length > 0) {
-                handleReconnection(patientId)
-            }
-        }
-    }
-
     const unsubscribeFromQueueTickets = async () => {
-        if (reconnectTimeout) {
-            clearTimeout(reconnectTimeout)
-            reconnectTimeout = null
-        }
-        
         if (refreshTimeout) {
             clearTimeout(refreshTimeout)
             refreshTimeout = null
         }
         
-        isReconnecting = false
-        reconnectAttempts = 0
-        isIntentionalUnsubscribe = true
-        
         if (ticketChannel) {
-            console.log('[PatientQueue] Unsubscribing from ticket channel')
-            await supabase.removeChannel(ticketChannel).catch(e => 
-                console.error('[PatientQueue] Error removing ticket channel:', e)
-            )
+            console.log('[PatientQueue] Unsubscribing')
+            await supabase.removeChannel(ticketChannel).catch(console.error)
             ticketChannel = null
         }
-        
-        // Reset flag after delay to ensure cleanup completes
-        setTimeout(() => {
-            isIntentionalUnsubscribe = false
-        }, 200)
     }
 
     // ==================== GETTERS ====================
@@ -401,67 +259,56 @@ const createPatientQueue = () => {
         doctorDetails.value.get(ticketId)?.clinicName ?? 'Clinic info unavailable'
     )
 
+    // ==================== CLEANUP ====================
+
     const cleanup = async () => {
-        console.log('[PatientQueue] Manual cleanup called')
+        console.log('[PatientQueue] Cleanup')
         await unsubscribeFromQueueTickets()
         currentPatientId = null
 
-        // Remove visibility listener
         if (visibilityHandler) {
             document.removeEventListener('visibilitychange', visibilityHandler)
             visibilityHandler = null
         }
     }
 
-    // Set up visibility change listener
+    // ==================== VISIBILITY HANDLER ====================
+
     visibilityHandler = () => {
-        if (!document.hidden && currentPatientId && currentTicket.value.length > 0) {
-            console.log('[PatientQueue] Tab became visible, refreshing data')
+        if (!document.hidden && currentPatientId) {
+            console.log('[PatientQueue] Tab visible, refreshing')
             fetchPatientQueueInfo(currentPatientId)
         }
     }
 
-    // Add listener when composable is created
     document.addEventListener('visibilitychange', visibilityHandler)
     
+    // ==================== RETURN ====================
+    
     return {
-        // State
         currentTicket,
         queueTickets,
         isLoading,
         error,
-        
-        // Doctor/clinic details
         doctorDetails,
         getDoctorName,
         getClinicName,
-        
-        // Queue computations
         currentServing,
         calculatePosition,
         calculateProgress,
-        
-        // Methods
         fetchPatientQueueInfo,
         cleanup
     }
 }
 
-// ==================== SINGLETON EXPORT ====================
+// ==================== SINGLETON ====================
 
 let patientQueueInstance: ReturnType<typeof createPatientQueue> | null = null
 
-/**
- * Singleton composable for patient queue management
- * Maintains state across component remounts to preserve real-time subscriptions
- */
-
 export function usePatientQueue() {
     if (!patientQueueInstance) {
-        console.log('[usePatientQueue] Creating new singleton instance')
+        console.log('[usePatientQueue] Creating singleton instance')
         patientQueueInstance = createPatientQueue()
-    } else {
-        console.log('[usePatientQueue] Reusing existing singleton instance')
     }
     return patientQueueInstance
 }

@@ -1,21 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useQueueManagement } from '@/features/queue/composables/useQueueManagement'
+import { useStaffDashboard } from '@/features/dashboard/composables/useStaffDashboard'
 
 // expose current user for template
 const { currentUser } = useAuth()
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Icon } from '@iconify/vue'
-
-// Staff Dashboard Data
-const todaysOverview = ref({
-  totalAppointmentsToday: 42,
-  patientsCheckedIn: 28,
-  currentQueueLength: 8,
-  nextAppointmentTime: '2:30 PM'
-})
 
 // Hook into shared queue management (backend fetch + realtime)
 const {
@@ -33,99 +26,30 @@ const {
   updatePatientStatus
 } = useQueueManagement()
 
-// Today's Appointments Data
-const todaysAppointments = ref([
-  {
-    id: 1,
-    patientName: 'Sarah Johnson',
-    time: '9:00 AM',
-    type: 'General Checkup',
-    status: 'completed',
-    queueNumber: 1,
-    doctor: 'Dr. Smith'
-  },
-  {
-    id: 2,
-    patientName: 'Michael Chen',
-    time: '9:30 AM',
-    type: 'Follow-up',
-    status: 'completed',
-    queueNumber: 2,
-    doctor: 'Dr. Johnson'
-  },
-  {
-    id: 3,
-    patientName: 'Emily Davis',
-    time: '10:00 AM',
-    type: 'Consultation',
-    status: 'checked-in',
-    queueNumber: 3,
-    doctor: 'Dr. Smith'
-  },
-  {
-    id: 4,
-    patientName: 'Robert Wilson',
-    time: '10:30 AM',
-    type: 'General Checkup',
-    status: 'checked-in',
-    queueNumber: 4,
-    doctor: 'Dr. Johnson'
-  },
-  {
-    id: 5,
-    patientName: 'Jessica Brown',
-    time: '11:00 AM',
-    type: 'Blood Test',
-    status: 'checked-in',
-    queueNumber: 5,
-    doctor: 'Dr. Smith'
-  },
-  {
-    id: 6,
-    patientName: 'David Miller',
-    time: '11:30 AM',
-    type: 'X-Ray Review',
-    status: 'scheduled',
-    queueNumber: 6,
-    doctor: 'Dr. Johnson'
-  },
-  {
-    id: 7,
-    patientName: 'Lisa Anderson',
-    time: '2:00 PM',
-    type: 'Vaccination',
-    status: 'scheduled',
-    queueNumber: 7,
-    doctor: 'Dr. Smith'
-  },
-  {
-    id: 8,
-    patientName: 'Thomas Garcia',
-    time: '2:30 PM',
-    type: 'General Checkup',
-    status: 'scheduled',
-    queueNumber: 8,
-    doctor: 'Dr. Johnson'
-  },
-  {
-    id: 9,
-    patientName: 'Maria Rodriguez',
-    time: '3:00 PM',
-    type: 'Follow-up',
-    status: 'scheduled',
-    queueNumber: 9,
-    doctor: 'Dr. Smith'
-  },
-  {
-    id: 10,
-    patientName: 'James Taylor',
-    time: '3:30 PM',
-    type: 'Consultation',
-    status: 'no-show',
-    queueNumber: 10,
-    doctor: 'Dr. Johnson'
+// Hook into staff dashboard composable for appointments data
+const {
+  todaysOverview,
+  todaysAppointments,
+  loading,
+  error,
+  fetchTodaysAppointments,
+  checkInPatient,
+  markNoShow,
+  cancelAppointment,
+  rescheduleAppointment,
+  getStatusConfig
+} = useStaffDashboard()
+
+const hasLoadedInitialAppointments = ref(false)
+
+const loadAppointments = async () => {
+  try {
+    await fetchTodaysAppointments()
+    hasLoadedInitialAppointments.value = true
+  } catch (err) {
+    console.error('Failed to load appointments:', err)
   }
-])
+}
 
 // Computed properties related to queue
 const currentQueueLength = computed(() => waitingPatients.value.length)
@@ -134,6 +58,11 @@ const lastCalledTime = computed(() => currentPatient.value?.calledTime || '-')
 const queueStatusLabel = computed(() => (!queueState.isActive ? 'Stopped' : (queueState.isPaused ? 'Paused' : 'Active')))
 const queueStatusIcon = computed(() => (!queueState.isActive ? 'lucide:stop-circle' : (queueState.isPaused ? 'lucide:pause-circle' : 'lucide:play-circle')))
 const queueStatusClass = computed(() => (!queueState.isActive ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : (queueState.isPaused ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200')))
+
+// Update overview with current queue length from queue management
+watch(currentQueueLength, (newLength) => {
+  todaysOverview.value.currentQueueLength = newLength
+}, { immediate: true })
 
 // End Queue modal state (same behaviour as queue page)
 const showEndModal = ref(false)
@@ -154,66 +83,24 @@ const confirmEndQueue = async () => {
 }
 const cancelEndQueue = () => { showEndModal.value = false }
 
-// Appointment Actions
-const checkInPatient = (appointmentId: number) => {
-  const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-  if (appointment && appointment.status === 'scheduled') {
-    appointment.status = 'checked-in'
-    todaysOverview.value.patientsCheckedIn++
-  todaysOverview.value.currentQueueLength++
-  }
-}
-
-const markNoShow = (appointmentId: number) => {
-  const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-  if (appointment) {
-    appointment.status = 'no-show'
-  }
-}
-
-const cancelAppointment = (appointmentId: number) => {
-  const appointmentIndex = todaysAppointments.value.findIndex(apt => apt.id === appointmentId)
-  if (appointmentIndex !== -1) {
-    todaysAppointments.value.splice(appointmentIndex, 1)
-    todaysOverview.value.totalAppointmentsToday--
-  }
-}
-
-const rescheduleAppointment = (appointmentId: number) => {
-  // For demo purposes, just show an alert
-  const appointment = todaysAppointments.value.find(apt => apt.id === appointmentId)
-  if (appointment) {
-    alert(`Reschedule appointment for ${appointment.patientName} - Feature coming soon!`)
-  }
-}
-
-// Status badge configuration
-const getStatusConfig = (status: string) => {
-  const configs: Record<string, { label: string; class: string }> = {
-    'scheduled': { 
-      label: 'Scheduled', 
-      class: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-    },
-    'checked-in': { 
-      label: 'Checked In', 
-      class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' 
-    },
-    'completed': { 
-      label: 'Completed', 
-      class: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-    },
-    'no-show': { 
-      label: 'No Show', 
-      class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' 
-    }
-  }
-  return configs[status] || configs.scheduled
-}
-
-// Initialize queue data on mount (backend fetch + realtime subs handled inside)
+// Initialize queue data and appointments on mount
 onMounted(async () => {
-  try { await initializeQueueState() } catch {}
+  try { 
+    await initializeQueueState()
+  } catch (err) {
+    console.error('Failed to initialize dashboard:', err)
+  }
 })
+
+watch(
+  () => currentUser.value?.staff?.clinic_id,
+  (clinicId) => {
+    if (clinicId && !hasLoadedInitialAppointments.value) {
+      loadAppointments()
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -405,14 +292,23 @@ onMounted(async () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div class="space-y-1">
+        <div v-if="error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          {{ error }}
+        </div>
+        <div v-if="loading" class="text-center py-8 text-muted-foreground">
+          Loading appointments...
+        </div>
+        <div v-else-if="todaysAppointments.length === 0" class="text-center py-8 text-muted-foreground">
+          No appointments scheduled for today.
+        </div>
+        <div v-else class="space-y-1">
           <div 
             v-for="appointment in todaysAppointments" 
             :key="appointment.id"
             class="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors border-b last:border-b-0"
           >
-            <div class="flex items-center gap-4">
-              <div class="flex flex-col items-center">
+              <div class="flex items-center gap-4">
+              <div class="flex flex-col items-center" v-if="appointment.queueNumber">
                 <span class="text-xs text-muted-foreground">Queue</span>
                 <span class="text-lg font-bold">#{{ appointment.queueNumber }}</span>
               </div>

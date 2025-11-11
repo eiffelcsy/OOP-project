@@ -143,14 +143,12 @@ export const useViewAppointments = () => {
     return mapped
   }
 
-  // Fetch appointments for current patient from Supabase
+  // Fetch appointments for current patient from backend patient-facing endpoint
   const fetchPatientAppointments = async () => {
     try {
       loading.value = true
       appointments.value = []
       console.log('fetchPatientAppointments: currentUser=', JSON.parse(JSON.stringify(currentUser.value)))
-      // Log Supabase URL so we can confirm which project we're hitting
-      try { console.log('Supabase URL:', ((import.meta.env as any).VITE_SUPABASE_URL ?? 'MISSING')) } catch (e) { /* ignore */ }
 
       // Resolve patient id: prefer currentUser.patient.id; if not present, try fetching patients row by user_id
       let pId: number | null = null
@@ -189,99 +187,27 @@ export const useViewAppointments = () => {
 
       console.log('Will query appointments for patient_id =', pId)
 
-      // FIRST: call backend endpoint which queries the DB server-side (safer and avoids RLS issues)
-      try {
-        console.log('Calling backend to fetch patient appointments')
-        const backendData = await appointmentsApi.getPatientAppointments()
-        console.log('Backend returned', (backendData ?? []).length, 'appointments:', backendData)
-        
-        if (backendData && (backendData ?? []).length > 0) {
-          // Use backend rows directly
-          appointments.value = (backendData as any[]).map(r => {
-            try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
-          }).filter(Boolean) as Appointment[]
-          console.log('Loaded appointments from backend, count=', appointments.value.length)
-          // Debug: log status counts to help troubleshoot missing statuses
-          try {
-            const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
-              const s = a.status || 'unknown'
-              m[s] = (m[s] || 0) + 1
-              return m
-            }, {})
-            console.log('Appointment status counts (backend):', counts)
-          } catch (e) {
-            console.warn('Failed to compute appointment status counts:', e)
-          }
-          return
-        }
-      } catch (backendErr) {
-        console.warn('Backend appointments endpoint failed, will fall back to Supabase:', backendErr)
-      }
-
-      // FALLBACK: Query Supabase directly if backend yields nothing
-      // Query appointments and join clinic/doctor names (if available)
-      // Use created_at ordering (start_time may not exist in DB schema)
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`*, clinics:clinics(*), doctors:doctors(*)`)
-        .eq('patient_id', pId)
-        .order('created_at', { ascending: true })
-
-      if (error) {
-        console.error('Error fetching patient appointments from Supabase:', error)
-        return
-      }
-
-      console.log('Supabase returned rows count =', (data ?? []).length, 'raw rows:', data)
-
-      // If no rows, run extra debug queries to help diagnose: list first 5 appointments and try id=11
-      if ((data ?? []).length === 0) {
-        try {
-          const { data: someRows, error: someErr } = await supabase
-            .from('appointments')
-            .select('*')
-            .limit(5)
-
-          console.log('Debug: first 5 appointments (no filter):', someRows, someErr)
-        } catch (err) {
-          console.warn('Debug list query failed:', err)
-        }
-
-        try {
-          const { data: id11, error: idErr } = await supabase
-            .from('appointments')
-            .select('*')
-            .eq('id', 11)
-            .maybeSingle()
-
-          console.log('Debug: appointment id=11 result:', id11, idErr)
-        } catch (err) {
-          console.warn('Debug id=11 query failed:', err)
-        }
-      }
-
-  const rows = data ?? []
-      appointments.value = rows.map(r => {
-        try {
-          const mapped = mapRowToView(r as any)
-          console.log('Mapped row ->', mapped)
-          return mapped
-        } catch (mapErr) {
-          console.warn('Mapping row failed:', mapErr, 'row:', r)
-          return null as any
-        }
-      }).filter(Boolean)
-      console.log(`Loaded ${appointments.value.length} appointments for patient id ${pId}`, appointments.value)
-      // Debug: log status counts for supabase fallback
+      // Call patient-facing backend endpoint which queries the DB server-side
+      console.log('Calling backend to fetch patient appointments')
+      const backendData = await appointmentsApi.getPatientAppointments()
+      console.log('Backend returned', (backendData ?? []).length, 'appointments:', backendData)
+      
+      // Use backend rows directly
+      appointments.value = (backendData ?? []).map(r => {
+        try { return mapRowToView(r) } catch (err) { console.warn('mapRowToView failed for backend row', err, r); return null }
+      }).filter(Boolean) as Appointment[]
+      console.log('Loaded appointments from backend, count=', appointments.value.length)
+      
+      // Debug: log status counts to help troubleshoot missing statuses
       try {
         const counts: Record<string, number> = appointments.value.reduce((m: Record<string, number>, a) => {
           const s = a.status || 'unknown'
           m[s] = (m[s] || 0) + 1
           return m
         }, {})
-        console.log('Appointment status counts (supabase):', counts)
+        console.log('Appointment status counts (backend):', counts)
       } catch (e) {
-        console.warn('Failed to compute appointment status counts (supabase):', e)
+        console.warn('Failed to compute appointment status counts:', e)
       }
     } catch (err) {
       console.error('Unexpected error fetching appointments:', err)

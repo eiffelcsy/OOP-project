@@ -221,20 +221,25 @@ export const appointmentsApi = {
 
   /**
    * Update an appointment for the authenticated patient (reschedule)
-   * PUT /api/patient/appointments/{id}?newStartTime={start}&newEndTime={end}
+   * PUT /api/patient/appointments/{id}
+   * Request body: { new_start_time: string, new_end_time: string }
    */
   async updateAppointmentForPatient(
     id: number,
     newStartTime?: string,
     newEndTime?: string
   ): Promise<AppointmentResponse> {
-    const params = new URLSearchParams()
-    if (newStartTime) params.append('newStartTime', newStartTime)
-    if (newEndTime) params.append('newEndTime', newEndTime)
-    const queryString = params.toString()
-    const endpoint = queryString ? `/api/patient/appointments/${id}?${queryString}` : `/api/patient/appointments/${id}`
+    if (!newStartTime || !newEndTime) {
+      throw new Error('newStartTime and newEndTime are required')
+    }
 
-    return apiClient.put(endpoint, {})
+    const endpoint = `/api/patient/appointments/${id}`
+    const requestBody = {
+      new_start_time: newStartTime,
+      new_end_time: newEndTime
+    }
+
+    return apiClient.put(endpoint, requestBody)
   },
 
   /**
