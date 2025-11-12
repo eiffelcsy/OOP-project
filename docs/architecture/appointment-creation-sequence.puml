@@ -1,67 +1,52 @@
 @startuml AppointmentCreation
-' Appointment Creation - Patient flow ONLY
-' Scope: From patient interacting with appointment page to appointment persisted.
-' Excludes: queue tickets, emails, payments, realtime updates.
-
 skinparam style strict
 skinparam shadowing false
+hide footbox
 autonumber
 
-actor "Patient User" as Patient
-participant "Frontend (Patient Appointments Page)" as FE
-participant "Backend API (PatientController)" as API
-participant "AppointmentService" as APS
-participant "AppointmentRepository" as AR <<interface>>
-database "DB (appointments)" as DB
+actor "patient : User" as Patient
+participant "Appointments Page" as FE
+participant "api : PatientController" as API
+participant "service : AppointmentService" as APS
+participant "repo : AppointmentRepository" as AR <<interface>>
+database "db : appointments" as DB
+participant "appt : Appointment" as APPT
 
-' Notes mapping to code (no hard API paths to avoid inaccuracies)
-note right of FE
-Source (frontend): patient-facing appointments UI/composable
-File(s): frontend/... (patient module)
-Action: submit new appointment request (doctorId, clinicId, start/end)
-end note
-
-note right of API
-Source (backend): PatientController
-Calls AppointmentService.addAppointment / validation
-end note
-
-== Create Appointment (Patient) ==
-Patient -> FE: Open appointments page and fill form
+Patient -> FE: Open page and fill form
+activate Patient
 activate FE
-FE -> API: Submit appointment data (doctorId, clinicId, start/end)
+FE -> API: createAppointment(request): ResponseEntity
 activate API
-API -> APS: addAppointment(request)
+API -> APS: addAppointment(appointment): Appointment
 activate APS
-
-' Validation: ensure slot available (overlap check)
+APS -> APPT: <<create>> Appointment(request): Appointment
+activate APPT
+APPT --> APS: Appointment
+deactivate APPT
 APS -> AR: countOverlapping(doctorId, start, end): long
 activate AR
-AR --> APS: overlaps: long
+AR --> APS: long
 deactivate AR
 
-alt Slot not available
-  APS --> API: throw ValidationError("slot unavailable")
-  deactivate APS
-  API --> FE: 409 Conflict / error message
-  deactivate API
-  FE -> Patient: Show error (choose another time)
-  deactivate FE
-else Slot available
-  APS -> AR: save(appointment): Appointment
+alt Slot available
+  APS -> AR: save(appt): Appointment
   activate AR
   AR -> DB: INSERT appointments
   activate DB
-  DB --> AR: persisted (id)
+  DB --> AR: Appointment(id)
   deactivate DB
-  AR --> APS: Appointment (id,...)
+  AR --> APS: Appointment
   deactivate AR
   APS --> API: Appointment
-  deactivate APS
   API --> FE: 201 Created + Appointment
+  FE -> Patient: Show confirmation
+else Slot not available
+  APS --> API: ValidationError
+  deactivate APS
+  API --> FE: 409 Conflict
   deactivate API
-  FE -> Patient: Show confirmation (reference, time)
+  FE -> Patient: Show error
   deactivate FE
+  deactivate Patient
 end
-
 @enduml
