@@ -151,8 +151,8 @@ public class QueueTicketService {
         }
         // ## Added for Email Notifications
 
-        // == Additional behavior ==
-        // When a queue ticket is marked No Show or Completed, update its appointment status accordingly.
+    // == Additional behavior ==
+    // When a queue ticket is marked No Show or Completed, update its appointment status accordingly.
         if (statusChanged) {
             String newStatus = req.getTicketStatus().orElse(updated.getTicketStatus());
             if (newStatus != null && updated.getAppointment() != null && updated.getAppointment().getId() != null) {
@@ -162,7 +162,7 @@ public class QueueTicketService {
                     Appointment appt = appointmentRepository.findById(apptId).orElse(null);
                     if (appt != null) {
                         if ("noshow".equals(normalized)) {
-                            appt.setStatus("cancelled");
+                            appt.setStatus("no-show");
                             appt.setUpdatedAt(ZonedDateTime.now(TimezoneConfig.CLINIC_ZONE).toOffsetDateTime());
                             appointmentRepository.save(appt);
                         } else if ("completed".equals(normalized)) {
