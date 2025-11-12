@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUsers, type CreateUserRequest } from '../composables/useUsers'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,6 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Icon } from '@iconify/vue'
 import { toast } from 'vue-sonner'
+import { adminClinicsApi, type ClinicResponse } from '@/services/adminClinicsApi'
+import {
+    Combobox,
+    ComboboxAnchor,
+    ComboboxEmpty,
+    ComboboxInput,
+    ComboboxItem,
+    ComboboxList,
+    ComboboxTrigger,
+} from '@/components/ui/combobox'
 
 const router = useRouter()
 const { createUser, loading, error } = useUsers()
@@ -34,6 +44,66 @@ const successMessage = ref(false)
 
 const roles = ['patient', 'staff', 'admin'] as const
 const staffRoles = ['receptionist', 'nurse', 'doctor', 'pharmacist']
+
+// Clinic combobox state
+const clinics = ref<ClinicResponse[]>([])
+const clinicSearchQuery = ref('')
+const clinicLoading = ref(false)
+const clinicOpen = ref(false)
+
+// Fetch clinics on mount
+onMounted(async () => {
+    clinicLoading.value = true
+    try {
+        clinics.value = await adminClinicsApi.getAllClinics()
+    } catch (err) {
+        toast.error('Failed to Load Clinics', {
+            description: err instanceof Error ? err.message : 'Could not fetch clinics list'
+        })
+    } finally {
+        clinicLoading.value = false
+    }
+})
+
+// Filter clinics based on search query
+const filteredClinics = computed(() => {
+    if (!clinicSearchQuery.value) {
+        return clinics.value
+    }
+    const query = clinicSearchQuery.value.toLowerCase()
+    return clinics.value.filter(clinic =>
+        clinic.name.toLowerCase().includes(query) ||
+        clinic.address_line?.toLowerCase().includes(query) ||
+        clinic.area?.toLowerCase().includes(query) ||
+        clinic.region?.toLowerCase().includes(query)
+    )
+})
+
+// Get selected clinic name for display
+const selectedClinicName = computed(() => {
+    if (!formData.clinic_id) return 'Select a clinic...'
+    const clinic = clinics.value.find(c => c.id === formData.clinic_id)
+    return clinic?.name || 'Select a clinic...'
+})
+
+// Handle clinic selection
+const handleClinicSelect = (value: unknown) => {
+    if (value !== null && value !== undefined) {
+        if (typeof value === 'number') {
+            formData.clinic_id = value
+        } else if (typeof value === 'string') {
+            formData.clinic_id = Number(value)
+        } else if (typeof value === 'bigint') {
+            formData.clinic_id = Number(value)
+        } else {
+            formData.clinic_id = null
+        }
+    } else {
+        formData.clinic_id = null
+    }
+    clinicOpen.value = false
+    clinicSearchQuery.value = ''
+}
 
 // Show role-specific fields
 const showPatientFields = computed(() => formData.role === 'patient')
@@ -270,13 +340,53 @@ const getRoleDisplayName = (role: string) => {
                 </CardHeader>
                 <CardContent class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Clinic ID -->
+                        <!-- Clinic Selection -->
                         <div class="space-y-2">
                             <Label for="clinic_id">
-                                Clinic ID <span class="text-destructive">*</span>
+                                Clinic <span class="text-destructive">*</span>
                             </Label>
-                            <Input id="clinic_id" :model-value="formData.clinic_id ?? undefined" @update:model-value="formData.clinic_id = $event ? Number($event) : null" type="number"
-                                placeholder="e.g., 1" :class="{ 'border-destructive': formErrors.clinic_id }" />
+                            <Combobox
+                                v-model:open="clinicOpen"
+                                :model-value="formData.clinic_id?.toString()"
+                                @update:model-value="handleClinicSelect($event)"
+                            >
+                                <ComboboxAnchor as-child>
+                                    <ComboboxTrigger as-child>
+                                        <Button 
+                                            variant="outline" 
+                                            class="w-full justify-between min-w-0"
+                                            :class="{ 'border-destructive': formErrors.clinic_id }"
+                                        >
+                                            <span :class="{ 'text-muted-foreground': !formData.clinic_id }" class="truncate min-w-0 flex-1 text-left">
+                                                {{ selectedClinicName }}
+                                            </span>
+                                            <Icon icon="lucide:chevrons-up-down" class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </ComboboxTrigger>
+                                </ComboboxAnchor>
+                                <ComboboxList class="w-[var(--reka-combobox-anchor-width)] max-w-md">
+                                    <ComboboxInput
+                                        v-model="clinicSearchQuery"
+                                        placeholder="Search clinics by name..."
+                                        class="h-9"
+                                    />
+                                    <ComboboxEmpty v-if="!clinicLoading && filteredClinics.length === 0">
+                                        No clinics found.
+                                    </ComboboxEmpty>
+                                    <div v-if="clinicLoading" class="py-6 text-center text-sm text-muted-foreground">
+                                        Loading clinics...
+                                    </div>
+                                    <div v-else class="max-h-[300px] overflow-y-auto">
+                                        <ComboboxItem
+                                            v-for="clinic in filteredClinics"
+                                            :key="clinic.id"
+                                            :value="clinic.id.toString()"
+                                        >
+                                            <span class="font-medium truncate block">{{ clinic.name }}</span>
+                                        </ComboboxItem>
+                                    </div>
+                                </ComboboxList>
+                            </Combobox>
                             <p v-if="formErrors.clinic_id" class="text-sm text-destructive">{{ formErrors.clinic_id }}
                             </p>
                             <p class="text-xs text-muted-foreground">The clinic this staff member is assigned to</p>
