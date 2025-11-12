@@ -197,7 +197,7 @@ const getButtonTooltip = (appointmentDate: string, appointmentTime: string, acti
             <CardTitle>{{ appt.patientName }} - {{ appt.type }}</CardTitle>
             <p class="text-sm text-muted-foreground">
               {{ appt.date }} at {{ appt.time }} • Dr. {{ appt.doctorName }} ({{ appt.doctorSpecialty || '' }}) • {{
-                appt.clinicName }} <span v-if="appt.clinicType">({{ appt.clinicType }})</span>
+                appt.clinicName }} 
             </p>
 
             <!-- Status and time remaining (only show timer when cannot modify) -->
