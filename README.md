@@ -4,6 +4,8 @@ A Spring Boot application for managing clinic appointments and queues. Check out
 
 **System Design Snapshot:** [Explore the architecture breakdown](docs/architecture/system-design.md)
 
+**Swagger UI API documentation:**  http://localhost:8080/swagger-ui/index.html (after building containers)
+
 ## Prerequisites
 
 - Java 21
